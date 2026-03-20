@@ -106,15 +106,18 @@ export default function Visit() {
             </div>
           </div>
 
-          {/* Map placeholder */}
-          <div className="bg-sand/10 rounded-3xl min-h-[400px] flex items-center justify-center">
-            <div className="text-center">
-              <div className="text-5xl mb-3">🗺️</div>
-              <p className="text-warm-gray/50 text-sm italic">
-                Map embed goes here
-              </p>
-              <p className="text-warm-gray/40 text-xs mt-1">Scenic, AZ</p>
-            </div>
+          {/* Google Maps embed — Scenic, AZ */}
+          <div className="rounded-3xl overflow-hidden min-h-[400px]">
+            <iframe
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d25889.04844648!2d-113.95!3d36.28!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x80c9a1f3b3b3b3b3%3A0x0!2sScenic%2C+AZ!5e0!3m2!1sen!2sus!4v1700000000000!5m2!1sen!2sus"
+              width="100%"
+              height="100%"
+              style={{ border: 0, minHeight: 400 }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              title="Donkey Dreams Sanctuary — Scenic, AZ"
+            />
           </div>
         </div>
       </div>

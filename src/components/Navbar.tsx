@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 const navLinks = [
   { href: "/our-story", label: "Our Story" },
   { href: "/donkeys", label: "Meet the Donkeys" },
+  { href: "/whats-new", label: "What's New" },
   { href: "/how-to-help", label: "How To Help" },
-  { href: "#visit", label: "Visit" },
+  { href: "/virtual-visits", label: "Virtual Visits" },
 ];
 
 export default function Navbar() {
@@ -19,9 +21,13 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-20">
           {/* Logo / Brand */}
           <Link href="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-sand flex items-center justify-center">
-              <span className="text-white font-bold text-lg">D</span>
-            </div>
+            <Image
+              src="/donkey-logo.png"
+              alt="Donkey Dreams Sanctuary logo"
+              width={48}
+              height={48}
+              className="object-contain"
+            />
             <div>
               <span className="text-xl font-bold text-charcoal tracking-tight">
                 Donkey Dreams

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export default function Footer() {
   return (
@@ -8,9 +9,13 @@ export default function Footer() {
           {/* Brand */}
           <div className="md:col-span-2">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-sand flex items-center justify-center">
-                <span className="text-white font-bold text-lg">D</span>
-              </div>
+              <Image
+                src="/donkey-logo.png"
+                alt="Donkey Dreams Sanctuary logo"
+                width={48}
+                height={48}
+                className="object-contain"
+              />
               <span className="text-xl font-bold tracking-tight">
                 Donkey Dreams Sanctuary
               </span>

@@ -1,29 +1,34 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-sand: #C4A265;
-  --color-sand-light: #D4B87A;
-  --color-sand-dark: #8B6914;
-  --color-sky: #2EA3F2;
-  --color-sky-light: #5BB8F5;
-  --color-sky-dark: #1A7AC4;
-  --color-sage: #7A9E7E;
-  --color-sage-light: #9DB9A0;
-  --color-sage-dark: #5C7E60;
-  --color-terra: #D4764E;
-  --color-terra-light: #E08E6A;
-  --color-terra-dark: #B85E38;
+  --color-sand: #ffc997;
+  --color-sand-light: #ffd9b5;
+  --color-sand-dark: #e6a56e;
+  --color-sky: #5ccdf3;
+  --color-sky-light: #7dd8f6;
+  --color-sky-dark: #3ab8e0;
+  --color-sage: #4462a2;
+  --color-sage-light: #5a78b5;
+  --color-sage-dark: #344d80;
+  --color-terra: #c87864;
+  --color-terra-light: #d4907e;
+  --color-terra-dark: #a8604e;
   --color-charcoal: #2D2D2D;
   --color-warm-gray: #6B6B6B;
   --color-cream: #FDF8F0;
   --color-cream-dark: #F5EDE0;
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-clemente);
 }
 
 body {
   background: var(--color-cream);
   color: var(--color-charcoal);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-lora), Georgia, 'Times New Roman', serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-lora), Georgia, 'Times New Roman', serif;
+  font-weight: 600;
 }
 
 html {

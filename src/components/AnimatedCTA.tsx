@@ -28,8 +28,8 @@ export default function AnimatedCTA() {
     <>
       <style jsx global>{`
         @keyframes heartbeat-pulse {
-          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(212, 118, 78, 0.4); }
-          50% { transform: scale(1.05); box-shadow: 0 0 20px 8px rgba(212, 118, 78, 0.15); }
+          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(200, 120, 100, 0.4); }
+          50% { transform: scale(1.05); box-shadow: 0 0 20px 8px rgba(200, 120, 100, 0.15); }
         }
         @keyframes blur-in {
           0% { filter: blur(12px); opacity: 0; }

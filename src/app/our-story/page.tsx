@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import DonkeySilhouettes from "@/components/DonkeySilhouettes";
 import AnimatedCTA from "@/components/AnimatedCTA";
 
@@ -42,11 +43,14 @@ export default function OurStoryPage() {
       {/* Get to Know Our Sanctuary */}
       <section className="py-24 bg-cream">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          {/* Logo placeholder — will be replaced with real logo */}
           <div className="mb-8 flex justify-center">
-            <div className="w-24 h-24 rounded-full bg-sky/10 flex items-center justify-center">
-              <span className="text-5xl">🫏</span>
-            </div>
+            <Image
+              src="/donkey-logo.png"
+              alt="Donkey Dreams Sanctuary logo"
+              width={160}
+              height={160}
+              className="object-contain"
+            />
           </div>
 
           <p className="text-warm-gray font-medium tracking-[0.3em] uppercase text-sm mb-4">
@@ -149,13 +153,15 @@ export default function OurStoryPage() {
             </div>
 
             {/* Photo */}
-            <div className="relative h-[400px] lg:h-[600px] bg-sage/10 flex items-center justify-center order-1 lg:order-2">
-              <div className="text-center p-8">
-                <div className="text-7xl mb-4">📸</div>
-                <p className="text-warm-gray/50 text-sm italic">
-                  Photo: Person interacting with donkey
-                </p>
-              </div>
+            <div className="relative h-[400px] lg:h-[600px] order-1 lg:order-2">
+              <Image
+                src="/person with donkey.webp"
+                alt="Person interacting with a donkey at the sanctuary"
+                fill
+                sizes="(max-width: 1024px) 100vw, 50vw"
+                className="object-cover"
+                style={{ objectPosition: "center 30%" }}
+              />
             </div>
           </div>
         </div>
@@ -166,13 +172,14 @@ export default function OurStoryPage() {
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 items-center">
             {/* Photo */}
-            <div className="relative h-[400px] lg:h-[600px] bg-sky/5 flex items-center justify-center">
-              <div className="text-center p-8">
-                <div className="text-7xl mb-4">📸</div>
-                <p className="text-warm-gray/50 text-sm italic">
-                  Photo: Herd of donkeys in the desert
-                </p>
-              </div>
+            <div className="relative h-[400px] lg:h-[600px]">
+              <Image
+                src="/herd of donkeys.webp"
+                alt="Herd of donkeys in the desert"
+                fill
+                sizes="(max-width: 1024px) 100vw, 50vw"
+                className="object-cover"
+              />
             </div>
 
             {/* Text + CTAs */}
@@ -349,7 +356,7 @@ export default function OurStoryPage() {
                 </div>
               </div>
               <div>
-                <p className="text-2xl text-charcoal italic" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+                <p className="text-2xl text-charcoal italic" style={{ fontFamily: "var(--font-lora), Georgia, 'Times New Roman', serif" }}>
                   — Amber + Edj
                 </p>
                 <p className="text-warm-gray text-sm mt-1">

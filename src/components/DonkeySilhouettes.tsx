@@ -51,7 +51,7 @@ function DustParticle({ delay, size, y }: { delay: number; size: number; y: numb
         height: size,
         bottom: y,
         right: 0,
-        backgroundColor: "rgba(212, 184, 122, 0.5)",
+        backgroundColor: "rgba(255, 201, 151, 0.5)",
         animation: `dust-float 2s ease-out ${delay}s infinite`,
       }}
     />

@@ -1,39 +1,76 @@
 "use client";
 
-const donkeys = [
+import { useState, useEffect } from "react";
+import Image from "next/image";
+
+const allDonkeys = [
   {
-    name: "Dusty",
-    personality: "The gentle leader of the herd. Dusty loves chin scratches and greeting visitors at the gate.",
-    color: "bg-sand/20",
+    name: "Pink",
+    personality: "The Donkey Dreams Ambassador. Born at the sanctuary, Pink is a beacon of hope, resiliency, and unconditional love.",
+    profileImage: "/donkeys/pink/profile.jpeg",
   },
   {
-    name: "Pepper",
-    personality: "A spunky little gal who was rescued from a neglect case. Now she's the first one to the feed bucket!",
-    color: "bg-sage/20",
+    name: "Eli",
+    personality: "Regal, reserved, and Pink's ride-or-die. Prince Eli carries a quiet confidence as the alpha Jack of his herd.",
+    profileImage: "/donkeys/eli/profile-photo.jpg",
   },
   {
-    name: "Biscuit",
-    personality: "Our oldest resident at 28 years young. Biscuit enjoys long naps in the sunshine.",
-    color: "bg-sky/10",
+    name: "Shelley",
+    personality: "The strongest mama in the herd. Born with a deformed leg, Shelley never gives up and teaches us all about resilience.",
+    profileImage: "/donkeys/shelley/profile-photo.jpg",
   },
   {
-    name: "Clover",
-    personality: "A curious youngster who follows volunteers around like a puppy. She loves apples!",
-    color: "bg-terra/10",
+    name: "Winnie",
+    personality: "Don't judge this book by its cover. Determined and protective, Winnie proves everyone wrong every single day.",
+    profileImage: "/donkeys/winnie/profile-photo.jpg",
   },
   {
-    name: "Shadow",
-    personality: "A shy boy who came to us underweight and scared. Now he's the biggest cuddle bug on the ranch.",
-    color: "bg-sand/20",
+    name: "Fernie",
+    personality: "She waited a long time — but she made it. After years of moving, Fernie finally found her forever home at Donkey Dreams.",
+    profileImage: "/donkeys/fernie/profile-photo.jpg",
   },
   {
-    name: "Rosie",
-    personality: "Our social butterfly who makes friends with every animal on the sanctuary.",
-    color: "bg-sage/20",
+    name: "Sandy",
+    personality: "Pink's mom and the \"fun mom\" of the sanctuary. A wild Jenny from Death Valley who loves rolling in the dirt with her kids.",
+    profileImage: "/donkeys/sandy/profile-photo.jpg",
+  },
+  {
+    name: "Rizzo",
+    personality: "Eli's mom and Pink's second mom. A peaceful grazer from Death Valley who actually looks like she's smiling when she eats.",
+    profileImage: "/donkeys/rizzo/profile-photo.jpg",
+  },
+  {
+    name: "Pete",
+    personality: "28 years old and living his best life. Pete is proof that it's never too late for a new chapter — or a new girlfriend.",
+    profileImage: "/donkeys/pete/profile-photo.jpg",
+  },
+  {
+    name: "Lila",
+    personality: "Pete's girlfriend and big sis to the herd. A supermodel Jenny from Death Valley who lights up the sanctuary.",
+    profileImage: "/donkeys/lila/profile-picture.png",
   },
 ];
 
+const ROTATE_HOURS = 4;
+const DONKEYS_PER_PAGE = 4;
+
+function getFeaturedDonkeys() {
+  const rotation = Math.floor(Date.now() / (ROTATE_HOURS * 60 * 60 * 1000));
+  const startIndex = (rotation * DONKEYS_PER_PAGE) % allDonkeys.length;
+  const featured = [];
+  for (let i = 0; i < DONKEYS_PER_PAGE; i++) {
+    featured.push(allDonkeys[(startIndex + i) % allDonkeys.length]);
+  }
+  return featured;
+}
+
 export default function FeaturedDonkeys() {
+  const [donkeys, setDonkeys] = useState(getFeaturedDonkeys());
+
+  useEffect(() => {
+    setDonkeys(getFeaturedDonkeys());
+  }, []);
+
   return (
     <section id="donkeys" className="py-24 bg-cream-dark">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -46,24 +83,23 @@ export default function FeaturedDonkeys() {
           </h2>
         </div>
 
-        {/* Scrollable cards */}
-        <div className="flex gap-6 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide -mx-4 px-4">
+        {/* Featured donkey cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {donkeys.map((donkey) => (
-            <div
+            <a
               key={donkey.name}
-              className="flex-shrink-0 w-72 snap-start"
+              href="/donkeys"
+              className="group"
             >
-              <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 border border-sand/10">
-                {/* Photo placeholder */}
-                <div
-                  className={`h-64 ${donkey.color} flex items-center justify-center`}
-                >
-                  <div className="text-center">
-                    <div className="text-6xl mb-2">🫏</div>
-                    <p className="text-warm-gray/60 text-xs italic">
-                      Photo coming soon
-                    </p>
-                  </div>
+              <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 border border-sand/10 h-full">
+                <div className="aspect-square relative overflow-hidden">
+                  <Image
+                    src={donkey.profileImage}
+                    alt={donkey.name}
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                    className="object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
                 </div>
                 <div className="p-6">
                   <h3 className="text-xl font-bold text-charcoal mb-2">
@@ -74,13 +110,13 @@ export default function FeaturedDonkeys() {
                   </p>
                 </div>
               </div>
-            </div>
+            </a>
           ))}
         </div>
 
         <div className="text-center mt-8">
           <a
-            href="#"
+            href="/donkeys"
             className="inline-flex items-center gap-2 text-sky hover:text-sky-dark font-semibold transition-colors"
           >
             Meet All Our Donkeys

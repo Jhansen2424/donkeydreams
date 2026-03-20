@@ -1,19 +1,12 @@
-const galleryItems = [
-  { label: "Morning at the sanctuary", aspect: "aspect-square" },
-  { label: "Donkeys grazing together", aspect: "aspect-[4/5]" },
-  { label: "Desert sunset over the ranch", aspect: "aspect-square" },
-  { label: "Volunteer day fun", aspect: "aspect-[5/4]" },
-  { label: "New rescue arrival", aspect: "aspect-square" },
-  { label: "Happy donkeys playing", aspect: "aspect-[4/5]" },
-];
+import Image from "next/image";
 
-const placeholderColors = [
-  "bg-sand/15",
-  "bg-sage/15",
-  "bg-sky/10",
-  "bg-terra/10",
-  "bg-sand-dark/10",
-  "bg-sage-dark/10",
+const galleryItems = [
+  { label: "Morning at the sanctuary", src: "/gallery/Morning at the sanctuary.webp", aspect: "aspect-square" },
+  { label: "Donkeys grazing together", src: "/gallery/Donkeys grazing together.webp", aspect: "aspect-[4/5]" },
+  { label: "Desert sunset over the ranch", src: "/gallery/Desert sunset over the ranch.webp", aspect: "aspect-square" },
+  { label: "Volunteer day fun", src: "/gallery/Volunteer day fun.webp", aspect: "aspect-[5/4]" },
+  { label: "New rescue arrival", src: "/gallery/New rescue arrival.webp", aspect: "aspect-square" },
+  { label: "Happy donkeys playing", src: "/gallery/Happy donkeys playing.webp", aspect: "aspect-[4/5]" },
 ];
 
 export default function Gallery() {
@@ -31,17 +24,18 @@ export default function Gallery() {
 
         {/* Masonry-style grid */}
         <div className="columns-2 md:columns-3 gap-4 space-y-4">
-          {galleryItems.map((item, i) => (
+          {galleryItems.map((item) => (
             <div
               key={item.label}
-              className={`${item.aspect} ${placeholderColors[i]} rounded-2xl overflow-hidden break-inside-avoid flex items-center justify-center hover:opacity-90 transition-opacity cursor-pointer`}
+              className={`${item.aspect} rounded-2xl overflow-hidden break-inside-avoid relative group hover:opacity-90 transition-opacity cursor-pointer`}
             >
-              <div className="text-center p-4">
-                <div className="text-4xl mb-2">📷</div>
-                <p className="text-warm-gray/50 text-xs italic">
-                  {item.label}
-                </p>
-              </div>
+              <Image
+                src={item.src}
+                alt={item.label}
+                fill
+                sizes="(max-width: 768px) 50vw, 33vw"
+                className="object-cover group-hover:scale-105 transition-transform duration-500"
+              />
             </div>
           ))}
         </div>

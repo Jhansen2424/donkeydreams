@@ -1,16 +1,33 @@
+"use client";
+
+import { useState, useEffect } from "react";
+
+const heroImages = ["/hero/1.webp", "/hero/2.webp"];
+const ROTATE_HOURS = 3;
+
+function getHeroImage() {
+  const index =
+    Math.floor(Date.now() / (ROTATE_HOURS * 60 * 60 * 1000)) %
+    heroImages.length;
+  return heroImages[index];
+}
+
 export default function Hero() {
+  const [bgImage, setBgImage] = useState(getHeroImage());
+
+  useEffect(() => {
+    setBgImage(getHeroImage());
+  }, []);
+
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* Background image placeholder */}
+      {/* Rotating background image */}
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{
-          backgroundImage:
-            "url('https://donkeydreams.org/wp-content/uploads/2022/09/Where-the-donkeys-are-free-cropped-dnsd.jpg')",
-        }}
+        style={{ backgroundImage: `url('${bgImage}')` }}
       />
       {/* Gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-charcoal/60 via-charcoal/40 to-charcoal/70" />
+      <div className="absolute inset-0 bg-gradient-to-b from-charcoal/70 via-charcoal/60 to-charcoal/80" />
 
       <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
         <p className="text-sand-light font-medium tracking-widest uppercase text-sm mb-4">
