@@ -72,13 +72,13 @@ export default function OurStoryPage() {
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 items-center">
             {/* Photo */}
-            <div className="relative h-[400px] lg:h-[600px] bg-sand/15 flex items-center justify-center">
-              <div className="text-center p-8">
-                <div className="text-7xl mb-4">📸</div>
-                <p className="text-warm-gray/50 text-sm italic">
-                  Photo: Amber or Edj with a donkey
-                </p>
-              </div>
+            <div className="relative h-[400px] lg:h-[600px]">
+              <Image
+                src="/edj amber.jpg"
+                alt="Amber and Edj with a donkey"
+                fill
+                className="object-cover"
+              />
               {/* Quote overlay */}
               <div className="absolute bottom-6 left-6 right-6 lg:bottom-10 lg:left-10 lg:right-10">
                 <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-5 shadow-lg border border-sand/10">
@@ -386,13 +386,13 @@ export default function OurStoryPage() {
 
           {/* Full-width photo of both founders together */}
           <div className="relative rounded-3xl overflow-hidden mb-12">
-            <div className="h-[350px] sm:h-[450px] bg-sand/10 flex items-center justify-center">
-              <div className="text-center p-8">
-                <div className="text-7xl mb-4">📸</div>
-                <p className="text-warm-gray/50 text-sm italic">
-                  Photo: Amber &amp; Edj together at the sanctuary
-                </p>
-              </div>
+            <div className="relative h-[700px] sm:h-[826px] rounded-3xl overflow-hidden">
+              <Image
+                src="/edj amber 2.jpg"
+                alt="Amber and Edj together at the sanctuary"
+                fill
+                className="object-cover object-bottom"
+              />
             </div>
           </div>
 

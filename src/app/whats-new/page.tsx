@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 
 export const metadata: Metadata = {
   title: "What's New | Donkey Dreams Sanctuary",
@@ -146,13 +147,13 @@ export default function WhatsNewPage() {
 
               {/* Founder photo placeholder */}
               <div className="hidden md:block">
-                <div className="aspect-square rounded-2xl bg-sand/10 flex items-center justify-center overflow-hidden">
-                  <div className="text-center p-4">
-                    <div className="text-5xl mb-2">📸</div>
-                    <p className="text-warm-gray/50 text-xs italic">
-                      Founders photo
-                    </p>
-                  </div>
+                <div className="aspect-square rounded-2xl overflow-hidden relative">
+                  <Image
+                    src="/edj amber 3 .png"
+                    alt="Amber and Edj, Co-Founders"
+                    fill
+                    className="object-cover"
+                  />
                 </div>
               </div>
             </div>

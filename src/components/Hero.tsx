@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 
-const heroImages = ["/hero/1.webp", "/hero/2.webp"];
+const heroImages = ["/hero/2.webp", "/hero/1.webp"];
 const ROTATE_HOURS = 3;
 
 function getHeroImage() {
