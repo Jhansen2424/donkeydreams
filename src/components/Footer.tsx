@@ -40,7 +40,7 @@ export default function Footer() {
                 { href: "/our-story", label: "Our Story" },
                 { href: "#donkeys", label: "Meet the Donkeys" },
                 { href: "#gallery", label: "Gallery" },
-                { href: "#donate", label: "Donate" },
+                { href: "/donate", label: "Donate" },
                 { href: "#visit", label: "Visit Us" },
               ].map((link) => (
                 <li key={link.href}>

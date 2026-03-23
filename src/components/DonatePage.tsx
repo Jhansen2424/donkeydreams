@@ -206,18 +206,18 @@ function DonationFunds() {
 function DonatePayment() {
   return (
     <section className="py-20 bg-cream-dark" id="donate-now">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-10">
           <h2 className="text-3xl sm:text-4xl font-bold text-charcoal mb-4">
             Yes, I Want to Give a Gift to the Donkey Families!
           </h2>
-          <p className="text-warm-gray">
-            Click here for information to donate by Venmo or to mail a check.
+          <p className="text-warm-gray text-lg">
+            Choose the donation method that works best for you.
           </p>
         </div>
 
         {/* Donkey image */}
-        <div className="rounded-2xl overflow-hidden shadow-md mb-10">
+        <div className="rounded-2xl overflow-hidden shadow-md mb-12">
           <img
             src="/person with donkey.webp"
             alt="Person with donkeys at Donkey Dreams Sanctuary"
@@ -226,39 +226,78 @@ function DonatePayment() {
           />
         </div>
 
-        {/* PayPal */}
-        <div className="text-center mb-12">
+        {/* PRIMARY — Zeffy */}
+        <div className="bg-white rounded-2xl p-8 sm:p-10 shadow-md border border-cream-dark text-center mb-10">
+          <p className="text-terra font-semibold tracking-widest uppercase text-xs mb-2">
+            Recommended
+          </p>
+          <h3 className="text-2xl font-bold text-charcoal mb-3">
+            Donate with Zeffy
+          </h3>
+          <p className="text-warm-gray mb-6 max-w-lg mx-auto">
+            Zeffy is a 100% free donation platform for nonprofits — every dollar
+            you give goes directly to our donkeys.
+          </p>
           <a
-            href="https://www.paypal.com/donate/?hosted_button_id=PLACEHOLDER"
+            href="https://www.zeffy.com/PLACEHOLDER"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-block bg-[#0070ba] hover:bg-[#005ea6] text-white px-10 py-4 rounded-full text-lg font-semibold transition-all hover:scale-105 shadow-lg"
+            className="inline-block bg-terra hover:bg-terra-dark text-white px-10 py-4 rounded-full text-lg font-semibold transition-all hover:scale-105 shadow-lg"
           >
-            Donate via PayPal
+            Donate via Zeffy
           </a>
         </div>
 
         {/* Divider */}
-        <div className="border-t border-cream-dark my-10" />
+        <div className="flex items-center gap-4 my-10">
+          <div className="flex-1 border-t border-sand/30" />
+          <span className="text-warm-gray text-sm font-medium">Other Ways to Give</span>
+          <div className="flex-1 border-t border-sand/30" />
+        </div>
 
-        {/* Venmo + Check */}
-        <div className="grid sm:grid-cols-2 gap-8 text-center">
-          <div>
-            <h3 className="text-xl font-bold text-charcoal mb-2">
-              To Donate by Venmo:
-            </h3>
-            <p className="text-warm-gray">
-              Find us{" "}
+        {/* SECONDARY — PayPal, Venmo, Zelle, Mail */}
+        <div className="grid sm:grid-cols-2 gap-6">
+          {/* PayPal */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-cream-dark text-center">
+            <h3 className="text-xl font-bold text-charcoal mb-2">PayPal</h3>
+            <a
+              href="https://www.paypal.com/donate/?hosted_button_id=PLACEHOLDER"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block bg-[#0070ba] hover:bg-[#005ea6] text-white px-8 py-3 rounded-full font-semibold transition-all hover:scale-105 shadow-md mt-2"
+            >
+              Donate via PayPal
+            </a>
+          </div>
+
+          {/* Venmo */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-cream-dark text-center">
+            <h3 className="text-xl font-bold text-charcoal mb-2">Venmo</h3>
+            <p className="text-warm-gray mt-2">
+              Find us at{" "}
               <span className="text-terra font-semibold">
                 @DonkeyDreamsSanctuary
               </span>
             </p>
           </div>
-          <div>
+
+          {/* Zelle */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-cream-dark text-center">
+            <h3 className="text-xl font-bold text-charcoal mb-2">Zelle</h3>
+            <p className="text-warm-gray mt-2">
+              Send to{" "}
+              <span className="text-terra font-semibold">
+                donkeydreamssanctuary@gmail.com
+              </span>
+            </p>
+          </div>
+
+          {/* Mail a Check */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-cream-dark text-center">
             <h3 className="text-xl font-bold text-charcoal mb-2">
-              To Donate by Check:
+              Mail a Check
             </h3>
-            <div className="text-warm-gray leading-relaxed">
+            <div className="text-warm-gray leading-relaxed mt-2">
               <p className="font-semibold text-charcoal">Donkey Dreams</p>
               <p>PO Box 951</p>
               <p>Littlefield, AZ 86432</p>

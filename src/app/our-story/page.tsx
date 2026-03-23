@@ -208,7 +208,7 @@ export default function OurStoryPage() {
               {/* CTA cards */}
               <div className="grid sm:grid-cols-2 gap-4">
                 <a
-                  href="/#donate"
+                  href="/donate"
                   className="group bg-terra/5 hover:bg-terra/10 border-2 border-terra/20 hover:border-terra/40 rounded-2xl p-5 text-center transition-all"
                 >
                   <div className="w-12 h-12 rounded-full bg-terra/10 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">

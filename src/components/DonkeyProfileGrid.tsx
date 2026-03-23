@@ -697,7 +697,7 @@ function DonkeyProfileModal({
           {/* Sponsor / Follow button */}
           {donkey.sponsorable !== false ? (
             <a
-              href="/#donate"
+              href="/donate"
               className="bg-terra hover:bg-terra-dark text-white px-5 py-2 rounded-full text-sm font-semibold transition-colors"
             >
               Sponsor {donkey.name}

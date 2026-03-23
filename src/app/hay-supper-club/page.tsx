@@ -242,7 +242,7 @@ export default function HaySupperClubPage() {
           {/* CTA */}
           <div className="text-center">
             <a
-              href="/#donate"
+              href="/donate"
               className="inline-block bg-terra hover:bg-terra-dark text-white px-10 py-4 rounded-full text-lg font-semibold transition-colors shadow-lg"
             >
               Join the Hay Supper Club
@@ -307,7 +307,7 @@ export default function HaySupperClubPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
-              href="/#donate"
+              href="/donate"
               className="bg-terra hover:bg-terra-dark text-white px-10 py-4 rounded-full text-lg font-semibold transition-colors shadow-lg"
             >
               Join the Hay Supper Club
