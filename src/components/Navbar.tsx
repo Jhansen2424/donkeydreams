@@ -103,7 +103,7 @@ export default function Navbar() {
               )
             )}
             <a
-              href="#donate"
+              href="/donate"
               className="bg-terra hover:bg-terra-dark text-white px-6 py-2.5 rounded-full text-sm font-semibold transition-colors"
             >
               Donate Now
@@ -172,7 +172,7 @@ export default function Navbar() {
               )
             )}
             <a
-              href="#donate"
+              href="/donate"
               onClick={() => setMobileOpen(false)}
               className="block bg-terra hover:bg-terra-dark text-white px-6 py-2.5 rounded-full text-sm font-semibold transition-colors text-center"
             >

@@ -61,7 +61,7 @@ export default function HowToHelpPage() {
           <div className="grid sm:grid-cols-2 gap-6 mt-12">
             {/* Donate */}
             <a
-              href="/#donate"
+              href="/donate"
               className="group relative bg-terra rounded-2xl p-8 sm:p-10 text-white overflow-hidden hover:shadow-xl transition-all hover:-translate-y-1"
             >
               <div className="absolute top-4 right-4 opacity-10 text-8xl leading-none select-none group-hover:scale-110 transition-transform">
@@ -182,7 +182,7 @@ export default function HowToHelpPage() {
           {/* Donate button + mail option */}
           <div className="text-center">
             <a
-              href="/#donate"
+              href="/donate"
               className="inline-block bg-terra hover:bg-terra-dark text-white px-10 py-4 rounded-full text-lg font-semibold transition-colors shadow-lg"
             >
               Donate Today
@@ -328,7 +328,7 @@ export default function HowToHelpPage() {
                 {/* Sponsor button — styled like "Follow" */}
                 <div className="px-6 pb-6">
                   <a
-                    href="/#donate"
+                    href="/donate"
                     className={`block w-full py-3 rounded-full text-center text-sm font-semibold transition-colors ${
                       plan.popular
                         ? "bg-terra hover:bg-terra-dark text-white"
@@ -348,7 +348,7 @@ export default function HowToHelpPage() {
               Don&apos;t see a package that works for you?
             </p>
             <a
-              href="/#donate"
+              href="/donate"
               className="inline-flex items-center gap-2 text-terra font-semibold text-sm hover:underline"
             >
               Contribute to the general sponsorship fund
@@ -548,7 +548,7 @@ export default function HowToHelpPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
-              href="/#donate"
+              href="/donate"
               className="bg-terra hover:bg-terra-dark text-white px-10 py-4 rounded-full text-lg font-semibold transition-colors shadow-lg"
             >
               Donate Now
