@@ -43,14 +43,14 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-20">
           {/* Logo / Brand */}
           <Link href="/" className="flex items-center gap-3">
-            <div>
-              <span className="text-2xl font-extrabold text-sage tracking-tight">
-                Donkey <span className="text-sky">Dreams</span>
-              </span>
-              <span className="hidden sm:block text-xs text-warm-gray font-medium">
-                Sanctuary
-              </span>
-            </div>
+            <Image
+              src="/DDlogo.png"
+              alt="Donkey Dreams Sanctuary"
+              width={160}
+              height={50}
+              className="h-20 w-auto"
+              priority
+            />
           </Link>
 
           {/* Desktop Nav */}
