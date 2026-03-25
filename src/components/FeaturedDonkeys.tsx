@@ -54,6 +54,13 @@ const allDonkeys = [
 const ROTATE_HOURS = 4;
 const DONKEYS_PER_PAGE = 4;
 
+const blobShapes = [
+  "30% 70% 70% 30% / 30% 30% 70% 70%",
+  "70% 30% 30% 70% / 60% 40% 60% 40%",
+  "40% 60% 50% 50% / 35% 65% 35% 65%",
+  "60% 40% 65% 35% / 45% 55% 45% 55%",
+];
+
 function getFeaturedDonkeys() {
   const rotation = Math.floor(Date.now() / (ROTATE_HOURS * 60 * 60 * 1000));
   const startIndex = (rotation * DONKEYS_PER_PAGE) % allDonkeys.length;
@@ -72,56 +79,69 @@ export default function FeaturedDonkeys() {
   }, []);
 
   return (
-    <section id="donkeys" className="py-24 bg-cream-dark">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-3">
+    <section id="donkeys" className="relative py-28 bg-gradient-to-b from-cream via-white to-sky/5 overflow-hidden">
+      {/* Background blobs */}
+      <div className="absolute top-32 -left-20 w-72 h-72 bg-sky/8 rounded-full blur-3xl" />
+      <div className="absolute bottom-20 -right-20 w-96 h-96 bg-sand/8 rounded-full blur-3xl" />
+
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-16">
+          <p className="text-sky font-bold tracking-[0.15em] uppercase text-sm mb-4">
             Meet the Herd
           </p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-charcoal">
+          <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal">
             Our Beloved Donkeys
           </h2>
         </div>
 
         {/* Featured donkey cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {donkeys.map((donkey) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+          {donkeys.map((donkey, i) => (
             <a
               key={donkey.name}
               href="/donkeys"
               className="group"
             >
-              <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 border border-sand/10 h-full">
-                <div className="aspect-square relative overflow-hidden">
-                  <Image
-                    src={donkey.profileImage}
-                    alt={donkey.name}
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                    className="object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                </div>
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-charcoal mb-2">
-                    {donkey.name}
-                  </h3>
-                  <p className="text-warm-gray text-sm leading-relaxed">
-                    {donkey.personality}
-                  </p>
+              <div className="relative">
+                {/* Blob shape behind image */}
+                <div
+                  className="absolute -inset-3 bg-gradient-to-br from-sky/15 to-sand/10 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"
+                  style={{ borderRadius: blobShapes[i % blobShapes.length] }}
+                />
+                <div className="relative bg-white rounded-[2rem] overflow-hidden shadow-[0_4px_25px_rgba(68,98,162,0.08)] hover:shadow-[0_12px_40px_rgba(92,205,243,0.2)] transition-all duration-500 h-full">
+                  <div className="aspect-square relative overflow-hidden">
+                    <Image
+                      src={donkey.profileImage}
+                      alt={donkey.name}
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                      className="object-cover group-hover:scale-[1.04] transition-transform duration-700"
+                    />
+                    {/* Soft gradient at bottom of image */}
+                    <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-white/40 to-transparent" />
+                  </div>
+                  <div className="p-6">
+                    <h3 className="text-xl font-extrabold text-charcoal mb-2">
+                      {donkey.name}
+                    </h3>
+                    <p className="text-warm-gray text-sm leading-relaxed">
+                      {donkey.personality}
+                    </p>
+                  </div>
                 </div>
               </div>
             </a>
           ))}
         </div>
 
-        <div className="text-center mt-8">
+        <div className="text-center mt-12">
           <a
             href="/donkeys"
-            className="inline-flex items-center gap-2 text-sky hover:text-sky-dark font-semibold transition-colors"
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-sky/15 to-sky/5 hover:from-sky/25 hover:to-sky/15 text-sky-dark px-8 py-4 rounded-full font-bold transition-all duration-300 text-lg"
           >
             Meet All Our Donkeys
             <svg
-              className="w-4 h-4"
+              className="w-5 h-5"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -135,6 +155,21 @@ export default function FeaturedDonkeys() {
             </svg>
           </a>
         </div>
+      </div>
+
+      {/* Wave divider to next section */}
+      <div className="absolute bottom-0 left-0 right-0 leading-[0]">
+        <svg
+          className="relative block w-full"
+          style={{ height: "clamp(50px, 6vw, 100px)" }}
+          viewBox="0 0 1200 200"
+          preserveAspectRatio="none"
+        >
+          <path
+            d="M0,80 C200,140 400,20 600,100 C800,160 1000,60 1200,80 L1200,200 L0,200 Z"
+            fill="#FDF8F0"
+          />
+        </svg>
       </div>
     </section>
   );

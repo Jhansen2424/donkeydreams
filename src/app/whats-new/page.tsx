@@ -100,10 +100,10 @@ export default function WhatsNewPage() {
       <section className="py-24 bg-cream">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-3">
+            <p className="text-sky font-semibold tracking-widest uppercase text-sm mb-3">
               A Message from Amber &amp; Edj
             </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-charcoal">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal">
               Letter from the Founders
             </h2>
           </div>
@@ -218,10 +218,10 @@ export default function WhatsNewPage() {
       <section className="py-24 bg-cream">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-3">
+            <p className="text-sky font-semibold tracking-widest uppercase text-sm mb-3">
               Stories That Moved Us
             </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-charcoal">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal">
               Favorite Highlights of the Year
             </h2>
           </div>
@@ -230,7 +230,7 @@ export default function WhatsNewPage() {
             {highlights.map((item) => (
               <div
                 key={item.title}
-                className="bg-white rounded-2xl overflow-hidden shadow-sm border border-sand/10 hover:shadow-md transition-shadow"
+                className="bg-white rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(199,120,100,0.06)] border border-sand/10 hover:shadow-[0_8px_30px_rgba(199,120,100,0.12)] transition-shadow duration-700"
               >
                 {/* Photo placeholder */}
                 <div className="h-48 bg-sand/10 flex items-center justify-center">
@@ -281,7 +281,7 @@ export default function WhatsNewPage() {
               <p className="text-sage font-semibold tracking-widest uppercase text-sm mb-3">
                 Infrastructure
               </p>
-              <h2 className="text-3xl sm:text-4xl font-bold text-charcoal mb-6">
+              <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal mb-6">
                 Safe Spaces to Rest and Grow
               </h2>
               <p className="text-warm-gray text-lg leading-relaxed mb-6">
@@ -318,10 +318,10 @@ export default function WhatsNewPage() {
       <section className="py-24 bg-cream">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-3">
+            <p className="text-sky font-semibold tracking-widest uppercase text-sm mb-3">
               Personalized Care
             </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-charcoal">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal">
               Custom Made With Love
             </h2>
           </div>
@@ -330,7 +330,7 @@ export default function WhatsNewPage() {
             {careStats.map((stat) => (
               <div
                 key={stat.label}
-                className="bg-white rounded-2xl p-8 text-center shadow-sm border border-sand/10 hover:shadow-md transition-shadow"
+                className="bg-white rounded-2xl p-8 text-center shadow-[0_4px_20px_rgba(199,120,100,0.06)] border border-sand/10 hover:shadow-[0_8px_30px_rgba(199,120,100,0.12)] transition-shadow duration-700"
               >
                 <span className="text-4xl mb-4 block">{stat.icon}</span>
                 <p className="text-4xl font-bold text-terra mb-1">
@@ -416,17 +416,17 @@ export default function WhatsNewPage() {
       <section className="py-24 bg-cream-dark">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-3">
+            <p className="text-sky font-semibold tracking-widest uppercase text-sm mb-3">
               Because of You
             </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-charcoal">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal">
               All Made Possible by Your Love
             </h2>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-8">
             {/* Donors */}
-            <div className="bg-white rounded-2xl p-8 shadow-sm border border-sand/10 text-center">
+            <div className="bg-white rounded-2xl p-8 shadow-[0_4px_20px_rgba(199,120,100,0.06)] border border-sand/10 text-center">
               <div className="w-16 h-16 rounded-full bg-terra/10 flex items-center justify-center mx-auto mb-4">
                 <svg
                   className="w-8 h-8 text-terra"
@@ -453,7 +453,7 @@ export default function WhatsNewPage() {
             </div>
 
             {/* Volunteers */}
-            <div className="bg-white rounded-2xl p-8 shadow-sm border border-sand/10 text-center">
+            <div className="bg-white rounded-2xl p-8 shadow-[0_4px_20px_rgba(199,120,100,0.06)] border border-sand/10 text-center">
               <div className="w-16 h-16 rounded-full bg-sky/10 flex items-center justify-center mx-auto mb-4">
                 <svg
                   className="w-8 h-8 text-sky"
@@ -498,7 +498,7 @@ export default function WhatsNewPage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
               href="/donate"
-              className="bg-terra hover:bg-terra-dark text-white px-10 py-4 rounded-full text-lg font-semibold transition-colors shadow-lg"
+              className="bg-sky hover:bg-sky-dark text-white px-10 py-4 rounded-full text-lg font-bold transition-all duration-300 shadow-[0_4px_25px_rgba(92,205,243,0.3)] hover:shadow-[0_8px_40px_rgba(92,205,243,0.4)]"
             >
               Donate Now
             </a>

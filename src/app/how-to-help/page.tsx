@@ -17,10 +17,10 @@ export default function HowToHelpPage() {
       <section className="py-24 bg-cream">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-3">
+            <p className="text-sky font-semibold tracking-widest uppercase text-sm mb-3">
               A Note from Amber &amp; Edj
             </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-charcoal">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal">
               Make a Difference
             </h2>
           </div>
@@ -62,7 +62,7 @@ export default function HowToHelpPage() {
             {/* Donate */}
             <a
               href="/donate"
-              className="group relative bg-terra rounded-2xl p-8 sm:p-10 text-white overflow-hidden hover:shadow-xl transition-all hover:-translate-y-1"
+              className="group relative bg-terra rounded-3xl p-8 sm:p-10 text-white overflow-hidden hover:shadow-[0_8px_30px_rgba(199,120,100,0.15)] transition-all duration-700"
             >
               <div className="absolute top-4 right-4 opacity-10 text-8xl leading-none select-none group-hover:scale-110 transition-transform">
                 💛
@@ -83,7 +83,7 @@ export default function HowToHelpPage() {
             {/* Sponsor */}
             <a
               href="/donkeys"
-              className="group relative bg-sky rounded-2xl p-8 sm:p-10 text-white overflow-hidden hover:shadow-xl transition-all hover:-translate-y-1"
+              className="group relative bg-sky rounded-3xl p-8 sm:p-10 text-white overflow-hidden hover:shadow-[0_8px_30px_rgba(92,205,243,0.15)] transition-all duration-700"
             >
               <div className="absolute top-4 right-4 opacity-10 text-8xl leading-none select-none group-hover:scale-110 transition-transform">
                 🫏
@@ -108,10 +108,10 @@ export default function HowToHelpPage() {
       <section className="py-20 bg-cream-dark">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-3">
+            <p className="text-sky font-semibold tracking-widest uppercase text-sm mb-3">
               Where Your Money Goes
             </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-charcoal">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal">
               Every Dollar Has a Job
             </h2>
           </div>
@@ -183,7 +183,7 @@ export default function HowToHelpPage() {
           <div className="text-center">
             <a
               href="/donate"
-              className="inline-block bg-terra hover:bg-terra-dark text-white px-10 py-4 rounded-full text-lg font-semibold transition-colors shadow-lg"
+              className="inline-block bg-sky hover:bg-sky-dark text-white px-10 py-4 rounded-full text-lg font-bold transition-all duration-300 shadow-[0_4px_25px_rgba(92,205,243,0.3)] hover:shadow-[0_8px_40px_rgba(92,205,243,0.4)]"
             >
               Donate Today
             </a>
@@ -206,10 +206,10 @@ export default function HowToHelpPage() {
       <section className="py-24 bg-cream-dark">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-6">
-            <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-3">
+            <p className="text-sky font-semibold tracking-widest uppercase text-sm mb-3">
               Monthly Sponsorship
             </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-charcoal">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal">
               Sponsor a Donkey
             </h2>
           </div>
@@ -271,7 +271,7 @@ export default function HowToHelpPage() {
             ].map((plan) => (
               <div
                 key={plan.tier}
-                className={`relative bg-white rounded-2xl overflow-hidden shadow-sm border border-sand/10 hover:shadow-lg transition-all flex flex-col ${
+                className={`relative bg-white rounded-3xl overflow-hidden shadow-[0_4px_20px_rgba(199,120,100,0.06)] border border-sand/10 hover:shadow-[0_8px_30px_rgba(199,120,100,0.12)] transition-all duration-700 flex flex-col ${
                   plan.popular ? "sm:-translate-y-2 shadow-md" : ""
                 }`}
               >
@@ -374,10 +374,10 @@ export default function HowToHelpPage() {
       <section className="py-20 bg-cream-dark">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-3">
+            <p className="text-sky font-semibold tracking-widest uppercase text-sm mb-3">
               Beyond Donations
             </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-charcoal">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal">
               Other Ways to Help
             </h2>
           </div>
@@ -411,7 +411,7 @@ export default function HowToHelpPage() {
             ].map((item) => (
               <div
                 key={item.title}
-                className="bg-white rounded-2xl p-6 shadow-sm border border-sand/10 text-center hover:shadow-md transition-shadow"
+                className="bg-white rounded-2xl p-6 shadow-[0_4px_20px_rgba(199,120,100,0.06)] border border-sand/10 text-center hover:shadow-[0_8px_30px_rgba(199,120,100,0.12)] transition-shadow duration-700"
               >
                 <span className="text-3xl mb-3 block">{item.icon}</span>
                 <h3 className="text-lg font-bold text-charcoal mb-2">
@@ -432,10 +432,10 @@ export default function HowToHelpPage() {
         <div className="max-w-xl mx-auto px-4 sm:px-6">
           {/* Notification header */}
           <div className="text-center mb-8">
-            <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-3">
+            <p className="text-sky font-semibold tracking-widest uppercase text-sm mb-3">
               You&apos;re Invited
             </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-charcoal">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal">
               The Herd Wants You
             </h2>
           </div>
@@ -515,7 +515,7 @@ export default function HowToHelpPage() {
       {/* Impact numbers */}
       <section className="py-20 bg-cream-dark">
         <div className="max-w-4xl mx-auto px-4 text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold text-charcoal mb-12">
+          <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal mb-12">
             Your Impact in Numbers
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
@@ -549,7 +549,7 @@ export default function HowToHelpPage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
               href="/donate"
-              className="bg-terra hover:bg-terra-dark text-white px-10 py-4 rounded-full text-lg font-semibold transition-colors shadow-lg"
+              className="bg-sky hover:bg-sky-dark text-white px-10 py-4 rounded-full text-lg font-bold transition-all duration-300 shadow-[0_4px_25px_rgba(92,205,243,0.3)] hover:shadow-[0_8px_40px_rgba(92,205,243,0.4)]"
             >
               Donate Now
             </a>

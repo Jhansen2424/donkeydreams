@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import { Lora } from "next/font/google";
+import { Open_Sans } from "next/font/google";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import "./globals.css";
 
-const lora = Lora({
+const openSans = Open_Sans({
   subsets: ["latin"],
-  variable: "--font-lora",
-  weight: ["400", "500", "600", "700"],
+  variable: "--font-opensans",
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 export const metadata: Metadata = {
@@ -39,7 +39,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${lora.variable} antialiased`}>
+      <body className={`${openSans.variable} antialiased`}>
         <Navbar />
         <main>{children}</main>
         <Footer />

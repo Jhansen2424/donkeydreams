@@ -50,10 +50,10 @@ export default function DonkeysPage() {
       <section className="py-24 bg-cream">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-3">
+            <p className="text-sky font-semibold tracking-widest uppercase text-sm mb-3">
               The Family
             </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-charcoal mb-4">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal mb-4">
               Get to Know Each One
             </h2>
             <p className="text-warm-gray text-lg max-w-xl mx-auto">
@@ -83,7 +83,7 @@ export default function DonkeysPage() {
       {/* Sponsor CTA */}
       <section className="py-20 bg-cream-dark">
         <div className="max-w-3xl mx-auto px-4 text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold text-charcoal mb-4">
+          <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal mb-4">
             Want to Support a Donkey?
           </h2>
           <p className="text-warm-gray text-lg mb-8 max-w-xl mx-auto">
@@ -93,7 +93,7 @@ export default function DonkeysPage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
               href="/donate"
-              className="bg-terra hover:bg-terra-dark text-white px-10 py-4 rounded-full text-lg font-semibold transition-colors shadow-lg"
+              className="bg-sky hover:bg-sky-dark text-white px-10 py-4 rounded-full text-lg font-bold transition-all duration-300 shadow-[0_4px_25px_rgba(92,205,243,0.3)] hover:shadow-[0_8px_40px_rgba(92,205,243,0.4)]"
             >
               Sponsor a Donkey
             </a>

@@ -15,7 +15,7 @@ export default function HaySupperClubPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-center">
             {/* Image — left */}
-            <div className="relative aspect-[4/3] rounded-2xl overflow-hidden shadow-lg">
+            <div className="relative aspect-[4/3] rounded-3xl overflow-hidden shadow-[0_8px_30px_rgba(199,120,100,0.12)]">
               <Image
                 src="/hay supper club.jpg"
                 alt="Donkeys enjoying hay at the sanctuary"
@@ -27,7 +27,7 @@ export default function HaySupperClubPage() {
 
             {/* Text — right */}
             <div>
-              <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-4">
+              <p className="text-sky font-semibold tracking-widest uppercase text-sm mb-4">
                 How To Help
               </p>
               <h1 className="text-4xl sm:text-5xl font-bold text-charcoal mb-6">
@@ -38,7 +38,7 @@ export default function HaySupperClubPage() {
               </p>
               <a
                 href="#join"
-                className="inline-block bg-terra hover:bg-terra-dark text-white px-10 py-4 rounded-full text-lg font-semibold transition-colors shadow-lg"
+                className="inline-block bg-sky hover:bg-sky-dark text-white px-10 py-4 rounded-full text-lg font-bold transition-all duration-300 shadow-[0_4px_25px_rgba(92,205,243,0.3)] hover:shadow-[0_8px_40px_rgba(92,205,243,0.4)]"
               >
                 Join the Hay Supper Club
               </a>
@@ -51,15 +51,15 @@ export default function HaySupperClubPage() {
       <section className="py-24 bg-cream-dark">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-3">
+            <p className="text-sky font-semibold tracking-widest uppercase text-sm mb-3">
               The Key to Healthy Donkeys?
             </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-charcoal">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal">
               It&apos;s in the Hay!
             </h2>
           </div>
 
-          <div className="bg-white rounded-3xl p-8 sm:p-12 shadow-sm border border-sand/10 space-y-6">
+          <div className="bg-white rounded-3xl p-8 sm:p-12 shadow-[0_4px_20px_rgba(199,120,100,0.06)] border border-sand/10 space-y-6">
             <p className="text-warm-gray text-lg leading-relaxed">
               We&apos;re always striving to give our donkeys the healthiest,
               happiest lives possible. That means learning, listening to our
@@ -104,10 +104,10 @@ export default function HaySupperClubPage() {
       <section className="py-20 bg-cream-dark">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-3">
+            <p className="text-sky font-semibold tracking-widest uppercase text-sm mb-3">
               Better Hay, Better Health
             </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-charcoal">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal">
               Why We Switched to Teff
             </h2>
           </div>
@@ -145,7 +145,7 @@ export default function HaySupperClubPage() {
             ].map((benefit) => (
               <div
                 key={benefit.title}
-                className="bg-white rounded-2xl p-6 shadow-sm border border-sand/10 flex items-start gap-4"
+                className="bg-white rounded-2xl p-6 shadow-[0_4px_20px_rgba(199,120,100,0.06)] border border-sand/10 flex items-start gap-4"
               >
                 <span className="text-2xl flex-shrink-0">{benefit.emoji}</span>
                 <div>
@@ -172,10 +172,10 @@ export default function HaySupperClubPage() {
       <section id="join" className="py-24 bg-cream">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-3">
+            <p className="text-sky font-semibold tracking-widest uppercase text-sm mb-3">
               Join the Hay Supper Club
             </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-charcoal mb-4">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal mb-4">
               How It Works
             </h2>
             <p className="text-warm-gray text-lg max-w-2xl mx-auto">
@@ -243,7 +243,7 @@ export default function HaySupperClubPage() {
           <div className="text-center">
             <a
               href="/donate"
-              className="inline-block bg-terra hover:bg-terra-dark text-white px-10 py-4 rounded-full text-lg font-semibold transition-colors shadow-lg"
+              className="inline-block bg-sky hover:bg-sky-dark text-white px-10 py-4 rounded-full text-lg font-bold transition-all duration-300 shadow-[0_4px_25px_rgba(92,205,243,0.3)] hover:shadow-[0_8px_40px_rgba(92,205,243,0.4)]"
             >
               Join the Hay Supper Club
             </a>
@@ -258,10 +258,10 @@ export default function HaySupperClubPage() {
       <section className="py-20 bg-cream-dark">
         <div className="max-w-xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-8">
-            <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-3">
+            <p className="text-sky font-semibold tracking-widest uppercase text-sm mb-3">
               Stay Connected
             </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-charcoal">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal">
               Join Our Friends &amp; Family
             </h2>
           </div>
@@ -308,7 +308,7 @@ export default function HaySupperClubPage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
               href="/donate"
-              className="bg-terra hover:bg-terra-dark text-white px-10 py-4 rounded-full text-lg font-semibold transition-colors shadow-lg"
+              className="bg-sky hover:bg-sky-dark text-white px-10 py-4 rounded-full text-lg font-bold transition-all duration-300 shadow-[0_4px_25px_rgba(92,205,243,0.3)] hover:shadow-[0_8px_40px_rgba(92,205,243,0.4)]"
             >
               Join the Hay Supper Club
             </a>

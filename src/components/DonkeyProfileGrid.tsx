@@ -386,7 +386,7 @@ function DonkeyCard({
   return (
     <button
       onClick={onClick}
-      className="group bg-white rounded-2xl overflow-hidden shadow-sm border border-sand/10 hover:shadow-lg transition-all hover:-translate-y-1 text-left w-full cursor-pointer flex flex-col h-full"
+      className="group bg-white rounded-3xl overflow-hidden shadow-[0_4px_20px_rgba(199,120,100,0.06)] border border-sand/10 hover:shadow-[0_8px_30px_rgba(199,120,100,0.12)] transition-all duration-700 text-left w-full cursor-pointer flex flex-col h-full"
     >
       {/* Profile photo */}
       <div className="aspect-[3/4] overflow-hidden relative">
@@ -394,7 +394,7 @@ function DonkeyCard({
           <img
             src={donkey.profileImage}
             alt={donkey.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-700"
           />
         ) : (
           <div

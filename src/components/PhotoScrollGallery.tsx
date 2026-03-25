@@ -30,7 +30,7 @@ function PhotoLightbox({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-charcoal/90 backdrop-blur-md"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-sage-dark/90 backdrop-blur-md"
       onClick={onClose}
     >
       <button
@@ -44,7 +44,7 @@ function PhotoLightbox({
       <img
         src={src}
         alt="Donkey Dreams Sanctuary"
-        className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+        className="max-w-full max-h-[90vh] object-contain rounded-[2rem] shadow-2xl ring-4 ring-white/20"
         onClick={(e) => e.stopPropagation()}
       />
     </div>
@@ -67,32 +67,36 @@ export default function PhotoScrollGallery() {
         }
       `}</style>
 
-      <section className="py-16 bg-cream overflow-hidden">
-        <div className="text-center mb-10 px-4">
-          <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-3">
+      <section className="relative py-20 bg-gradient-to-b from-sky/5 via-white to-cream overflow-hidden">
+        {/* Background blobs */}
+        <div className="absolute top-20 left-1/4 w-80 h-80 bg-sky/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 right-1/4 w-60 h-60 bg-sand/8 rounded-full blur-3xl" />
+
+        <div className="relative text-center mb-12 px-4">
+          <p className="text-sky font-bold tracking-[0.15em] uppercase text-sm mb-4">
             Life at the Sanctuary
           </p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-charcoal">
+          <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal">
             Moments from the Herd
           </h2>
         </div>
 
         {/* Top row — scrolls left */}
-        <div className="mb-4 overflow-hidden">
+        <div className="mb-5 overflow-hidden">
           <div
-            className="flex gap-4 w-max"
+            className="flex gap-5 w-max"
             style={{ animation: "scroll-left 40s linear infinite" }}
           >
             {[...topRow, ...topRow].map((src, i) => (
               <button
                 key={i}
                 onClick={() => setExpandedPhoto(src)}
-                className="flex-shrink-0 w-72 sm:w-80 aspect-[4/3] rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow cursor-pointer group"
+                className="flex-shrink-0 w-72 sm:w-80 aspect-[4/3] rounded-[2rem] overflow-hidden shadow-[0_4px_20px_rgba(68,98,162,0.08)] hover:shadow-[0_12px_40px_rgba(92,205,243,0.2)] transition-all duration-500 cursor-pointer group ring-4 ring-white/60"
               >
                 <img
                   src={src}
                   alt="Sanctuary life"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700"
                 />
               </button>
             ))}
@@ -102,19 +106,19 @@ export default function PhotoScrollGallery() {
         {/* Bottom row — scrolls right */}
         <div className="overflow-hidden">
           <div
-            className="flex gap-4 w-max"
+            className="flex gap-5 w-max"
             style={{ animation: "scroll-right 45s linear infinite" }}
           >
             {[...bottomRow, ...bottomRow].map((src, i) => (
               <button
                 key={i}
                 onClick={() => setExpandedPhoto(src)}
-                className="flex-shrink-0 w-72 sm:w-80 aspect-[4/3] rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow cursor-pointer group"
+                className="flex-shrink-0 w-72 sm:w-80 aspect-[4/3] rounded-[2rem] overflow-hidden shadow-[0_4px_20px_rgba(68,98,162,0.08)] hover:shadow-[0_12px_40px_rgba(92,205,243,0.2)] transition-all duration-500 cursor-pointer group ring-4 ring-white/60"
               >
                 <img
                   src={src}
                   alt="Sanctuary life"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700"
                 />
               </button>
             ))}

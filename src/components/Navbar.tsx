@@ -38,16 +38,16 @@ export default function Navbar() {
   }, []);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-cream/90 backdrop-blur-md border-b border-sand/20">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md shadow-[0_2px_20px_rgba(68,98,162,0.08)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           {/* Logo / Brand */}
           <Link href="/" className="flex items-center gap-3">
             <div>
-              <span className="text-xl font-bold text-charcoal tracking-tight">
-                Donkey Dreams
+              <span className="text-2xl font-extrabold text-sage tracking-tight">
+                Donkey <span className="text-sky">Dreams</span>
               </span>
-              <span className="hidden sm:block text-xs text-warm-gray">
+              <span className="hidden sm:block text-xs text-warm-gray font-medium">
                 Sanctuary
               </span>
             </div>
@@ -60,7 +60,7 @@ export default function Navbar() {
                 <div key={link.href} className="relative" ref={dropdownRef}>
                   <button
                     onClick={() => setDropdownOpen(!dropdownOpen)}
-                    className="text-warm-gray hover:text-charcoal transition-colors text-sm font-medium flex items-center gap-1 cursor-pointer"
+                    className="text-charcoal hover:text-sky transition-colors text-sm font-semibold flex items-center gap-1 cursor-pointer"
                   >
                     {link.label}
                     <svg
@@ -78,13 +78,13 @@ export default function Navbar() {
                     </svg>
                   </button>
                   {dropdownOpen && (
-                    <div className="absolute top-full left-0 mt-2 bg-white rounded-xl shadow-lg border border-sand/15 py-2 min-w-[200px]">
+                    <div className="absolute top-full left-0 mt-2 bg-white rounded-2xl shadow-xl border border-sky/10 py-2 min-w-[200px]">
                       {link.children.map((child) => (
                         <a
                           key={child.href}
                           href={child.href}
                           onClick={() => setDropdownOpen(false)}
-                          className="block px-4 py-2.5 text-sm text-warm-gray hover:text-charcoal hover:bg-cream transition-colors"
+                          className="block px-5 py-3 text-sm text-charcoal hover:text-sky hover:bg-sky/5 transition-colors font-medium"
                         >
                           {child.label}
                         </a>
@@ -96,7 +96,7 @@ export default function Navbar() {
                 <a
                   key={link.href}
                   href={link.href}
-                  className="text-warm-gray hover:text-charcoal transition-colors text-sm font-medium"
+                  className="text-charcoal hover:text-sky transition-colors text-sm font-semibold"
                 >
                   {link.label}
                 </a>
@@ -104,7 +104,7 @@ export default function Navbar() {
             )}
             <a
               href="/donate"
-              className="bg-terra hover:bg-terra-dark text-white px-6 py-2.5 rounded-full text-sm font-semibold transition-colors"
+              className="bg-sky hover:bg-sky-dark text-white px-7 py-3 rounded-full text-sm font-bold transition-all duration-300 shadow-[0_4px_15px_rgba(92,205,243,0.3)] hover:shadow-[0_6px_25px_rgba(92,205,243,0.4)]"
             >
               Donate Now
             </a>
@@ -144,7 +144,7 @@ export default function Navbar() {
 
       {/* Mobile Nav */}
       {mobileOpen && (
-        <div className="md:hidden bg-cream border-t border-sand/20">
+        <div className="md:hidden bg-white border-t border-sky/10">
           <div className="px-4 py-4 space-y-3">
             {navLinks.map((link) =>
               link.children ? (
@@ -154,7 +154,7 @@ export default function Navbar() {
                       key={child.href}
                       href={child.href}
                       onClick={() => setMobileOpen(false)}
-                      className="block text-warm-gray hover:text-charcoal transition-colors text-sm font-medium py-2"
+                      className="block text-charcoal hover:text-sky transition-colors text-sm font-semibold py-2"
                     >
                       {child.label}
                     </a>
@@ -165,7 +165,7 @@ export default function Navbar() {
                   key={link.href}
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
-                  className="block text-warm-gray hover:text-charcoal transition-colors text-sm font-medium py-2"
+                  className="block text-charcoal hover:text-sky transition-colors text-sm font-semibold py-2"
                 >
                   {link.label}
                 </a>
@@ -174,7 +174,7 @@ export default function Navbar() {
             <a
               href="/donate"
               onClick={() => setMobileOpen(false)}
-              className="block bg-terra hover:bg-terra-dark text-white px-6 py-2.5 rounded-full text-sm font-semibold transition-colors text-center"
+              className="block bg-sky hover:bg-sky-dark text-white px-6 py-3 rounded-full text-sm font-bold transition-all duration-300 text-center"
             >
               Donate Now
             </a>

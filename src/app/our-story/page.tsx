@@ -81,7 +81,7 @@ export default function OurStoryPage() {
               />
               {/* Quote overlay */}
               <div className="absolute bottom-6 left-6 right-6 lg:bottom-10 lg:left-10 lg:right-10">
-                <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-5 shadow-lg border border-sand/10">
+                <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-5 shadow-[0_8px_30px_rgba(199,120,100,0.10)] border border-sand/10">
                   <p className="text-charcoal italic text-base leading-relaxed">
                     &ldquo;We believe donkeys have an amazing ability to make
                     you feel loved, accepted and worthy.&rdquo;
@@ -97,7 +97,7 @@ export default function OurStoryPage() {
             <div className="py-16 lg:py-20 px-6 sm:px-10 lg:px-16">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-px flex-1 bg-sand/30" />
-                <span className="text-sand font-semibold tracking-widest uppercase text-xs">
+                <span className="text-sky font-semibold tracking-widest uppercase text-xs">
                   The Beginning
                 </span>
                 <div className="h-px flex-1 bg-sand/30" />
@@ -280,7 +280,7 @@ export default function OurStoryPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Section heading */}
           <div className="text-center mb-16">
-            <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-3">
+            <p className="text-sky font-semibold tracking-widest uppercase text-sm mb-3">
               In Our Own Words
             </p>
             <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold text-charcoal leading-tight">
@@ -290,7 +290,7 @@ export default function OurStoryPage() {
           </div>
 
           {/* Letter body */}
-          <div className="relative bg-white rounded-3xl shadow-lg border border-sand/10 p-8 sm:p-12 lg:p-16">
+          <div className="relative bg-white rounded-3xl shadow-[0_8px_30px_rgba(199,120,100,0.10)] border border-sand/10 p-8 sm:p-12 lg:p-16">
             {/* Decorative quote mark */}
             <div className="absolute -top-6 left-8 sm:left-12 text-8xl text-sand/20 font-serif leading-none select-none">
               &ldquo;
@@ -372,10 +372,10 @@ export default function OurStoryPage() {
       <section className="py-24 bg-cream">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <p className="text-sand font-semibold tracking-widest uppercase text-sm mb-3">
+            <p className="text-sky font-semibold tracking-widest uppercase text-sm mb-3">
               The Dreamers Behind the Dream
             </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-charcoal mb-4">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal mb-4">
               Meet Amber &amp; Edj
             </h2>
             <p className="text-warm-gray text-lg max-w-xl mx-auto">
@@ -399,7 +399,7 @@ export default function OurStoryPage() {
           {/* Two bio cards that overlap the photo slightly */}
           <div className="grid md:grid-cols-2 gap-6 -mt-24 relative z-10 px-4 sm:px-8">
             {/* Amber */}
-            <div className="bg-white rounded-2xl p-8 shadow-lg border border-sand/10">
+            <div className="bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgba(199,120,100,0.10)] border border-sand/10">
               <div className="flex items-center gap-4 mb-5">
                 <div className="w-16 h-16 rounded-full bg-sand/15 flex items-center justify-center flex-shrink-0">
                   <div className="text-3xl">📸</div>
@@ -422,7 +422,7 @@ export default function OurStoryPage() {
             </div>
 
             {/* Edj */}
-            <div className="bg-white rounded-2xl p-8 shadow-lg border border-sand/10">
+            <div className="bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgba(199,120,100,0.10)] border border-sand/10">
               <div className="flex items-center gap-4 mb-5">
                 <div className="w-16 h-16 rounded-full bg-sage/15 flex items-center justify-center flex-shrink-0">
                   <div className="text-3xl">📸</div>
@@ -453,7 +453,7 @@ export default function OurStoryPage() {
             <p className="text-sage font-semibold tracking-widest uppercase text-sm mb-3">
               From Sunrise to Sunset
             </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-charcoal mb-4">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-charcoal mb-4">
               A Day at the Sanctuary
             </h2>
             <p className="text-warm-gray text-lg max-w-xl mx-auto">

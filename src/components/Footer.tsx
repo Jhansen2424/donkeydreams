@@ -3,7 +3,7 @@ import Image from "next/image";
 
 export default function Footer() {
   return (
-    <footer className="bg-charcoal text-white">
+    <footer className="bg-sage text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
           {/* Brand */}
@@ -16,11 +16,11 @@ export default function Footer() {
                 height={48}
                 className="object-contain"
               />
-              <span className="text-xl font-bold tracking-tight">
-                Donkey Dreams Sanctuary
+              <span className="text-2xl font-extrabold tracking-tight">
+                Donkey <span className="text-sky-light">Dreams</span> Sanctuary
               </span>
             </div>
-            <p className="text-white/60 text-sm leading-relaxed max-w-md mb-4">
+            <p className="text-white/70 text-sm leading-relaxed max-w-md mb-4">
               Providing forever homes for rescued donkeys in the beautiful
               Arizona desert. Every donkey deserves a life free from suffering.
             </p>
@@ -32,7 +32,7 @@ export default function Footer() {
 
           {/* Quick Links */}
           <div>
-            <h3 className="text-sand font-semibold text-sm uppercase tracking-wider mb-4">
+            <h3 className="text-sky-light font-bold text-sm uppercase tracking-wider mb-4">
               Quick Links
             </h3>
             <ul className="space-y-2">
@@ -46,7 +46,7 @@ export default function Footer() {
                 <li key={link.href}>
                   <a
                     href={link.href}
-                    className="text-white/60 hover:text-white transition-colors text-sm"
+                    className="text-white/60 hover:text-sky-light transition-colors text-sm"
                   >
                     {link.label}
                   </a>
@@ -57,7 +57,7 @@ export default function Footer() {
 
           {/* Contact */}
           <div>
-            <h3 className="text-sand font-semibold text-sm uppercase tracking-wider mb-4">
+            <h3 className="text-sky-light font-bold text-sm uppercase tracking-wider mb-4">
               Contact
             </h3>
             <ul className="space-y-2 text-white/60 text-sm">
@@ -65,7 +65,7 @@ export default function Footer() {
               <li>
                 <a
                   href="mailto:info@donkeydreams.org"
-                  className="hover:text-white transition-colors"
+                  className="hover:text-sky-light transition-colors"
                 >
                   info@donkeydreams.org
                 </a>
@@ -78,7 +78,7 @@ export default function Footer() {
                 <a
                   key={platform}
                   href="#"
-                  className="w-9 h-9 rounded-full bg-white/10 hover:bg-sand transition-colors flex items-center justify-center"
+                  className="w-9 h-9 rounded-full bg-white/10 hover:bg-sky transition-colors flex items-center justify-center"
                   aria-label={platform}
                 >
                   <span className="text-xs font-medium">
