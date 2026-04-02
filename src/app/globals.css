@@ -17,6 +17,10 @@
   --color-warm-gray: #6B6B6B;
   --color-cream: #FDF8F0;
   --color-cream-dark: #F5EDE0;
+  --color-sidebar: #5C4033;
+  --color-sidebar-light: #7A5C4F;
+  --color-sidebar-dark: #3E2A1E;
+  --color-card-border: #E8E0D6;
   --font-sans: var(--font-opensans);
 }
 

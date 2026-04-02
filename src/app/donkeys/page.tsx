@@ -17,8 +17,7 @@ export default function DonkeysPage() {
         <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
           style={{
-            backgroundImage:
-              "url('https://donkeydreams.org/wp-content/uploads/2022/09/Where-the-donkeys-are-free-cropped-dnsd.jpg')",
+            backgroundImage: "url('/hero2.webp')",
           }}
         />
         {/* Gradient overlay */}
