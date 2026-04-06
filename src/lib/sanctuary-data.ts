@@ -316,10 +316,17 @@ export const feedSchedules: FeedSchedule[] = [
   },
 ];
 
-export const feedNotes = [
-  "This teff is powdery — make sure buckets are moist when served.",
-  "Make sure to look at the ground when giving supplements to make sure pills don't drop. Especially Shelley + Winnie.",
-  "Things to order: mineral powder.",
+export type FeedNoteCategory = "daily" | "ongoing" | "evergreen";
+
+export interface FeedNote {
+  text: string;
+  category: FeedNoteCategory;
+}
+
+export const feedNotes: FeedNote[] = [
+  { text: "This teff is powdery — make sure buckets are moist when served.", category: "evergreen" },
+  { text: "Make sure to look at the ground when giving supplements to make sure pills don't drop. Especially Shelley + Winnie.", category: "evergreen" },
+  { text: "Things to order: mineral powder.", category: "daily" },
 ];
 
 // ── Daily Schedule ──
@@ -334,6 +341,7 @@ export interface ScheduleTask {
   note?: string;
   category: TaskCategory;
   source: TaskSource;
+  estimatedMinutes?: number;
 }
 
 export interface ScheduleBlock {
@@ -347,58 +355,84 @@ export interface AnimalTaskGroup {
   tasks: { task: ScheduleTask; block: string }[];
 }
 
+// ── Default duration estimates by category (minutes) ──
+const defaultDurations: Record<TaskCategory, number> = {
+  routine: 10,
+  feeding: 15,
+  treatment: 10,
+  "special-needs": 10,
+  "hoof-dental": 5,
+  weight: 5,
+  sponsor: 15,
+};
+
+// ── Routine Assignments — auto-populate assignedTo based on day ──
+// Maps volunteer name → { days: DayOfWeek[], blocks: block names, categories: task categories }
+export interface RoutineAssignment {
+  volunteer: string;
+  days: string[]; // e.g. ["Sat", "Sun"]
+  blocks?: string[]; // e.g. ["Breakfast"] — if omitted, all blocks
+  categories?: TaskCategory[]; // if omitted, all categories
+}
+
+export const routineAssignments: RoutineAssignment[] = [
+  { volunteer: "Rachel Green", days: ["Sat", "Sun"], blocks: ["Breakfast"], categories: ["feeding"] },
+  { volunteer: "Marcus Chen", days: ["Wed", "Thu", "Sat"], categories: ["routine"] },
+  { volunteer: "Sophie Baker", days: ["Mon", "Fri"], categories: ["feeding", "sponsor"] },
+];
+
 // Base schedule — the whiteboard routine tasks (before smart injection)
 const baseSchedule: ScheduleBlock[] = [
   {
     name: "Breakfast",
     time: "6:00 – 9:00 AM",
     tasks: [
-      { task: "Drop front buckets", done: false, category: "routine", source: "base" },
-      { task: "Drop back buckets", done: false, category: "routine", source: "base" },
-      { task: "Let front donkeys out", done: false, category: "routine", source: "base" },
-      { task: "Let back donkeys out", done: false, category: "routine", source: "base" },
-      { task: "Front supplements", done: false, category: "feeding", source: "base" },
-      { task: "Back supplements", done: false, category: "feeding", source: "base" },
-      { task: "Mask on Izabelle", done: false, animalSpecific: "Izabelle", category: "special-needs", source: "base" },
-      { task: "Spray Tenzel + Blossom", done: false, animalSpecific: "Tenzel, Blossom", category: "treatment", source: "base" },
-      { task: "Put Legacy herd away", done: false, category: "routine", source: "base" },
-      { task: "Let Pinky's Herd out into CNR", done: false, category: "routine", source: "base" },
+      { task: "Drop front buckets", done: false, category: "routine", source: "base", estimatedMinutes: 15 },
+      { task: "Drop back buckets", done: false, category: "routine", source: "base", estimatedMinutes: 15 },
+      { task: "Let front donkeys out", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
+      { task: "Let back donkeys out", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
+      { task: "Front supplements", done: false, category: "feeding", source: "base", estimatedMinutes: 20 },
+      { task: "Back supplements", done: false, category: "feeding", source: "base", estimatedMinutes: 20 },
+      { task: "Mask on Izabelle", done: false, animalSpecific: "Izabelle", category: "special-needs", source: "base", estimatedMinutes: 5 },
+      { task: "Spray Tenzel + Blossom", done: false, animalSpecific: "Tenzel, Blossom", category: "treatment", source: "base", estimatedMinutes: 10 },
+      { task: "Put Legacy herd away", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
+      { task: "Let Pinky's Herd out into CNR", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
     ],
   },
   {
     name: "Lunch",
     time: "10:30 – 10:45 AM",
     tasks: [
-      { task: "Prep lunch", done: false, category: "feeding", source: "base" },
-      { task: "Drop front buckets @ 10:30", done: false, category: "feeding", source: "base" },
-      { task: "Drop back buckets", done: false, category: "feeding", source: "base" },
-      { task: "Let back out — masks on", done: false, category: "routine", source: "base" },
-      { task: "Brave herd into CDA", done: false, category: "routine", source: "base" },
-      { task: "Alley Herd out — open training center", done: false, category: "routine", source: "base" },
-      { task: "Prep dinner", done: false, category: "feeding", source: "base" },
-      { task: "Remove + clean Shelley's brace", done: false, animalSpecific: "Shelley", category: "special-needs", source: "base" },
-      { task: "Mask on Herman", done: false, animalSpecific: "Herman", category: "special-needs", source: "base" },
-      { task: "Treatment: Will — DMSO", done: false, animalSpecific: "Will", category: "treatment", source: "base" },
-      { task: "Treatment: Winky", done: false, animalSpecific: "Winky", category: "treatment", source: "base" },
-      { task: "Treatment: Blossom", done: false, animalSpecific: "Blossom", category: "treatment", source: "base" },
-      { task: "Treatment: Tenzel", done: false, animalSpecific: "Tenzel", category: "treatment", source: "base" },
-      { task: "Treatment: Herman", done: false, animalSpecific: "Herman", category: "treatment", source: "base" },
-      { task: "Fly spray + Silver or SWAT as needed", done: false, category: "treatment", source: "base" },
+      { task: "Prep lunch", done: false, category: "feeding", source: "base", estimatedMinutes: 20 },
+      { task: "Drop front buckets @ 10:30", done: false, category: "feeding", source: "base", estimatedMinutes: 15 },
+      { task: "Drop back buckets", done: false, category: "feeding", source: "base", estimatedMinutes: 15 },
+      { task: "Let back out — masks on", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
+      { task: "Brave herd into CDA", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
+      { task: "Alley Herd out — open training center", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
+      { task: "Prep dinner", done: false, category: "feeding", source: "base", estimatedMinutes: 20 },
+      { task: "Remove + clean Shelley's brace", done: false, animalSpecific: "Shelley", category: "special-needs", source: "base", estimatedMinutes: 15 },
+      { task: "Mask on Herman", done: false, animalSpecific: "Herman", category: "special-needs", source: "base", estimatedMinutes: 5 },
+      { task: "Treatment: Will — DMSO", done: false, animalSpecific: "Will", category: "treatment", source: "base", estimatedMinutes: 10 },
+      { task: "Treatment: Winky", done: false, animalSpecific: "Winky", category: "treatment", source: "base", estimatedMinutes: 10 },
+      { task: "Treatment: Blossom", done: false, animalSpecific: "Blossom", category: "treatment", source: "base", estimatedMinutes: 10 },
+      { task: "Treatment: Tenzel", done: false, animalSpecific: "Tenzel", category: "treatment", source: "base", estimatedMinutes: 10 },
+      { task: "Treatment: Herman", done: false, animalSpecific: "Herman", category: "treatment", source: "base", estimatedMinutes: 10 },
+      { task: "Fly spray + Silver or SWAT as needed", done: false, category: "treatment", source: "base", estimatedMinutes: 15 },
     ],
   },
   {
     name: "Dinner",
     time: "4:00 – 6:30 PM",
     tasks: [
-      { task: "Put on Shelley's brace @ 5pm", done: false, animalSpecific: "Shelley", category: "special-needs", source: "base" },
-      { task: "Drop front buckets", done: false, category: "feeding", source: "base" },
-      { task: "Drop back buckets", done: false, category: "feeding", source: "base" },
-      { task: "Let front donkeys out", done: false, category: "routine", source: "base" },
-      { task: "Let back donkeys out", done: false, category: "routine", source: "base" },
-      { task: "Let seniors out", done: false, category: "routine", source: "base" },
-      { task: "Prep breakfast (next day)", done: false, category: "feeding", source: "base" },
-      { task: "Herman PM snack", done: false, animalSpecific: "Herman", category: "feeding", source: "base" },
-      { task: "Masks off: Herman, Tenzel", done: false, animalSpecific: "Herman, Tenzel", category: "special-needs", source: "base" },
+      { task: "Put on Shelley's brace @ 5pm", done: false, animalSpecific: "Shelley", category: "special-needs", source: "base", estimatedMinutes: 15 },
+      { task: "Drop front buckets", done: false, category: "feeding", source: "base", estimatedMinutes: 15 },
+      { task: "Drop back buckets", done: false, category: "feeding", source: "base", estimatedMinutes: 15 },
+      { task: "Let front donkeys out", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
+      { task: "Let back donkeys out", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
+      { task: "Let seniors out", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
+      { task: "Prep breakfast (next day)", done: false, category: "feeding", source: "base", estimatedMinutes: 20 },
+      { task: "Herman PM snack", done: false, animalSpecific: "Herman", category: "feeding", source: "base", estimatedMinutes: 5 },
+      { task: "Masks off: Herman, Tenzel", done: false, animalSpecific: "Herman, Tenzel", category: "special-needs", source: "base", estimatedMinutes: 5 },
     ],
   },
 ];
@@ -438,6 +472,7 @@ export function generateDailySchedule(): ScheduleBlock[] {
         note: entry.treatment,
         category: "special-needs",
         source: "watch-list",
+        estimatedMinutes: 5,
       });
       existingTasks.add(key);
     }
@@ -458,6 +493,7 @@ export function generateDailySchedule(): ScheduleBlock[] {
           animalSpecific: feed.animal,
           category: "feeding",
           source: "feed-schedule",
+          estimatedMinutes: 5,
         });
         existingTasks.add(key);
       }
@@ -473,6 +509,7 @@ export function generateDailySchedule(): ScheduleBlock[] {
           animalSpecific: feed.animal,
           category: "feeding",
           source: "feed-schedule",
+          estimatedMinutes: 5,
         });
         existingTasks.add(key);
       }
@@ -489,6 +526,7 @@ export function generateDailySchedule(): ScheduleBlock[] {
           animalSpecific: feed.animal,
           category: "feeding",
           source: "feed-schedule",
+          estimatedMinutes: 5,
         });
         existingTasks.add(key);
       }
@@ -504,6 +542,7 @@ export function generateDailySchedule(): ScheduleBlock[] {
           animalSpecific: feed.animal,
           category: "treatment",
           source: "feed-schedule",
+          estimatedMinutes: 10,
         });
         existingTasks.add(key);
       }
@@ -534,6 +573,7 @@ export function generateDailySchedule(): ScheduleBlock[] {
             animalSpecific: care.animal,
             category: "hoof-dental",
             source: "hoof-dental",
+            estimatedMinutes: 5,
           });
           existingTasks.add(key);
         }
@@ -551,6 +591,7 @@ export function generateDailySchedule(): ScheduleBlock[] {
             animalSpecific: care.animal,
             category: "hoof-dental",
             source: "hoof-dental",
+            estimatedMinutes: 5,
           });
           existingTasks.add(key);
         }
@@ -582,6 +623,7 @@ export function generateDailySchedule(): ScheduleBlock[] {
         animalSpecific: ws.animal,
         category: "weight",
         source: "weight",
+        estimatedMinutes: 5,
       });
       existingTasks.add(key);
     }
@@ -609,11 +651,45 @@ export function generateDailySchedule(): ScheduleBlock[] {
         animalSpecific: su.animal,
         category: "sponsor",
         source: "sponsor",
+        estimatedMinutes: 15,
       });
       existingTasks.add(key);
     }
   } catch {
     // sponsor-data not available yet — skip injection
+  }
+
+  // ── Apply routine auto-assignments based on day of week ──
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const todayDay = dayNames[new Date().getDay()];
+
+  for (const assignment of routineAssignments) {
+    if (!assignment.days.includes(todayDay)) continue;
+
+    for (const block of schedule) {
+      // Skip blocks not in the assignment scope
+      if (assignment.blocks && !assignment.blocks.includes(block.name)) continue;
+
+      for (const task of block.tasks) {
+        // Skip already-assigned tasks
+        if (task.assignedTo) continue;
+
+        // Check category match
+        if (assignment.categories && !assignment.categories.includes(task.category)) continue;
+
+        // Auto-assign
+        task.assignedTo = assignment.volunteer;
+      }
+    }
+  }
+
+  // ── Apply default durations to any tasks missing estimatedMinutes ──
+  for (const block of schedule) {
+    for (const task of block.tasks) {
+      if (!task.estimatedMinutes) {
+        task.estimatedMinutes = defaultDurations[task.category] ?? 10;
+      }
+    }
   }
 
   return schedule;

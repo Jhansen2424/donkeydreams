@@ -2,7 +2,19 @@
 
 import { useState } from "react";
 import { Search, AlertCircle } from "lucide-react";
-import { feedSchedules, feedNotes, type FeedSchedule } from "@/lib/sanctuary-data";
+import { feedSchedules, feedNotes, type FeedSchedule, type FeedNote } from "@/lib/sanctuary-data";
+
+const noteStyles: Record<string, { bg: string; border: string; text: string; icon: string }> = {
+  daily: { bg: "bg-sky/5", border: "border-sky/20", text: "text-charcoal", icon: "text-sky" },
+  ongoing: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-800", icon: "text-amber-500" },
+  evergreen: { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-800", icon: "text-emerald-500" },
+};
+
+const categoryLabels: Record<string, string> = {
+  daily: "Daily",
+  ongoing: "Ongoing",
+  evergreen: "Permanent",
+};
 
 export default function FeedPage() {
   const [search, setSearch] = useState("");
@@ -35,37 +47,34 @@ export default function FeedPage() {
         </div>
       </div>
 
-      {/* Important notes */}
+      {/* Important notes with category legend */}
       <div className="space-y-2">
-        {feedNotes.map((note, i) => (
-          <div
-            key={i}
-            className={`flex items-start gap-2 p-3 rounded-lg border ${
-              i === 1
-                ? "bg-red-50 border-red-200"
-                : i === 0
-                  ? "bg-amber-50 border-amber-200"
-                  : "bg-sky/5 border-sky/20"
-            }`}
-          >
-            <AlertCircle
-              className={`w-4 h-4 shrink-0 mt-0.5 ${
-                i === 1 ? "text-red-500" : i === 0 ? "text-amber-500" : "text-sky"
-              }`}
-            />
-            <p
-              className={`text-sm ${
-                i === 1
-                  ? "text-red-800"
-                  : i === 0
-                    ? "text-amber-800"
-                    : "text-charcoal"
-              }`}
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60">Legend:</span>
+          {Object.entries(noteStyles).map(([key, style]) => (
+            <span key={key} className="inline-flex items-center gap-1.5 text-xs text-warm-gray">
+              <span className={`w-2.5 h-2.5 rounded-full ${style.bg} border ${style.border}`} />
+              {categoryLabels[key]}
+            </span>
+          ))}
+        </div>
+        {feedNotes.map((note, i) => {
+          const style = noteStyles[note.category];
+          return (
+            <div
+              key={i}
+              className={`flex items-start gap-2 p-3 rounded-lg border ${style.bg} ${style.border}`}
             >
-              {note}
-            </p>
-          </div>
-        ))}
+              <AlertCircle className={`w-4 h-4 shrink-0 mt-0.5 ${style.icon}`} />
+              <div className="flex-1">
+                <p className={`text-sm ${style.text}`}>{note.text}</p>
+                <span className={`text-[10px] font-semibold uppercase tracking-wider ${style.icon} mt-1 inline-block`}>
+                  {categoryLabels[note.category]}
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Feed grid */}

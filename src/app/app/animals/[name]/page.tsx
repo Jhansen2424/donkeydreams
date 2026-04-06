@@ -417,7 +417,7 @@ function MedicalTab({ animal }: { animal: Animal }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="font-bold text-charcoal">
-          Medical Records
+          Medical Entries
           {records.length > 0 && (
             <span className="ml-2 text-sm font-normal text-warm-gray">
               ({records.length})
@@ -428,14 +428,14 @@ function MedicalTab({ animal }: { animal: Animal }) {
           href="/app/medical"
           className="inline-flex items-center gap-1.5 px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors"
         >
-          + Add Record
+          + Add Entry
         </a>
       </div>
 
       {records.length === 0 ? (
         <div className="bg-white rounded-xl border border-card-border p-8 text-center">
           <Stethoscope className="w-8 h-8 text-warm-gray/30 mx-auto mb-3" />
-          <p className="text-warm-gray font-medium">No medical records yet</p>
+          <p className="text-warm-gray font-medium">No medical entries yet</p>
           <p className="text-sm text-warm-gray/60 mt-1">
             Add vet visits, lab results, and medications from the{" "}
             <a href="/app/medical" className="text-sky-600 hover:underline">

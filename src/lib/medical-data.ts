@@ -1,6 +1,6 @@
-// ── Centralized Medical Records for the Sanctuary ──
+// ── Centralized Medical Entries for the Sanctuary ──
 
-export type MedicalRecordType =
+export type MedicalEntryType =
   | "Vet Visit"
   | "Hoof & Dental"
   | "Medication"
@@ -10,17 +10,21 @@ export type MedicalRecordType =
   | "Vaccination"
   | "Deworming";
 
-export interface MedicalRecord {
+export interface MedicalEntry {
   id: string;
   animal: string;
-  type: MedicalRecordType;
+  type: MedicalEntryType;
   title: string;
   date: string; // ISO date string YYYY-MM-DD
   description: string;
   urgent: boolean;
 }
 
-export const recordTypes: MedicalRecordType[] = [
+// Backwards-compatible aliases
+export type MedicalRecordType = MedicalEntryType;
+export type MedicalRecord = MedicalEntry;
+
+export const entryTypes: MedicalEntryType[] = [
   "Vet Visit",
   "Hoof & Dental",
   "Medication",
@@ -31,8 +35,10 @@ export const recordTypes: MedicalRecordType[] = [
   "Deworming",
 ];
 
+export const recordTypes = entryTypes;
+
 export const typeBadgeColors: Record<
-  MedicalRecordType,
+  MedicalEntryType,
   { bg: string; text: string }
 > = {
   "Vet Visit": { bg: "bg-sky-100", text: "text-sky-700" },
@@ -53,7 +59,7 @@ function rec(
   date: string,
   description: string,
   urgent = false
-): MedicalRecord {
+): MedicalEntry {
   return {
     id: `med-${nextId++}`,
     animal,
@@ -65,7 +71,7 @@ function rec(
   };
 }
 
-export const medicalRecords: MedicalRecord[] = [
+export const medicalEntries: MedicalEntry[] = [
   // ── Shelley — Leg & Special Needs ──
   rec("Shelley", "Vet Visit", "Leg assessment — Dr. Moreno", "2025-10-08", "Full evaluation of deformed front leg. Leg continues to grow longer, requiring adjusted brace protocol. Recommend continuing daily bandage routine."),
   rec("Shelley", "Medication", "Pain management — Bute adjustment", "2025-10-15", "Increased phenylbutazone from 1g to 1.5g daily due to increased lameness observed. Monitor appetite and GI."),
@@ -242,22 +248,29 @@ export const medicalRecords: MedicalRecord[] = [
   rec("Jasper", "Vet Visit", "Senior wellness + hearing check", "2026-04-15", "Annual exam. Include hearing assessment — use visual cues during exam."),
 ];
 
+// Backwards-compatible alias
+export const medicalRecords = medicalEntries;
+
 // ── Helper Functions ──
 
-export function getRecordsForAnimal(animalName: string): MedicalRecord[] {
-  return medicalRecords
+export function getEntriesForAnimal(animalName: string): MedicalEntry[] {
+  return medicalEntries
     .filter((r) => r.animal === animalName)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
-export function getAllRecordsSorted(): MedicalRecord[] {
-  return [...medicalRecords].sort(
+export const getRecordsForAnimal = getEntriesForAnimal;
+
+export function getAllEntriesSorted(): MedicalEntry[] {
+  return [...medicalEntries].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
 }
 
-export function getOverdueRecords(today: Date): MedicalRecord[] {
-  return medicalRecords
+export const getAllRecordsSorted = getAllEntriesSorted;
+
+export function getOverdueEntries(today: Date): MedicalEntry[] {
+  return medicalEntries
     .filter((r) => {
       const d = new Date(r.date);
       return d < today && r.urgent;
@@ -265,19 +278,25 @@ export function getOverdueRecords(today: Date): MedicalRecord[] {
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
-export function getUpcomingRecords(today: Date): MedicalRecord[] {
-  return medicalRecords
+export const getOverdueRecords = getOverdueEntries;
+
+export function getUpcomingEntries(today: Date): MedicalEntry[] {
+  return medicalEntries
     .filter((r) => new Date(r.date) >= today)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
-export function getRecentRecords(today: Date, days = 30): MedicalRecord[] {
+export const getUpcomingRecords = getUpcomingEntries;
+
+export function getRecentEntries(today: Date, days = 30): MedicalEntry[] {
   const cutoff = new Date(today);
   cutoff.setDate(cutoff.getDate() - days);
-  return medicalRecords
+  return medicalEntries
     .filter((r) => {
       const d = new Date(r.date);
       return d >= cutoff && d <= today;
     })
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
+
+export const getRecentRecords = getRecentEntries;

@@ -22,7 +22,8 @@ const tabs = [
 const moreLinks = [
   { name: "Watch List", href: "/app/watch" },
   { name: "Feed Buckets", href: "/app/feed" },
-  { name: "Hoof & Dental", href: "/app/hoof-dental" },
+  { name: "Hoof Care", href: "/app/hoof-dental?tab=hoof" },
+  { name: "Dental Care", href: "/app/hoof-dental?tab=dental" },
   { name: "Weight Tracking", href: "/app/weight" },
 
   { name: "Admin", href: "/app/admin" },

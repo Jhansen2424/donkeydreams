@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Footprints,
   Search,
@@ -29,6 +30,7 @@ import {
   type CareType,
 } from "@/lib/hoof-dental-data";
 
+type CareTab = "both" | "hoof" | "dental";
 type SortField = "animal" | "herd" | "hoofStatus" | "dentalStatus" | "nextHoofDue" | "nextDentalDue";
 type SortDir = "asc" | "desc";
 type FilterStatus = VisitStatus | "all";
@@ -40,10 +42,29 @@ const statusOrder: Record<VisitStatus, number> = {
   good: 3,
 };
 
-export default function HoofDentalPage() {
+export default function HoofDentalPageWrapper() {
+  return (
+    <Suspense>
+      <HoofDentalPage />
+    </Suspense>
+  );
+}
+
+function HoofDentalPage() {
   // ── State ──
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get("tab") as CareTab) || "both";
   const [visits, setVisits] = useState<CareVisit[]>(initialVisitHistory);
   const [providers, setProviders] = useState(defaultProviders);
+  const [careTab, setCareTab] = useState<CareTab>(initialTab);
+
+  // Sync tab with URL params when navigating from sidebar
+  useEffect(() => {
+    const tabParam = searchParams.get("tab") as CareTab | null;
+    if (tabParam && ["hoof", "dental", "both"].includes(tabParam)) {
+      setCareTab(tabParam);
+    }
+  }, [searchParams]);
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("hoofStatus");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -195,37 +216,64 @@ export default function HoofDentalPage() {
         </div>
       </div>
 
+      {/* Care type tabs */}
+      <div className="inline-flex bg-white border border-card-border rounded-lg overflow-hidden">
+        {([
+          { id: "both" as CareTab, label: "Both" },
+          { id: "hoof" as CareTab, label: "Hoof Care" },
+          { id: "dental" as CareTab, label: "Dental Care" },
+        ]).map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setCareTab(tab.id)}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              careTab === tab.id
+                ? "bg-sidebar text-white"
+                : "text-charcoal hover:bg-cream"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="Hoof Overdue"
-          value={stats.hoofOverdue}
-          subtitle={`${stats.hoofDueSoon} due soon`}
-          urgent={stats.hoofOverdue > 0}
-        />
-        <StatCard
-          label="Dental Overdue"
-          value={stats.dentalOverdue}
-          subtitle={`${stats.dentalDueSoon} due soon`}
-          urgent={stats.dentalOverdue > 0}
-        />
+      <div className={`grid ${careTab === "both" ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-2 lg:grid-cols-3"} gap-4`}>
+        {careTab !== "dental" && (
+          <StatCard
+            label="Hoof Overdue"
+            value={stats.hoofOverdue}
+            subtitle={`${stats.hoofDueSoon} due soon`}
+            urgent={stats.hoofOverdue > 0}
+          />
+        )}
+        {careTab !== "hoof" && (
+          <StatCard
+            label="Dental Overdue"
+            value={stats.dentalOverdue}
+            subtitle={`${stats.dentalDueSoon} due soon`}
+            urgent={stats.dentalOverdue > 0}
+          />
+        )}
         <StatCard
           label="Due This Week"
           value={stats.dueThisWeek}
-          subtitle="Hoof or dental"
+          subtitle={careTab === "both" ? "Hoof or dental" : careTab === "hoof" ? "Hoof trims" : "Dental visits"}
           urgent={false}
         />
-        <StatCard
-          label="Next Farrier Visit"
-          value={stats.nextFarrierVisit ? formatDate(stats.nextFarrierVisit) : "—"}
-          subtitle={
-            stats.nextFarrierVisit
-              ? `${daysDiff(new Date().toISOString().split("T")[0], stats.nextFarrierVisit)} days`
-              : "No upcoming"
-          }
-          urgent={false}
-          isDate
-        />
+        {careTab !== "dental" && (
+          <StatCard
+            label="Next Farrier Visit"
+            value={stats.nextFarrierVisit ? formatDate(stats.nextFarrierVisit) : "—"}
+            subtitle={
+              stats.nextFarrierVisit
+                ? `${daysDiff(new Date().toISOString().split("T")[0], stats.nextFarrierVisit)} days`
+                : "No upcoming"
+            }
+            urgent={false}
+            isDate
+          />
+        )}
       </div>
 
       {/* Provider panel (collapsible) */}
@@ -279,13 +327,25 @@ export default function HoofDentalPage() {
       {/* Animal table */}
       <div className="bg-white rounded-xl border border-card-border overflow-hidden">
         {/* Table header */}
-        <div className="hidden sm:grid sm:grid-cols-[1.5fr_1fr_1fr_1fr_1fr_1fr_auto] gap-2 px-5 py-3 bg-cream/50 border-b border-card-border text-[11px] font-semibold uppercase tracking-wider text-warm-gray">
+        <div className={`hidden sm:grid gap-2 px-5 py-3 bg-cream/50 border-b border-card-border text-[11px] font-semibold uppercase tracking-wider text-warm-gray ${
+          careTab === "both"
+            ? "sm:grid-cols-[1.5fr_1fr_1fr_1fr_1fr_1fr_auto]"
+            : "sm:grid-cols-[1.5fr_1fr_1fr_1fr_auto]"
+        }`}>
           <SortHeader label="Donkey" field="animal" current={sortField} dir={sortDir} onSort={toggleSort} />
           <SortHeader label="Herd" field="herd" current={sortField} dir={sortDir} onSort={toggleSort} />
-          <SortHeader label="Hoof Status" field="hoofStatus" current={sortField} dir={sortDir} onSort={toggleSort} />
-          <SortHeader label="Next Trim" field="nextHoofDue" current={sortField} dir={sortDir} onSort={toggleSort} />
-          <SortHeader label="Dental Status" field="dentalStatus" current={sortField} dir={sortDir} onSort={toggleSort} />
-          <SortHeader label="Next Dental" field="nextDentalDue" current={sortField} dir={sortDir} onSort={toggleSort} />
+          {careTab !== "dental" && (
+            <SortHeader label="Hoof Status" field="hoofStatus" current={sortField} dir={sortDir} onSort={toggleSort} />
+          )}
+          {careTab !== "dental" && (
+            <SortHeader label="Next Trim" field="nextHoofDue" current={sortField} dir={sortDir} onSort={toggleSort} />
+          )}
+          {careTab !== "hoof" && (
+            <SortHeader label="Dental Status" field="dentalStatus" current={sortField} dir={sortDir} onSort={toggleSort} />
+          )}
+          {careTab !== "hoof" && (
+            <SortHeader label="Next Dental" field="nextDentalDue" current={sortField} dir={sortDir} onSort={toggleSort} />
+          )}
           <span>Actions</span>
         </div>
 
@@ -295,6 +355,7 @@ export default function HoofDentalPage() {
             <AnimalRow
               key={animal.animal}
               status={animal}
+              careTab={careTab}
               visits={visits.filter((v) => v.animal === animal.animal)}
               expanded={expandedAnimal === animal.animal}
               onToggleExpand={() =>
@@ -415,6 +476,7 @@ function StatusBadge({ status }: { status: VisitStatus }) {
 // ══════════════════════════════════════════
 function AnimalRow({
   status,
+  careTab,
   visits,
   expanded,
   onToggleExpand,
@@ -427,6 +489,7 @@ function AnimalRow({
   intervalOverrides,
 }: {
   status: AnimalCareStatus;
+  careTab: CareTab;
   visits: CareVisit[];
   expanded: boolean;
   onToggleExpand: () => void;
@@ -445,7 +508,11 @@ function AnimalRow({
     <div>
       {/* Main row */}
       <div
-        className="grid grid-cols-[1fr_auto] sm:grid-cols-[1.5fr_1fr_1fr_1fr_1fr_1fr_auto] gap-2 px-5 py-3 items-center hover:bg-cream/30 transition-colors cursor-pointer"
+        className={`grid grid-cols-[1fr_auto] gap-2 px-5 py-3 items-center hover:bg-cream/30 transition-colors cursor-pointer ${
+          careTab === "both"
+            ? "sm:grid-cols-[1.5fr_1fr_1fr_1fr_1fr_1fr_auto]"
+            : "sm:grid-cols-[1.5fr_1fr_1fr_1fr_auto]"
+        }`}
         onClick={onToggleExpand}
       >
         {/* Name */}
@@ -458,35 +525,43 @@ function AnimalRow({
         {/* Herd (hidden mobile) */}
         <span className="hidden sm:block text-sm text-warm-gray">{status.herd}</span>
         {/* Hoof status */}
-        <div className="hidden sm:block">
-          <StatusBadge status={status.hoofStatus} />
-        </div>
+        {careTab !== "dental" && (
+          <div className="hidden sm:block">
+            <StatusBadge status={status.hoofStatus} />
+          </div>
+        )}
         {/* Next trim */}
-        <span className="hidden sm:block text-sm text-charcoal">
-          {status.nextHoofDue ? (
-            <>
-              {formatDate(status.nextHoofDue)}
-              <DaysLabel days={status.daysUntilHoof} />
-            </>
-          ) : (
-            <span className="text-warm-gray/50">—</span>
-          )}
-        </span>
+        {careTab !== "dental" && (
+          <span className="hidden sm:block text-sm text-charcoal">
+            {status.nextHoofDue ? (
+              <>
+                {formatDate(status.nextHoofDue)}
+                <DaysLabel days={status.daysUntilHoof} />
+              </>
+            ) : (
+              <span className="text-warm-gray/50">—</span>
+            )}
+          </span>
+        )}
         {/* Dental status */}
-        <div className="hidden sm:block">
-          <StatusBadge status={status.dentalStatus} />
-        </div>
+        {careTab !== "hoof" && (
+          <div className="hidden sm:block">
+            <StatusBadge status={status.dentalStatus} />
+          </div>
+        )}
         {/* Next dental */}
-        <span className="hidden sm:block text-sm text-charcoal">
-          {status.nextDentalDue ? (
-            <>
-              {formatDate(status.nextDentalDue)}
-              <DaysLabel days={status.daysUntilDental} />
-            </>
-          ) : (
-            <span className="text-warm-gray/50">—</span>
-          )}
-        </span>
+        {careTab !== "hoof" && (
+          <span className="hidden sm:block text-sm text-charcoal">
+            {status.nextDentalDue ? (
+              <>
+                {formatDate(status.nextDentalDue)}
+                <DaysLabel days={status.daysUntilDental} />
+              </>
+            ) : (
+              <span className="text-warm-gray/50">—</span>
+            )}
+          </span>
+        )}
         {/* Actions */}
         <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
           <button
@@ -503,68 +578,72 @@ function AnimalRow({
 
         {/* Mobile summary (below name) */}
         <div className="sm:hidden col-span-2 flex flex-wrap gap-2 mt-1">
-          <StatusBadge status={status.hoofStatus} />
-          <StatusBadge status={status.dentalStatus} />
+          {careTab !== "dental" && <StatusBadge status={status.hoofStatus} />}
+          {careTab !== "hoof" && <StatusBadge status={status.dentalStatus} />}
         </div>
       </div>
 
       {/* Expanded detail panel */}
       {expanded && (
         <div className="px-5 pb-4 bg-cream/20 border-t border-card-border">
-          <div className="grid sm:grid-cols-2 gap-6 py-4">
+          <div className={`grid ${careTab === "both" ? "sm:grid-cols-2" : ""} gap-6 py-4`}>
             {/* Hoof section */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-sm text-charcoal flex items-center gap-1.5">
-                  <Footprints className="w-4 h-4 text-sky" /> Hoof Trims
-                </h3>
-                <EditableInterval
-                  label="Every"
-                  value={intervalOverrides?.hoofWeeks ?? status.hoofInterval}
-                  unit="weeks"
-                  editing={editingInterval === `${status.animal}-hoof`}
-                  onStartEdit={() => setEditingInterval(`${status.animal}-hoof`)}
-                  onSave={(v) => {
-                    onEditInterval("hoofWeeks", v);
-                    setEditingInterval(null);
-                  }}
-                  onCancel={() => setEditingInterval(null)}
-                />
+            {careTab !== "dental" && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-sm text-charcoal flex items-center gap-1.5">
+                    <Footprints className="w-4 h-4 text-sky" /> Hoof Trims
+                  </h3>
+                  <EditableInterval
+                    label="Every"
+                    value={intervalOverrides?.hoofWeeks ?? status.hoofInterval}
+                    unit="weeks"
+                    editing={editingInterval === `${status.animal}-hoof`}
+                    onStartEdit={() => setEditingInterval(`${status.animal}-hoof`)}
+                    onSave={(v) => {
+                      onEditInterval("hoofWeeks", v);
+                      setEditingInterval(null);
+                    }}
+                    onCancel={() => setEditingInterval(null)}
+                  />
+                </div>
+                {status.hoofNotes && (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    {status.hoofNotes}
+                  </p>
+                )}
+                <VisitList visits={hoofVisits} onEdit={onEditVisit} onDelete={onDeleteVisit} />
               </div>
-              {status.hoofNotes && (
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  {status.hoofNotes}
-                </p>
-              )}
-              <VisitList visits={hoofVisits} onEdit={onEditVisit} onDelete={onDeleteVisit} />
-            </div>
+            )}
 
             {/* Dental section */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-sm text-charcoal flex items-center gap-1.5">
-                  <CalendarDays className="w-4 h-4 text-sky" /> Dental Visits
-                </h3>
-                <EditableInterval
-                  label="Every"
-                  value={intervalOverrides?.dentalMonths ?? status.dentalInterval}
-                  unit="months"
-                  editing={editingInterval === `${status.animal}-dental`}
-                  onStartEdit={() => setEditingInterval(`${status.animal}-dental`)}
-                  onSave={(v) => {
-                    onEditInterval("dentalMonths", v);
-                    setEditingInterval(null);
-                  }}
-                  onCancel={() => setEditingInterval(null)}
-                />
+            {careTab !== "hoof" && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-sm text-charcoal flex items-center gap-1.5">
+                    <CalendarDays className="w-4 h-4 text-sky" /> Dental Visits
+                  </h3>
+                  <EditableInterval
+                    label="Every"
+                    value={intervalOverrides?.dentalMonths ?? status.dentalInterval}
+                    unit="months"
+                    editing={editingInterval === `${status.animal}-dental`}
+                    onStartEdit={() => setEditingInterval(`${status.animal}-dental`)}
+                    onSave={(v) => {
+                      onEditInterval("dentalMonths", v);
+                      setEditingInterval(null);
+                    }}
+                    onCancel={() => setEditingInterval(null)}
+                  />
+                </div>
+                {status.dentalNotes && (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    {status.dentalNotes}
+                  </p>
+                )}
+                <VisitList visits={dentalVisits} onEdit={onEditVisit} onDelete={onDeleteVisit} />
               </div>
-              {status.dentalNotes && (
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  {status.dentalNotes}
-                </p>
-              )}
-              <VisitList visits={dentalVisits} onEdit={onEditVisit} onDelete={onDeleteVisit} />
-            </div>
+            )}
           </div>
         </div>
       )}

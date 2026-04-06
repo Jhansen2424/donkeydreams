@@ -271,6 +271,7 @@ export default function VolunteersPage() {
       },
       notes: formNotes.trim(),
       hoursThisMonth: 0,
+      committedHoursPerDay: 3,
       tasks: [],
     };
     setLocalVolunteers((prev) => [...prev, newVol]);

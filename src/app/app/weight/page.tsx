@@ -580,7 +580,7 @@ export default function WeightTrackingPage() {
                   onChange={(e) => setFormAnimal(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal bg-white appearance-none focus:outline-none focus:ring-2 focus:ring-sand/50"
                 >
-                  {animals.map((a) => (
+                  {[...animals].sort((a, b) => a.name.localeCompare(b.name)).map((a) => (
                     <option key={a.slug} value={a.name}>
                       {a.name}
                     </option>

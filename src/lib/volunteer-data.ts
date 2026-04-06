@@ -26,6 +26,7 @@ export interface Volunteer {
   emergencyContact: { name: string; phone: string; relation: string };
   notes: string;
   hoursThisMonth: number;
+  committedHoursPerDay: number; // daily time commitment in hours
   tasks: VolunteerTask[];
 }
 
@@ -71,6 +72,7 @@ export const volunteers: Volunteer[] = [
     emergencyContact: { name: "Amber", phone: "", relation: "Partner" },
     notes: "Co-founder. Manages all sanctuary operations, feeding schedules, and medical care.",
     hoursThisMonth: 0,
+    committedHoursPerDay: 8,
     tasks: [],
   },
   {
@@ -86,6 +88,7 @@ export const volunteers: Volunteer[] = [
     emergencyContact: { name: "Edj Fish", phone: "", relation: "Partner" },
     notes: "Co-founder. Handles sponsor communications, social media, virtual visits, and events.",
     hoursThisMonth: 0,
+    committedHoursPerDay: 8,
     tasks: [],
   },
   {
@@ -101,6 +104,7 @@ export const volunteers: Volunteer[] = [
     emergencyContact: { name: "Monica Geller", phone: "(555) 234-5678", relation: "Friend" },
     notes: "Very good with the senior donkeys. Comfortable administering supplements.",
     hoursThisMonth: 24,
+    committedHoursPerDay: 3,
     tasks: [
       { id: "vt-1", title: "Photograph new arrivals for sponsor updates", assignedDate: "2026-03-28", completed: true, notes: "" },
       { id: "vt-2", title: "Help with Saturday morning feeding", assignedDate: "2026-04-05", completed: false, notes: "Knows the feed bucket routine" },
@@ -119,6 +123,7 @@ export const volunteers: Volunteer[] = [
     emergencyContact: { name: "Lisa Chen", phone: "(555) 456-7890", relation: "Spouse" },
     notes: "Has his own truck for hay pickups. Farrier experience — can assist with hoof trims.",
     hoursThisMonth: 32,
+    committedHoursPerDay: 4,
     tasks: [
       { id: "vt-3", title: "Fence repair on east pasture", assignedDate: "2026-04-02", completed: false, notes: "Posts and wire in barn storage" },
       { id: "vt-4", title: "Hay delivery pickup from McCoy's", assignedDate: "2026-04-03", completed: false, notes: "20 bales, bring truck" },
@@ -137,6 +142,7 @@ export const volunteers: Volunteer[] = [
     emergencyContact: { name: "Tom Baker", phone: "(555) 678-9012", relation: "Father" },
     notes: "College student — available during breaks for extra shifts. Great with social media.",
     hoursThisMonth: 16,
+    committedHoursPerDay: 3,
     tasks: [
       { id: "vt-5", title: "Draft April newsletter sponsor section", assignedDate: "2026-04-01", completed: false, notes: "" },
     ],
@@ -154,6 +160,7 @@ export const volunteers: Volunteer[] = [
     emergencyContact: { name: "Pam Halpert", phone: "(555) 890-1234", relation: "Spouse" },
     notes: "New volunteer — needs orientation. Interested in adoption eventually.",
     hoursThisMonth: 0,
+    committedHoursPerDay: 2,
     tasks: [
       { id: "vt-6", title: "Complete volunteer orientation", assignedDate: "2026-04-05", completed: false, notes: "Shadow Rachel on Saturday shift" },
     ],

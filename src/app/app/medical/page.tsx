@@ -241,7 +241,7 @@ export default function MedicalDashboardPage() {
     { id: "upcoming", label: "Upcoming", count: stats.dueThisWeek },
     { id: "overdue", label: "Overdue", count: stats.overdue },
     { id: "recent", label: "Recent", count: stats.completedThisMonth },
-    { id: "all", label: "All Records", count: stats.total },
+    { id: "all", label: "All Entries", count: stats.total },
   ];
 
   return (
@@ -249,7 +249,7 @@ export default function MedicalDashboardPage() {
       {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-charcoal">Medical Records</h1>
+          <h1 className="text-2xl font-bold text-charcoal">Medical Entries</h1>
           <p className="text-sm text-warm-gray mt-1">
             Sanctuary-wide health tracking and care management
           </p>
@@ -259,14 +259,14 @@ export default function MedicalDashboardPage() {
           className="inline-flex items-center gap-2 px-4 py-2.5 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors"
         >
           {showAddForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          {showAddForm ? "Cancel" : "Add Record"}
+          {showAddForm ? "Cancel" : "Add Entry"}
         </button>
       </div>
 
       {/* Add Record Form */}
       {showAddForm && (
         <div className="bg-white rounded-xl border border-card-border p-5 space-y-4">
-          <h3 className="font-bold text-charcoal">New Medical Record</h3>
+          <h3 className="font-bold text-charcoal">New Medical Entry</h3>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
@@ -278,7 +278,7 @@ export default function MedicalDashboardPage() {
                   onChange={(e) => setFormAnimal(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal bg-white appearance-none focus:outline-none focus:ring-2 focus:ring-sand/50"
                 >
-                  {animals.map((a) => (
+                  {[...animals].sort((a, b) => a.name.localeCompare(b.name)).map((a) => (
                     <option key={a.slug} value={a.name}>
                       {a.name}
                     </option>
@@ -362,7 +362,7 @@ export default function MedicalDashboardPage() {
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Plus className="w-4 h-4" />
-              Save Record
+              Save Entry
             </button>
           </div>
         </div>
@@ -412,7 +412,7 @@ export default function MedicalDashboardPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-charcoal">{stats.total}</p>
-              <p className="text-xs text-warm-gray font-medium">Total Records</p>
+              <p className="text-xs text-warm-gray font-medium">Total Entries</p>
             </div>
           </div>
         </div>
@@ -425,7 +425,7 @@ export default function MedicalDashboardPage() {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search records... (e.g., 'Shelley blood work', 'hoof trim March', 'who got dewormed')"
+          placeholder="Search entries... (e.g., 'Shelley blood work', 'hoof trim March', 'who got dewormed')"
           className="w-full pl-12 pr-4 py-3.5 bg-white border border-card-border rounded-xl text-sm text-charcoal placeholder:text-warm-gray/50 focus:outline-none focus:ring-2 focus:ring-sand/50 focus:border-sand"
         />
         {search && (
@@ -490,11 +490,11 @@ export default function MedicalDashboardPage() {
       {filteredRecords.length === 0 ? (
         <div className="bg-white rounded-xl border border-card-border p-12 text-center">
           <Stethoscope className="w-10 h-10 text-warm-gray/30 mx-auto mb-3" />
-          <p className="text-warm-gray font-medium">No records found</p>
+          <p className="text-warm-gray font-medium">No entries found</p>
           <p className="text-sm text-warm-gray/60 mt-1">
             {search
               ? "Try adjusting your search or filters"
-              : "No records match this view"}
+              : "No entries match this view"}
           </p>
         </div>
       ) : (

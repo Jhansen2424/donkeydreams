@@ -1,0 +1,257 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── Animals ──
+
+model Animal {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  slug            String   @unique
+  age             String
+  sex             String
+  origin          String
+  status          String   @default("Active")
+  herd            String
+  pen             String
+  tagline         String   @default("")
+  story           String[] @default([])
+  sponsorable     Boolean  @default(false)
+  intakeDate      String   @default("")
+  adoptedFrom     String   @default("")
+  behavioralNotes String   @default("")
+  profileImage    String?
+  galleryImages   String[] @default([])
+  traits          String[] @default([])
+  bestFriends     String[] @default([])
+
+  medicalEntries MedicalEntry[]
+  watchAlerts    WatchAlert[]
+  feedSchedule   FeedSchedule?
+  hoofVisits     HoofVisit[]
+  dentalVisits   DentalVisit[]
+  weighIns       WeighIn[]
+  photos         Photo[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ── Medical Entries ──
+
+model MedicalEntry {
+  id          String   @id @default(cuid())
+  animal      Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  animalId    String
+  animalName  String   // denormalized for quick display
+  type        String   // "Vet Visit", "Hoof & Dental", "Medication", etc.
+  title       String
+  date        String   // ISO date YYYY-MM-DD
+  description String   @default("")
+  urgent      Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([animalId])
+  @@index([date])
+  @@index([urgent])
+}
+
+// ── Watch Alerts ──
+
+model WatchAlert {
+  id         String   @id @default(cuid())
+  animal     Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  animalId   String
+  animalName String   // denormalized
+  date       String   // date reported
+  issue      String
+  treatment  String
+  assignedTo String   @default("")
+  severity   String   @default("medium") // "high", "medium", "low"
+  resolved   Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([animalId])
+  @@index([resolved])
+}
+
+// ── Tasks ──
+
+model TaskTemplate {
+  id               String  @id @default(cuid())
+  task             String
+  block            String  // "Breakfast", "Lunch", "Dinner"
+  category         String  // "routine", "feeding", "treatment", etc.
+  animalSpecific   String? // donkey name if animal-specific
+  estimatedMinutes Int     @default(10)
+  defaultAssignee  String?
+  note             String?
+  active           Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TaskCompletion {
+  id         String   @id @default(cuid())
+  templateId String?  // links to TaskTemplate if from a template
+  task       String
+  block      String
+  category   String
+  date       String   // ISO date
+  assignedTo String?
+  completedBy String?
+  done       Boolean  @default(false)
+  note       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+}
+
+// ── Feed Schedules ──
+
+model FeedSchedule {
+  id       String @id @default(cuid())
+  animal   Animal @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  animalId String @unique
+  animalName String
+
+  // Stored as JSON — array of { item: string, amount: string }
+  amPlan  Json @default("[]")
+  midPlan Json @default("[]")
+  pmPlan  Json @default("[]")
+  notes   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ── Hoof & Dental Visits ──
+
+model HoofVisit {
+  id         String @id @default(cuid())
+  animal     Animal @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  animalId   String
+  animalName String
+  date       String // ISO date
+  provider   String
+  notes      String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([animalId])
+  @@index([date])
+}
+
+model DentalVisit {
+  id         String @id @default(cuid())
+  animal     Animal @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  animalId   String
+  animalName String
+  date       String
+  provider   String
+  notes      String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([animalId])
+  @@index([date])
+}
+
+// ── Weight Tracking ──
+
+model WeighIn {
+  id         String @id @default(cuid())
+  animal     Animal @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  animalId   String
+  animalName String
+  date       String
+  weight     Float
+  unit       String @default("lbs")
+  notes      String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([animalId])
+  @@index([date])
+}
+
+// ── Volunteers ──
+
+model Volunteer {
+  id                  String   @id @default(cuid())
+  name                String
+  email               String   @unique
+  phone               String   @default("")
+  role                String   @default("volunteer") // "admin" | "volunteer"
+  status              String   @default("pending") // "active" | "inactive" | "pending"
+  startDate           String
+  availability        String[] @default([])
+  skills              String[] @default([])
+  emergencyName       String   @default("")
+  emergencyPhone      String   @default("")
+  emergencyRelation   String   @default("")
+  notes               String   @default("")
+  hoursThisMonth      Float    @default(0)
+  committedHoursPerDay Float   @default(3)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ── Photos ──
+
+model Photo {
+  id         String   @id @default(cuid())
+  animal     Animal?  @relation(fields: [animalId], references: [id], onDelete: SetNull)
+  animalId   String?
+  url        String
+  thumbnailUrl String?
+  title      String
+  tags       String[] @default([])
+  timestamp  DateTime @default(now())
+
+  createdAt DateTime @default(now())
+
+  @@index([animalId])
+}
+
+// ── Parking Lot Entries ──
+
+model ParkingLotEntry {
+  id       String   @id @default(cuid())
+  type     String   // "task", "medical", "feed", "watch", "note"
+  text     String
+  data     Json?    // structured metadata
+  resolved Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ── Knowledge Base ──
+
+model KnowledgeArticle {
+  id           String   @id @default(cuid())
+  title        String
+  content      String   // markdown
+  tags         String[] @default([])
+  linkedAnimals String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

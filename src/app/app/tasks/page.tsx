@@ -16,7 +16,6 @@ import {
   UserPlus,
 } from "lucide-react";
 import {
-  generateDailySchedule,
   groupTasksByAnimal,
   getTaskAnimals,
   alleyHerdRotation,
@@ -28,6 +27,8 @@ import {
   type TaskCategory,
 } from "@/lib/sanctuary-data";
 import { volunteers } from "@/lib/volunteer-data";
+import { useSchedule } from "@/lib/schedule-context";
+import VolunteerLoadBar from "@/components/app/VolunteerLoadBar";
 
 type ViewMode = "time" | "animal";
 type CategoryFilter = TaskCategory | "all";
@@ -203,65 +204,24 @@ function AssignChips({
 // ── Page ──
 
 export default function TasksPage() {
-  const [schedule, setSchedule] = useState<ScheduleBlock[]>(generateDailySchedule);
+  const {
+    schedule,
+    toggleTask,
+    assignTask,
+    bulkAssign,
+    resetSchedule,
+  } = useSchedule();
   const [viewMode, setViewMode] = useState<ViewMode>("time");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [search, setSearch] = useState("");
 
-  const toggleTask = (blockIdx: number, taskIdx: number) => {
-    setSchedule((prev) =>
-      prev.map((block, bi) =>
-        bi === blockIdx
-          ? {
-              ...block,
-              tasks: block.tasks.map((task, ti) =>
-                ti === taskIdx ? { ...task, done: !task.done } : task
-              ),
-            }
-          : block
-      )
-    );
-  };
-
-  const assignTask = (blockIdx: number, taskIdx: number, memberName: string) => {
-    setSchedule((prev) =>
-      prev.map((block, bi) =>
-        bi === blockIdx
-          ? {
-              ...block,
-              tasks: block.tasks.map((task, ti) => {
-                if (ti !== taskIdx) return task;
-                const current = getAssignees(task);
-                const next = current.includes(memberName)
-                  ? current.filter((n) => n !== memberName)
-                  : [...current, memberName];
-                return { ...task, assignedTo: next.join(", ") || undefined };
-              }),
-            }
-          : block
-      )
-    );
-  };
-
-  const bulkAssign = (blockIdx: number, memberName: string) => {
-    setSchedule((prev) =>
-      prev.map((block, bi) => {
-        if (bi !== blockIdx) return block;
-        return {
-          ...block,
-          tasks: block.tasks.map((task) => {
-            const current = getAssignees(task);
-            if (current.includes(memberName)) return task;
-            return { ...task, assignedTo: [...current, memberName].join(", ") };
-          }),
-        };
-      })
-    );
-  };
-
   const totalTasks = schedule.reduce((s, b) => s + b.tasks.length, 0);
   const doneTasks = schedule.reduce(
     (s, b) => s + b.tasks.filter((t) => t.done).length,
+    0
+  );
+  const totalMinutes = schedule.reduce(
+    (s, b) => s + b.tasks.reduce((ts, t) => ts + (t.estimatedMinutes ?? 0), 0),
     0
   );
   const autoGenCount = schedule.reduce(
@@ -311,7 +271,7 @@ export default function TasksPage() {
         <div>
           <h1 className="text-2xl font-bold text-charcoal">Daily Schedule</h1>
           <p className="text-sm text-warm-gray mt-0.5">
-            {doneTasks}/{totalTasks} tasks complete · {pct}% done
+            {doneTasks}/{totalTasks} tasks complete · {pct}% done · ~{Math.round(totalMinutes / 60)}h total
             {autoGenCount > 0 && (
               <span className="ml-2 inline-flex items-center gap-1 text-sky-dark">
                 <Zap className="w-3 h-3" />
@@ -346,7 +306,7 @@ export default function TasksPage() {
             </button>
           </div>
           <button
-            onClick={() => setSchedule(generateDailySchedule())}
+            onClick={resetSchedule}
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-card-border rounded-lg text-sm font-medium text-charcoal hover:bg-cream transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
@@ -383,6 +343,9 @@ export default function TasksPage() {
           </span>
         ))}
       </div>
+
+      {/* Volunteer workload */}
+      <VolunteerLoadBar schedule={schedule} />
 
       {/* Search + category filters */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -724,6 +687,12 @@ function TaskRow({
           >
             {meta.label}
           </span>
+          {task.estimatedMinutes && (
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium text-warm-gray bg-cream border border-card-border">
+              <Clock className="w-2.5 h-2.5" />
+              {task.estimatedMinutes}m
+            </span>
+          )}
           {source.badge && (
             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold text-sky-dark bg-sky/10 border border-sky/20">
               <Zap className="w-2.5 h-2.5" />

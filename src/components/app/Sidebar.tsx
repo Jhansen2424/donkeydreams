@@ -30,10 +30,11 @@ const navGroups = [
   {
     label: "Care",
     items: [
-      { name: "Medical Records", href: "/app/medical", icon: Stethoscope },
+      { name: "Medical Entries", href: "/app/medical", icon: Stethoscope },
       { name: "Daily Schedule", href: "/app/tasks", icon: ClipboardCheck, badge: 34 },
       { name: "Feed Buckets", href: "/app/feed", icon: UtensilsCrossed },
-      { name: "Hoof & Dental", href: "/app/hoof-dental", icon: Footprints },
+      { name: "Hoof Care", href: "/app/hoof-dental?tab=hoof", icon: Footprints },
+      { name: "Dental Care", href: "/app/hoof-dental?tab=dental", icon: Footprints },
       { name: "Weight Tracking", href: "/app/weight", icon: Weight },
     ],
   },
@@ -81,10 +82,11 @@ export default function Sidebar() {
             </p>
             <ul className="space-y-0.5">
               {group.items.map((item) => {
+                const hrefPath = item.href.split("?")[0];
                 const isActive =
                   item.href === "/app"
                     ? pathname === "/app"
-                    : pathname.startsWith(item.href);
+                    : pathname.startsWith(hrefPath);
                 const Icon = item.icon;
                 return (
                   <li key={item.name}>
