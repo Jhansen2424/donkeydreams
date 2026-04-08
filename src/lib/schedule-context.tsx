@@ -1,14 +1,36 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
-import { generateDailySchedule, type ScheduleBlock } from "./sanctuary-data";
+import {
+  generateDailySchedule,
+  type ScheduleBlock,
+  type ScheduleTask,
+  type TaskCategory,
+} from "./sanctuary-data";
+
+export interface NewTaskInput {
+  task: string;
+  blockName?: string; // "Breakfast" | "Lunch" | "Dinner" — defaults to current time block
+  assignedTo?: string;
+  animalSpecific?: string;
+  note?: string;
+  category?: TaskCategory;
+}
 
 interface ScheduleContextValue {
   schedule: ScheduleBlock[];
   toggleTask: (blockIdx: number, taskIdx: number) => void;
   assignTask: (blockIdx: number, taskIdx: number, memberName: string) => void;
   bulkAssign: (blockIdx: number, memberName: string) => void;
+  addTask: (input: NewTaskInput) => void;
   resetSchedule: () => void;
+}
+
+function currentBlockName(): "Breakfast" | "Lunch" | "Dinner" {
+  const hour = new Date().getHours();
+  if (hour < 10) return "Breakfast";
+  if (hour < 16) return "Lunch";
+  return "Dinner";
 }
 
 const ScheduleContext = createContext<ScheduleContextValue | null>(null);
@@ -71,13 +93,36 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const addTask = useCallback((input: NewTaskInput) => {
+    const targetBlock = input.blockName ?? currentBlockName();
+    const newTask: ScheduleTask = {
+      task: input.task,
+      assignedTo: input.assignedTo,
+      done: false,
+      animalSpecific: input.animalSpecific,
+      note: input.note,
+      category: input.category ?? "routine",
+      source: "manual",
+    };
+    setSchedule((prev) => {
+      // If the target block exists, append. Otherwise fall back to the first block.
+      const hasTarget = prev.some((b) => b.name === targetBlock);
+      const blockToUse = hasTarget ? targetBlock : prev[0]?.name;
+      return prev.map((block) =>
+        block.name === blockToUse
+          ? { ...block, tasks: [...block.tasks, newTask] }
+          : block
+      );
+    });
+  }, []);
+
   const resetSchedule = useCallback(() => {
     setSchedule(generateDailySchedule());
   }, []);
 
   return (
     <ScheduleContext.Provider
-      value={{ schedule, toggleTask, assignTask, bulkAssign, resetSchedule }}
+      value={{ schedule, toggleTask, assignTask, bulkAssign, addTask, resetSchedule }}
     >
       {children}
     </ScheduleContext.Provider>

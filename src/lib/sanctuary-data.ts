@@ -331,7 +331,7 @@ export const feedNotes: FeedNote[] = [
 
 // ── Daily Schedule ──
 export type TaskCategory = "routine" | "feeding" | "treatment" | "special-needs" | "hoof-dental" | "weight" | "sponsor";
-export type TaskSource = "base" | "watch-list" | "feed-schedule" | "hoof-dental" | "weight" | "sponsor";
+export type TaskSource = "base" | "watch-list" | "feed-schedule" | "hoof-dental" | "weight" | "sponsor" | "manual";
 
 export interface ScheduleTask {
   task: string;
@@ -753,6 +753,7 @@ export const sourceMeta: Record<TaskSource, { label: string; badge: boolean }> =
   "hoof-dental": { label: "Hoof/Dental Due", badge: true },
   weight: { label: "Weight Due", badge: true },
   sponsor: { label: "Sponsor Update", badge: true },
+  manual: { label: "Just Added", badge: true },
 };
 
 // ── Alley Herd Rotation ──

@@ -18,6 +18,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { useParkingLot, type EntryType } from "@/lib/parking-lot-context";
+import { useSchedule } from "@/lib/schedule-context";
 import { animals } from "@/lib/animals";
 
 const sortedAnimals = [...animals].sort((a, b) => a.name.localeCompare(b.name));
@@ -129,6 +130,7 @@ export default function QuickInput({
   onClose: () => void;
 }) {
   const { addEntry } = useParkingLot();
+  const { addTask } = useSchedule();
   const [activeTab, setActiveTab] = useState<EntryType | "joshy">("joshy");
   const [text, setText] = useState("");
 
@@ -144,16 +146,22 @@ export default function QuickInput({
   const [aiResult, setAiResult] = useState<JoshyResult | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
 
+  // Hands-free voice flow state
+  const [voiceMode, setVoiceMode] = useState(false);
+  const prevListeningRef = useRef(false);
+  const confirmHandledRef = useRef(false);
+
   // Voice
   const { isListening, transcript, supported, startListening, stopListening } =
     useSpeechRecognition();
 
-  // Sync transcript into text field
+  // Sync transcript into text field — but NOT during the confirm phase,
+  // where the transcript is "yes"/"no" and shouldn't overwrite the note.
   useEffect(() => {
-    if (transcript) {
-      setText((prev) => (prev && !isListening ? prev : transcript));
-    }
-  }, [transcript, isListening]);
+    if (!transcript) return;
+    if (voiceMode && aiResult) return;
+    setText((prev) => (prev && !isListening ? prev : transcript));
+  }, [transcript, isListening, voiceMode, aiResult]);
 
   // Reset on close
   useEffect(() => {
@@ -166,21 +174,28 @@ export default function QuickInput({
       setDate(todayISO());
       setAiResult(null);
       setAiError(null);
+      setVoiceMode(false);
+      confirmHandledRef.current = false;
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
     }
   }, [open]);
 
   // ── AI Submit ──
-  const handleAiSubmit = async () => {
-    if (!text.trim()) return;
+  const submitToJoshy = useCallback(async (raw: string) => {
+    const t = raw.trim();
+    if (!t) return;
     setAiLoading(true);
     setAiError(null);
     setAiResult(null);
+    confirmHandledRef.current = false;
 
     try {
       const res = await fetch("/api/joshy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: text.trim() }),
+        body: JSON.stringify({ text: t }),
       });
 
       if (!res.ok) {
@@ -195,25 +210,149 @@ export default function QuickInput({
     } finally {
       setAiLoading(false);
     }
-  };
+  }, []);
+
+  const handleAiSubmit = () => submitToJoshy(text);
+
+  // ── Route a Joshy result to its real destination ──
+  // Tasks → daily schedule. Everything else → parking lot triage queue.
+  const commitJoshyResult = useCallback(
+    (result: JoshyResult, originalText: string) => {
+      const action = result.action;
+      const body = result.data.text || originalText.trim();
+
+      if (action === "task") {
+        addTask({
+          task: body,
+          blockName: result.data.timeBlock ?? undefined,
+          assignedTo: result.data.assignee ?? undefined,
+          animalSpecific: result.data.animal ?? undefined,
+        });
+        return;
+      }
+
+      const entryType = (["watch", "medical", "feed", "note"].includes(action)
+        ? action
+        : "note") as EntryType;
+
+      addEntry(entryType, body, {
+        animal: result.data.animal ?? undefined,
+        assignee: result.data.assignee ?? undefined,
+        timeBlock: result.data.timeBlock ?? undefined,
+        severity: (result.data.severity as "high" | "medium" | "low") ?? undefined,
+        title: result.data.title ?? undefined,
+        date: result.data.date ?? undefined,
+      });
+    },
+    [addTask, addEntry]
+  );
+
+  // Speak text aloud, then run a callback when speech ends.
+  const speakThen = useCallback((spoken: string, after: () => void) => {
+    if (typeof window === "undefined" || !window.speechSynthesis) {
+      after();
+      return;
+    }
+    window.speechSynthesis.cancel();
+    let called = false;
+    const once = () => {
+      if (called) return;
+      called = true;
+      after();
+    };
+    const u = new SpeechSynthesisUtterance(spoken);
+    u.rate = 1.05;
+    u.pitch = 1;
+    u.onend = once;
+    u.onerror = once;
+    // Fallback: speechSynthesis events are unreliable across browsers.
+    setTimeout(once, Math.max(2500, spoken.length * 75));
+    window.speechSynthesis.speak(u);
+  }, []);
+
+  // Wrap startListening so tapping the mic also activates hands-free mode.
+  const startVoice = useCallback(() => {
+    setVoiceMode(true);
+    startListening();
+  }, [startListening]);
+
+  // ── Hands-free flow #1: when the mic stops mid-dictation in Joshy mode,
+  //    automatically send the transcript to Joshy (no Submit click needed).
+  useEffect(() => {
+    const wasListening = prevListeningRef.current;
+    prevListeningRef.current = isListening;
+    if (!voiceMode || activeTab !== "joshy") return;
+    if (!(wasListening && !isListening)) return;
+    // Don't auto-submit if we're currently waiting on a yes/no confirmation —
+    // that's handled by the confirm-listener effect below.
+    if (aiResult || aiLoading) return;
+    const captured = transcript.trim();
+    if (!captured) return;
+    setText(captured);
+    submitToJoshy(captured);
+  }, [isListening, voiceMode, activeTab, aiResult, aiLoading, transcript, submitToJoshy]);
+
+  // ── Hands-free flow #2: once Joshy returns a result, speak it aloud and
+  //    re-open the mic to listen for "yes"/"no".
+  useEffect(() => {
+    if (!voiceMode || !aiResult) return;
+    confirmHandledRef.current = false;
+    const actionWord =
+      aiResult.action === "watch"
+        ? "watch alert"
+        : aiResult.action === "feed"
+          ? "feed note"
+          : aiResult.action === "medical"
+            ? "medical entry"
+            : aiResult.action;
+    const prompt = aiResult.clarify
+      ? aiResult.clarify
+      : `${aiResult.summary}. Should I create this ${actionWord}? Say yes or no.`;
+    speakThen(prompt, () => {
+      if (!confirmHandledRef.current) startListening();
+    });
+    return () => {
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [aiResult, voiceMode, speakThen, startListening]);
+
+  // ── Hands-free flow #3: while in confirm phase, watch the transcript for
+  //    yes/no keywords and act on them.
+  useEffect(() => {
+    if (!voiceMode || !aiResult) return;
+    if (confirmHandledRef.current) return;
+    if (!transcript) return;
+    const t = transcript.toLowerCase();
+    const yes = /\b(yes|yeah|yep|yup|sure|okay|ok|confirm|submit|do it|create it|go ahead|sounds good|correct)\b/.test(t);
+    const no = /\b(no|nope|nah|cancel|edit|stop|wait|back|redo|try again)\b/.test(t);
+
+    if (yes) {
+      confirmHandledRef.current = true;
+      stopListening();
+      setTimeout(() => {
+        const result = aiResult;
+        if (!result) return;
+        commitJoshyResult(result, text);
+        setText("");
+        setAiResult(null);
+        setVoiceMode(false);
+        onClose();
+      }, 150);
+    } else if (no) {
+      confirmHandledRef.current = true;
+      stopListening();
+      setAiResult(null);
+      setText("");
+      setTimeout(() => startListening(), 400);
+    }
+  }, [transcript, voiceMode, aiResult, stopListening, startListening, commitJoshyResult, text, onClose]);
 
   // ── Confirm AI result ──
   const handleConfirmAi = () => {
     if (!aiResult) return;
-
-    const entryType = (["task", "watch", "medical", "feed", "note"].includes(aiResult.action)
-      ? aiResult.action
-      : "note") as EntryType;
-
-    addEntry(entryType, aiResult.data.text || text.trim(), {
-      animal: aiResult.data.animal ?? undefined,
-      assignee: aiResult.data.assignee ?? undefined,
-      timeBlock: aiResult.data.timeBlock ?? undefined,
-      severity: (aiResult.data.severity as "high" | "medium" | "low") ?? undefined,
-      title: aiResult.data.title ?? undefined,
-      date: aiResult.data.date ?? undefined,
-    });
-
+    commitJoshyResult(aiResult, text);
     setText("");
     setAiResult(null);
     onClose();
@@ -222,6 +361,21 @@ export default function QuickInput({
   // ── Manual submit (non-AI tabs) ──
   const handleManualSubmit = () => {
     if (!text.trim()) return;
+
+    // Tasks land directly in the daily schedule, not the parking lot.
+    if (activeTab === "task") {
+      addTask({
+        task: text.trim(),
+        blockName: timeBlock,
+        assignedTo: assignee || undefined,
+        animalSpecific: animal || undefined,
+      });
+      setText("");
+      setAnimal("");
+      setAssignee("");
+      onClose();
+      return;
+    }
 
     const data: Record<string, string> = {};
     if (animal) data.animal = animal;
@@ -255,7 +409,7 @@ export default function QuickInput({
           <div>
             <h2 className="font-bold text-white text-lg flex items-center gap-2">
               {isJoshy && <Sparkles className="w-5 h-5 text-sand" />}
-              {isJoshy ? "Hey Joshy..." : "Quick Input"}
+              {isJoshy ? "Hey Joshy..." : "Add Note"}
             </h2>
             <p className="text-cream/60 text-xs">
               {isJoshy
@@ -311,13 +465,13 @@ export default function QuickInput({
                 />
                 {supported && (
                   <button
-                    onClick={isListening ? stopListening : startListening}
+                    onClick={isListening ? stopListening : startVoice}
                     className={`absolute right-3 bottom-3 p-2 rounded-full transition-colors ${
                       isListening
                         ? "bg-red-500 text-white animate-pulse"
                         : "bg-cream text-warm-gray hover:bg-sand/30 hover:text-charcoal"
                     }`}
-                    title={isListening ? "Stop listening" : "Voice input"}
+                    title={isListening ? "Stop listening" : "Voice input (hands-free)"}
                   >
                     {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                   </button>
@@ -326,7 +480,14 @@ export default function QuickInput({
 
               {isListening && (
                 <p className="text-xs text-red-500 font-medium animate-pulse">
-                  Listening... speak now
+                  Listening... speak now, then pause when done
+                </p>
+              )}
+
+              {voiceMode && !isListening && (
+                <p className="text-[11px] text-sidebar font-medium flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3" />
+                  Hands-free mode on — Joshy will ask you to confirm
                 </p>
               )}
 
@@ -437,6 +598,22 @@ export default function QuickInput({
                   </div>
                 )}
               </div>
+
+              {/* Voice-confirm indicator */}
+              {voiceMode && (
+                <div className={`flex items-center gap-2 p-3 rounded-lg border ${isListening ? "bg-red-50 border-red-200" : "bg-sidebar/5 border-sidebar/20"}`}>
+                  {isListening ? (
+                    <Mic className="w-4 h-4 text-red-500 animate-pulse shrink-0" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 text-sidebar shrink-0" />
+                  )}
+                  <p className="text-xs font-medium text-charcoal">
+                    {isListening
+                      ? "Listening — say \"yes\" to create it, or \"no\" to redo"
+                      : "Joshy is asking you to confirm..."}
+                  </p>
+                </div>
+              )}
 
               {/* Confirm / Edit / Try Again */}
               <div className="flex gap-2">

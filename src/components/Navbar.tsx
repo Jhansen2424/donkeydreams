@@ -3,10 +3,11 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import MeetDonkeysMenu from "@/components/MeetDonkeysMenu";
 
 const navLinks = [
   { href: "/our-story", label: "Our Story" },
-  { href: "/donkeys", label: "Meet the Donkeys" },
+  { href: "/donkeys", label: "Meet the Donkeys", isMeetDonkeys: true },
   { href: "/whats-new", label: "Bray-ing News" },
   {
     href: "/how-to-help",
@@ -56,7 +57,9 @@ export default function Navbar() {
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-8">
             {navLinks.map((link) =>
-              link.children ? (
+              link.isMeetDonkeys ? (
+                <MeetDonkeysMenu key={link.href} />
+              ) : link.children ? (
                 <div key={link.href} className="relative" ref={dropdownRef}>
                   <button
                     onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -147,7 +150,9 @@ export default function Navbar() {
         <div className="md:hidden bg-white border-t border-sky/10">
           <div className="px-4 py-4 space-y-3">
             {navLinks.map((link) =>
-              link.children ? (
+              link.isMeetDonkeys ? (
+                <MeetDonkeysMenu key={link.href} onNavigate={() => setMobileOpen(false)} />
+              ) : link.children ? (
                 <div key={link.href} className="space-y-1">
                   {link.children.map((child) => (
                     <a

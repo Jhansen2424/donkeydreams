@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+
+// Same slug rules as src/lib/animals.ts so dropdown anchors line up.
+function donkeySlug(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[\s-]+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
+}
 
 interface Donkey {
   name: string;
@@ -385,8 +393,9 @@ function DonkeyCard({
 
   return (
     <button
+      id={donkeySlug(donkey.name)}
       onClick={onClick}
-      className="group bg-white rounded-3xl overflow-hidden shadow-[0_4px_20px_rgba(199,120,100,0.06)] border border-sand/10 hover:shadow-[0_8px_30px_rgba(199,120,100,0.12)] transition-all duration-700 text-left w-full cursor-pointer flex flex-col h-full"
+      className="group bg-white rounded-3xl overflow-hidden shadow-[0_4px_20px_rgba(199,120,100,0.06)] border border-sand/10 hover:shadow-[0_8px_30px_rgba(199,120,100,0.12)] transition-all duration-700 text-left w-full cursor-pointer flex flex-col h-full scroll-mt-28"
     >
       {/* Profile photo */}
       <div className="aspect-[3/4] overflow-hidden relative">
@@ -908,6 +917,20 @@ export { donkeys };
 
 export default function DonkeyProfileGrid() {
   const [selectedDonkey, setSelectedDonkey] = useState<Donkey | null>(null);
+
+  // If the page was opened with a #donkey-slug hash (e.g. from the navbar
+  // dropdown), open that donkey's profile modal automatically.
+  useEffect(() => {
+    function openFromHash() {
+      const hash = window.location.hash.replace(/^#/, "");
+      if (!hash) return;
+      const match = donkeys.find((d) => donkeySlug(d.name) === hash);
+      if (match) setSelectedDonkey(match);
+    }
+    openFromHash();
+    window.addEventListener("hashchange", openFromHash);
+    return () => window.removeEventListener("hashchange", openFromHash);
+  }, []);
 
   return (
     <>
