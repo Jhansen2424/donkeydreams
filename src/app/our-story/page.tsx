@@ -12,28 +12,53 @@ export const metadata: Metadata = {
 export default function OurStoryPage() {
   return (
     <>
-      {/* Hero banner */}
-      <section className="relative pt-32 pb-20 bg-charcoal overflow-hidden">
+      {/* Hero banner — split layout with portrait video */}
+      <section className="relative pt-32 pb-24 bg-charcoal overflow-hidden">
+        {/* Soft background photo */}
         <div
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-30"
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-15"
           style={{
             backgroundImage:
               "url('https://donkeydreams.org/wp-content/uploads/2022/09/Where-the-donkeys-are-free-cropped-dnsd.jpg')",
           }}
         />
-        <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-sand-light font-medium tracking-widest uppercase text-sm mb-4">
-            Our Story
-          </p>
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white leading-tight mb-6">
-            How a Dream Became a{" "}
-            <span className="text-sand-light">Sanctuary</span>
-          </h1>
-          <p className="text-white/70 text-lg sm:text-xl max-w-2xl mx-auto leading-relaxed">
-            From a handful of rescued donkeys on a dusty patch of Arizona
-            desert, to a 40-acre sanctuary that&apos;s home to over 50 donkeys
-            — this is our story.
-          </p>
+        {/* Warm vignette */}
+        <div className="absolute inset-0 bg-gradient-to-br from-charcoal via-charcoal/80 to-sidebar/40" />
+
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid lg:grid-cols-5 gap-10 lg:gap-16 items-center">
+            {/* Left: copy (3 cols on desktop) */}
+            <div className="lg:col-span-3 text-center lg:text-left order-2 lg:order-1">
+              <p className="text-sand-light font-medium tracking-widest uppercase text-sm mb-4">
+                Our Story
+              </p>
+              <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white leading-tight mb-6">
+                How a Dream Became a{" "}
+                <span className="text-sand-light">Sanctuary</span>
+              </h1>
+              <p className="text-white/70 text-lg sm:text-xl max-w-xl mx-auto lg:mx-0 leading-relaxed">
+                From a handful of rescued donkeys on a dusty patch of Arizona
+                desert, to a 40-acre sanctuary that&apos;s home to over 50
+                donkeys — this is our story.
+              </p>
+            </div>
+
+            {/* Right: portrait video (2 cols on desktop) */}
+            <div className="lg:col-span-2 order-1 lg:order-2 flex justify-center lg:justify-end">
+              <div className="relative w-full max-w-[300px] sm:max-w-[340px] aspect-[9/16] rounded-[2rem] overflow-hidden shadow-[0_25px_70px_rgba(0,0,0,0.55)] border border-sand/20 bg-black">
+                {/* YouTube embeds Shorts inside a 16:9 player and pillarboxes
+                    the portrait video. Over-scale the iframe (~316% width) so
+                    only the portrait portion shows inside our 9:16 frame. */}
+                <iframe
+                  src="https://www.youtube.com/embed/WH55QpHE8Rg?autoplay=1&mute=1&loop=1&playlist=WH55QpHE8Rg&controls=0&modestbranding=1&playsinline=1&rel=0&showinfo=0&iv_load_policy=3"
+                  title="Donkey Dreams Sanctuary — Our Story"
+                  allow="autoplay; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-full w-[316%] pointer-events-none"
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Walking donkey with dust trail */}

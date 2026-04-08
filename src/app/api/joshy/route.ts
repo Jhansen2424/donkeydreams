@@ -59,7 +59,9 @@ Examples:
 - "Need more hay delivered Thursday" → action: "task"
 - "Shelley was limping this morning" → action: "watch", animal: "Shelley", severity: "high"
 
-If the note is ambiguous, pick the most likely action and set confidence lower. If a name is close but not exact (e.g., "Pete" vs "Petey"), use the closest match and note it in the summary.`;
+If the note is ambiguous, pick the most likely action and set confidence lower. If a name is close but not exact (e.g., "Pete" vs "Petey"), use the closest match and note it in the summary.
+
+Clarification follow-ups: If the input contains "(clarification from user: ...)", the user is answering a question you asked previously. Combine the original note with the clarification to produce a complete result. Do NOT ask the same clarification again — set clarify to null and produce the final action. Example: input "Have Carrie do the morning feed. (clarification from user: Rachel)" should produce a task assigned to Rachel Green with clarify: null.`;
 
 export async function POST(req: NextRequest) {
   try {

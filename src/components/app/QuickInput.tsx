@@ -125,9 +125,18 @@ function useSpeechRecognition() {
 export default function QuickInput({
   open,
   onClose,
+  autoVoice = false,
+  initialText = "",
 }: {
   open: boolean;
   onClose: () => void;
+  // When true, the modal opens directly into voice dictation
+  // (used by the "Hey Joshy" wake-word flow).
+  autoVoice?: boolean;
+  // When provided alongside autoVoice, skip dictation and submit this text
+  // to Joshy immediately. Used when the wake listener captures everything
+  // the user said in the same utterance ("hey joshy <the note>").
+  initialText?: string;
 }) {
   const { addEntry } = useParkingLot();
   const { addTask } = useSchedule();
@@ -150,6 +159,10 @@ export default function QuickInput({
   const [voiceMode, setVoiceMode] = useState(false);
   const prevListeningRef = useRef(false);
   const confirmHandledRef = useRef(false);
+  // Cumulative conversation context: original note + any clarifications.
+  // Used so that follow-up answers from the user are sent back to Joshy
+  // along with the original utterance.
+  const noteContextRef = useRef("");
 
   // Voice
   const { isListening, transcript, supported, startListening, stopListening } =
@@ -176,6 +189,7 @@ export default function QuickInput({
       setAiError(null);
       setVoiceMode(false);
       confirmHandledRef.current = false;
+      noteContextRef.current = "";
       if (typeof window !== "undefined" && window.speechSynthesis) {
         window.speechSynthesis.cancel();
       }
@@ -183,9 +197,18 @@ export default function QuickInput({
   }, [open]);
 
   // ── AI Submit ──
-  const submitToJoshy = useCallback(async (raw: string) => {
+  // isFollowUp = true means `raw` is the user's spoken answer to a previous
+  // clarifying question. We append it to the running conversation context
+  // so Joshy gets both the original note and the clarification.
+  const submitToJoshy = useCallback(async (raw: string, isFollowUp = false) => {
     const t = raw.trim();
     if (!t) return;
+
+    const fullText = isFollowUp && noteContextRef.current
+      ? `${noteContextRef.current}. (clarification from user: ${t})`
+      : t;
+    noteContextRef.current = fullText;
+
     setAiLoading(true);
     setAiError(null);
     setAiResult(null);
@@ -195,7 +218,7 @@ export default function QuickInput({
       const res = await fetch("/api/joshy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: t }),
+        body: JSON.stringify({ text: fullText }),
       });
 
       if (!res.ok) {
@@ -276,24 +299,75 @@ export default function QuickInput({
     startListening();
   }, [startListening]);
 
-  // ── Hands-free flow #1: when the mic stops mid-dictation in Joshy mode,
-  //    automatically send the transcript to Joshy (no Submit click needed).
+  // ── Auto-start when triggered by the wake-word flow ──
+  // The modal is opened with autoVoice=true after "Hey Joshy" fires.
+  // Two paths:
+  //  1. initialText provided → wake listener already captured the note
+  //     ("hey joshy pink's bandage needs changing") — skip dictation and
+  //     submit straight to Joshy. The confirm phase still listens for yes/no.
+  //  2. initialText empty → user said only the wake phrase, so open the
+  //     dictation mic and let them speak the note.
+  const autoVoiceTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (!open) {
+      autoVoiceTriggeredRef.current = false;
+      return;
+    }
+    if (!autoVoice || autoVoiceTriggeredRef.current) return;
+    if (!supported) return;
+    autoVoiceTriggeredRef.current = true;
+    setActiveTab("joshy");
+
+    const tail = initialText.trim();
+    if (tail) {
+      // Path 1: tail captured — go straight to Joshy, then confirm by voice.
+      setText(tail);
+      setVoiceMode(true);
+      const t = setTimeout(() => {
+        submitToJoshy(tail);
+      }, 100);
+      return () => clearTimeout(t);
+    }
+
+    // Path 2: no tail — open mic for dictation. Small delay so the wake
+    // recognizer fully releases the mic before this one grabs it.
+    const t = setTimeout(() => {
+      startVoice();
+    }, 350);
+    return () => clearTimeout(t);
+  }, [open, autoVoice, initialText, supported, startVoice, submitToJoshy]);
+
+  // ── Hands-free flow #1: when the mic stops in Joshy mode, route the
+  //    captured transcript to the right place based on the current phase.
   useEffect(() => {
     const wasListening = prevListeningRef.current;
     prevListeningRef.current = isListening;
     if (!voiceMode || activeTab !== "joshy") return;
     if (!(wasListening && !isListening)) return;
-    // Don't auto-submit if we're currently waiting on a yes/no confirmation —
-    // that's handled by the confirm-listener effect below.
-    if (aiResult || aiLoading) return;
+    if (aiLoading) return;
     const captured = transcript.trim();
     if (!captured) return;
+
+    // Clarify phase: Joshy asked a question, user just answered. Resubmit
+    // to Joshy as a follow-up (the original note + this clarification).
+    if (aiResult && aiResult.clarify) {
+      setAiResult(null);
+      submitToJoshy(captured, true);
+      return;
+    }
+
+    // Confirm phase (no clarify) is handled by the yes/no effect below.
+    if (aiResult) return;
+
+    // Dictate phase: this is the original note.
     setText(captured);
     submitToJoshy(captured);
   }, [isListening, voiceMode, activeTab, aiResult, aiLoading, transcript, submitToJoshy]);
 
   // ── Hands-free flow #2: once Joshy returns a result, speak it aloud and
-  //    re-open the mic to listen for "yes"/"no".
+  //    re-open the mic. Two flavors:
+  //      - clarify present → speak the question, listen for an open answer
+  //      - no clarify      → speak the summary, listen for "yes"/"no"
   useEffect(() => {
     if (!voiceMode || !aiResult) return;
     confirmHandledRef.current = false;
@@ -319,9 +393,11 @@ export default function QuickInput({
   }, [aiResult, voiceMode, speakThen, startListening]);
 
   // ── Hands-free flow #3: while in confirm phase, watch the transcript for
-  //    yes/no keywords and act on them.
+  //    yes/no keywords and act on them. Skipped during clarify phase —
+  //    that's handled by the mic-stop effect above.
   useEffect(() => {
     if (!voiceMode || !aiResult) return;
+    if (aiResult.clarify) return;
     if (confirmHandledRef.current) return;
     if (!transcript) return;
     const t = transcript.toLowerCase();
