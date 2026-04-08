@@ -37,6 +37,7 @@ const actionLabels: Record<string, { label: string; icon: typeof ClipboardCheck;
   medical: { label: "Medical Entry", icon: Stethoscope, color: "text-purple-700" },
   feed: { label: "Feed Note", icon: UtensilsCrossed, color: "text-amber-700" },
   note: { label: "Note", icon: StickyNote, color: "text-warm-gray" },
+  query: { label: "Answer", icon: Sparkles, color: "text-sidebar" },
 };
 
 function getCurrentTimeBlock(): string {
@@ -138,8 +139,8 @@ export default function QuickInput({
   // the user said in the same utterance ("hey joshy <the note>").
   initialText?: string;
 }) {
-  const { addEntry } = useParkingLot();
-  const { addTask } = useSchedule();
+  const { addEntry, entries } = useParkingLot();
+  const { addTask, schedule } = useSchedule();
   const [activeTab, setActiveTab] = useState<EntryType | "joshy">("joshy");
   const [text, setText] = useState("");
 
@@ -196,6 +197,32 @@ export default function QuickInput({
     }
   }, [open]);
 
+  // ── Build a compact snapshot of today's live state for Joshy queries ──
+  const buildLiveContext = useCallback(() => {
+    return {
+      now: new Date().toISOString(),
+      schedule: schedule.map((block) => ({
+        block: block.name,
+        time: block.time,
+        tasks: block.tasks.map((t) => ({
+          task: t.task,
+          assignee: t.assignedTo || null,
+          done: t.done,
+          animal: t.animalSpecific || null,
+          category: t.category,
+        })),
+      })),
+      parkingLot: entries.map((e) => ({
+        type: e.type,
+        text: e.text,
+        resolved: e.resolved,
+        animal: e.data?.animal || null,
+        assignee: e.data?.assignee || null,
+        severity: e.data?.severity || null,
+      })),
+    };
+  }, [schedule, entries]);
+
   // ── AI Submit ──
   // isFollowUp = true means `raw` is the user's spoken answer to a previous
   // clarifying question. We append it to the running conversation context
@@ -218,7 +245,7 @@ export default function QuickInput({
       const res = await fetch("/api/joshy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: fullText }),
+        body: JSON.stringify({ text: fullText, context: buildLiveContext() }),
       });
 
       if (!res.ok) {
@@ -233,7 +260,7 @@ export default function QuickInput({
     } finally {
       setAiLoading(false);
     }
-  }, []);
+  }, [buildLiveContext]);
 
   const handleAiSubmit = () => submitToJoshy(text);
 
@@ -365,12 +392,34 @@ export default function QuickInput({
   }, [isListening, voiceMode, activeTab, aiResult, aiLoading, transcript, submitToJoshy]);
 
   // ── Hands-free flow #2: once Joshy returns a result, speak it aloud and
-  //    re-open the mic. Two flavors:
-  //      - clarify present → speak the question, listen for an open answer
-  //      - no clarify      → speak the summary, listen for "yes"/"no"
+  //    decide what to do next based on the action type:
+  //      - query    → speak the answer, then auto-close (read-only)
+  //      - clarify  → speak the question, listen for an open answer
+  //      - create   → speak the summary, listen for "yes"/"no"
   useEffect(() => {
     if (!voiceMode || !aiResult) return;
     confirmHandledRef.current = false;
+
+    // Query: just answer, no confirmation needed.
+    if (aiResult.action === "query") {
+      const answer = aiResult.summary || aiResult.data?.text || "I don't have an answer for that.";
+      speakThen(answer, () => {
+        // Auto-close 1.5s after speech ends so the user can also read it.
+        setTimeout(() => {
+          setText("");
+          setAiResult(null);
+          setVoiceMode(false);
+          noteContextRef.current = "";
+          onClose();
+        }, 1500);
+      });
+      return () => {
+        if (typeof window !== "undefined" && window.speechSynthesis) {
+          window.speechSynthesis.cancel();
+        }
+      };
+    }
+
     const actionWord =
       aiResult.action === "watch"
         ? "watch alert"
@@ -390,13 +439,14 @@ export default function QuickInput({
         window.speechSynthesis.cancel();
       }
     };
-  }, [aiResult, voiceMode, speakThen, startListening]);
+  }, [aiResult, voiceMode, speakThen, startListening, onClose]);
 
   // ── Hands-free flow #3: while in confirm phase, watch the transcript for
   //    yes/no keywords and act on them. Skipped during clarify phase —
   //    that's handled by the mic-stop effect above.
   useEffect(() => {
     if (!voiceMode || !aiResult) return;
+    if (aiResult.action === "query") return;
     if (aiResult.clarify) return;
     if (confirmHandledRef.current) return;
     if (!transcript) return;
@@ -535,7 +585,7 @@ export default function QuickInput({
                   autoFocus
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  placeholder={"e.g. \"Fernie's bandage needs changing\" or \"Assign Rachel to morning feed\""}
+                  placeholder={"Tell Joshy what happened, or ask a question — e.g. \"What tasks are assigned to Edj?\" or \"Fernie's bandage needs changing\""}
                   rows={3}
                   className="w-full px-4 py-3 text-base border border-card-border rounded-xl text-charcoal placeholder:text-warm-gray/50 focus:outline-none focus:ring-2 focus:ring-sand/50 resize-none pr-12"
                 />
@@ -626,10 +676,11 @@ export default function QuickInput({
                   );
                 })()}
 
-                {/* Summary */}
-                <p className="text-sm text-charcoal font-medium mb-3">{aiResult.summary}</p>
+                {/* Summary (also serves as the spoken answer for queries) */}
+                <p className="text-sm text-charcoal font-medium mb-3 whitespace-pre-line">{aiResult.summary}</p>
 
-                {/* Parsed fields */}
+                {/* Parsed fields — hide for query results since they're not creating anything */}
+                {aiResult.action !== "query" && (
                 <div className="flex flex-wrap gap-1.5">
                   {aiResult.data.animal && (
                     <span className="text-[11px] font-medium text-sky-dark bg-sky/10 px-2 py-1 rounded-lg">
@@ -663,6 +714,7 @@ export default function QuickInput({
                     </span>
                   )}
                 </div>
+                )}
 
                 {/* Clarifying question */}
                 {aiResult.clarify && (
@@ -675,8 +727,8 @@ export default function QuickInput({
                 )}
               </div>
 
-              {/* Voice-confirm indicator */}
-              {voiceMode && (
+              {/* Voice-confirm indicator (hidden for queries — read-only) */}
+              {voiceMode && aiResult.action !== "query" && (
                 <div className={`flex items-center gap-2 p-3 rounded-lg border ${isListening ? "bg-red-50 border-red-200" : "bg-sidebar/5 border-sidebar/20"}`}>
                   {isListening ? (
                     <Mic className="w-4 h-4 text-red-500 animate-pulse shrink-0" />
@@ -691,23 +743,39 @@ export default function QuickInput({
                 </div>
               )}
 
-              {/* Confirm / Edit / Try Again */}
-              <div className="flex gap-2">
+              {/* Action buttons — Confirm/Edit for create actions, Done for queries */}
+              {aiResult.action === "query" ? (
                 <button
-                  onClick={handleConfirmAi}
-                  className="flex-1 inline-flex items-center justify-center gap-2 py-3 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-colors text-sm"
+                  onClick={() => {
+                    setText("");
+                    setAiResult(null);
+                    setVoiceMode(false);
+                    noteContextRef.current = "";
+                    onClose();
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-2 py-3 bg-sidebar text-white font-bold rounded-xl hover:bg-sidebar-light transition-colors text-sm"
                 >
                   <Check className="w-4 h-4" />
-                  Confirm
+                  Done
                 </button>
-                <button
-                  onClick={() => setAiResult(null)}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-white border border-card-border text-charcoal font-medium rounded-xl hover:bg-cream transition-colors text-sm"
-                >
-                  <Pencil className="w-4 h-4" />
-                  Edit
-                </button>
-              </div>
+              ) : (
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleConfirmAi}
+                    className="flex-1 inline-flex items-center justify-center gap-2 py-3 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-colors text-sm"
+                  >
+                    <Check className="w-4 h-4" />
+                    Confirm
+                  </button>
+                  <button
+                    onClick={() => setAiResult(null)}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-white border border-card-border text-charcoal font-medium rounded-xl hover:bg-cream transition-colors text-sm"
+                  >
+                    <Pencil className="w-4 h-4" />
+                    Edit
+                  </button>
+                </div>
+              )}
             </>
           )}
 
