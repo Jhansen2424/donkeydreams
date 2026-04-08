@@ -3,9 +3,13 @@ import Groq from "groq-sdk";
 import { animals } from "@/lib/animals";
 import { volunteers } from "@/lib/volunteer-data";
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+let groqClient: Groq | null = null;
+function getGroq(): Groq {
+  if (!groqClient) {
+    groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  }
+  return groqClient;
+}
 
 // Build context for the AI
 const animalNames = animals.map((a) => a.name).sort();
@@ -75,7 +79,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const completion = await groq.chat.completions.create({
+    const completion = await getGroq().chat.completions.create({
       model: "llama-3.3-70b-versatile",
       messages: [
         { role: "system", content: systemPrompt },
