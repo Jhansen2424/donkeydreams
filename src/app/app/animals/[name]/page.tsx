@@ -23,6 +23,11 @@ import {
   type MedicalRecord,
   type MedicalRecordType,
 } from "@/lib/medical-data";
+import { visitHistory } from "@/lib/hoof-dental-data";
+import { getTrimProfile } from "@/lib/trimming-data";
+import { getDewormingDosage } from "@/lib/power-pack-data";
+import { getDonkeyWeight } from "@/lib/scheduled-and-events-data";
+import TrimPhotos from "@/components/app/TrimPhotos";
 import {
   getSponsorsForAnimal,
   tierMeta,
@@ -144,7 +149,7 @@ export default function AnimalProfilePage() {
               <InfoItem label="Adopted From" value={animal.adoptedFrom} editing={editing} />
             </div>
 
-            {/* Tags */}
+            {/* Tags + adoption status badges */}
             <div className="flex flex-wrap gap-1.5">
               {animal.tags.map((tag) => (
                 <span
@@ -162,6 +167,7 @@ export default function AnimalProfilePage() {
                   {tag.label}
                 </span>
               ))}
+              <AdoptionStatusBadges animal={animal} />
             </div>
           </div>
         </div>
@@ -200,6 +206,62 @@ export default function AnimalProfilePage() {
         {activeTab === "notes" && <NotesTab animal={animal} />}
       </div>
     </div>
+  );
+}
+
+/* ── Adoption status badges ── */
+function AdoptionStatusBadges({ animal }: { animal: Animal }) {
+  const badges: { label: string; cls: string }[] = [];
+
+  if (animal.isSpecialNeedsFlag) {
+    badges.push({
+      label: "Special Needs Sponsor",
+      cls: "bg-red-100 text-red-700 border border-red-200",
+    });
+  }
+  if (animal.isOver20) {
+    badges.push({
+      label: "Senior Care",
+      cls: "bg-amber-100 text-amber-700 border border-amber-200",
+    });
+  }
+  if (animal.isBondedPair) {
+    badges.push({
+      label: "Bonded Pair Required",
+      cls: "bg-purple-100 text-purple-700 border border-purple-200",
+    });
+  }
+  if ((animal.momBabyCount ?? 0) > 0) {
+    badges.push({
+      label:
+        animal.momBabyCount === 1 ? "Mom + Baby" : `Mom of ${animal.momBabyCount}`,
+      cls: "bg-pink-100 text-pink-700 border border-pink-200",
+    });
+  }
+  if (animal.needsChip) {
+    badges.push({
+      label: "Needs Microchip",
+      cls: "bg-orange-100 text-orange-700 border border-orange-200",
+    });
+  }
+  if (badges.length === 0) {
+    badges.push({
+      label: "Available for Adoption",
+      cls: "bg-emerald-100 text-emerald-700 border border-emerald-200",
+    });
+  }
+
+  return (
+    <>
+      {badges.map((b) => (
+        <span
+          key={b.label}
+          className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${b.cls}`}
+        >
+          {b.label}
+        </span>
+      ))}
+    </>
   );
 }
 
@@ -300,9 +362,151 @@ function OverviewTab({ animal, editing }: { animal: Animal; editing: boolean }) 
         </div>
         {/* Sponsor info */}
         <SponsorCard animal={animal} />
+        {/* Adoption / identity info */}
+        <AdoptionInfoCard animal={animal} />
       </div>
     </div>
   );
+}
+
+/* ── Adoption Info Card ── */
+function AdoptionInfoCard({ animal }: { animal: Animal }) {
+  const hasIdentity =
+    animal.birthDate ||
+    animal.color ||
+    animal.size ||
+    animal.microchip ||
+    animal.needsChip;
+  const hasFamily =
+    (animal.parents && animal.parents.length > 0) ||
+    (animal.children && animal.children.length > 0) ||
+    (animal.bondedWith && animal.bondedWith.length > 0);
+
+  if (!hasIdentity && !hasFamily) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-card-border p-5 space-y-4">
+      <h3 className="font-bold text-charcoal">Adoption & Identity</h3>
+
+      {hasIdentity && (
+        <div className="grid grid-cols-2 gap-3">
+          {animal.birthDate && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">
+                Birth Date
+              </p>
+              <p className="text-sm font-medium text-charcoal">
+                {new Date(animal.birthDate + "T00:00:00").toLocaleDateString(
+                  "en-US",
+                  { month: "short", day: "numeric", year: "numeric" }
+                )}
+              </p>
+            </div>
+          )}
+          {animal.color && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">
+                Color
+              </p>
+              <p className="text-sm font-medium text-charcoal">{animal.color}</p>
+            </div>
+          )}
+          {animal.size && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">
+                Size
+              </p>
+              <p className="text-sm font-medium text-charcoal">{animal.size}</p>
+            </div>
+          )}
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">
+              Microchip
+            </p>
+            {animal.microchip ? (
+              <p className="text-xs font-mono text-charcoal break-all">
+                {animal.microchip}
+              </p>
+            ) : (
+              <p className="text-xs font-medium text-orange-600">
+                Needs chip
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {hasFamily && (
+        <div className="space-y-3 pt-2 border-t border-card-border">
+          {animal.parents && animal.parents.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
+                Parent{animal.parents.length > 1 ? "s" : ""}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {animal.parents.map((p) => (
+                  <FamilyChip key={p} name={p} />
+                ))}
+              </div>
+            </div>
+          )}
+          {animal.children && animal.children.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
+                {animal.children.length === 1 ? "Child" : "Children"}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {animal.children.map((c) => (
+                  <FamilyChip key={c} name={c} />
+                ))}
+              </div>
+            </div>
+          )}
+          {animal.bondedWith && animal.bondedWith.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
+                Bonded With
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {animal.bondedWith.map((b) => (
+                  <FamilyChip key={b} name={b} bonded />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FamilyChip({ name, bonded = false }: { name: string; bonded?: boolean }) {
+  const animal = getAnimalBySlug(slugify(name));
+  const cls = bonded
+    ? "bg-purple-100 text-purple-700 hover:bg-purple-200"
+    : "bg-cream text-charcoal hover:bg-sand/30";
+  if (animal) {
+    return (
+      <a
+        href={`/app/animals/${animal.slug}`}
+        className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${cls}`}
+      >
+        {name}
+      </a>
+    );
+  }
+  return (
+    <span className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-full ${cls} opacity-60`}>
+      {name}
+    </span>
+  );
+}
+
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[\s-]+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
 }
 
 /* ── Sponsor Card ── */
@@ -410,8 +614,90 @@ function formatRecordDate(iso: string) {
   });
 }
 
+type MedicalSubTab = "all" | "deworming" | "vaccinations" | "hoof-trims" | "fecal-tests" | "other";
+
+const medicalSubTabs: { id: MedicalSubTab; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "deworming", label: "Deworming" },
+  { id: "vaccinations", label: "Vaccinations" },
+  { id: "hoof-trims", label: "Hoof Trims" },
+  { id: "fecal-tests", label: "Fecal Tests" },
+  { id: "other", label: "Other" },
+];
+
+function MedicalRecordCard({ record }: { record: MedicalRecord }) {
+  return (
+    <div
+      className={`bg-white rounded-xl border p-4 flex items-start gap-4 ${
+        record.urgent ? "border-red-200 bg-red-50/30" : "border-card-border"
+      }`}
+    >
+      <div className="flex-1 min-w-0">
+        <div className="flex flex-wrap items-center gap-2 mb-1">
+          <MedicalTypeBadge type={record.type} />
+          {record.urgent && (
+            <span className="text-[10px] font-bold uppercase tracking-wider text-red-600">
+              Urgent
+            </span>
+          )}
+        </div>
+        <p className="font-semibold text-charcoal text-sm">{record.title}</p>
+        <p className="text-xs text-warm-gray mt-0.5">
+          {formatRecordDate(record.date)}
+        </p>
+        {record.description && (
+          <p className="text-sm text-warm-gray mt-2 leading-relaxed">
+            {record.description}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MedicalTab({ animal }: { animal: Animal }) {
   const records = getRecordsForAnimal(animal.name);
+  const [subTab, setSubTab] = useState<MedicalSubTab>("all");
+
+  const hoofVisits = visitHistory
+    .filter((v) => v.animal === animal.name && v.type === "hoof")
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const trimProfile = getTrimProfile(animal.name);
+  const dewormingDosage = getDewormingDosage(animal.name);
+  const donkeyWeight = getDonkeyWeight(animal.name);
+
+  const filtered = records.filter((r) => {
+    if (subTab === "all") return true;
+    if (subTab === "deworming") return r.type === "Deworming";
+    if (subTab === "vaccinations") return r.type === "Vaccination";
+    if (subTab === "fecal-tests") return r.type === "Fecal Test";
+    if (subTab === "hoof-trims") return false; // handled separately below
+    return (
+      r.type !== "Deworming" &&
+      r.type !== "Vaccination" &&
+      r.type !== "Fecal Test"
+    );
+  });
+
+  const counts = {
+    all: records.length,
+    deworming: records.filter((r) => r.type === "Deworming").length,
+    vaccinations: records.filter((r) => r.type === "Vaccination").length,
+    "hoof-trims": hoofVisits.length,
+    "fecal-tests": records.filter((r) => r.type === "Fecal Test").length,
+    other: records.filter(
+      (r) =>
+        r.type !== "Deworming" &&
+        r.type !== "Vaccination" &&
+        r.type !== "Fecal Test"
+    ).length,
+  };
+
+  const mostRecent = (type: MedicalRecordType) =>
+    records.find((r) => r.type === type);
+  const lastDeworm = mostRecent("Deworming");
+  const lastVacc = mostRecent("Vaccination");
+  const lastTrim = hoofVisits[0];
 
   return (
     <div className="space-y-6">
@@ -432,12 +718,218 @@ function MedicalTab({ animal }: { animal: Animal }) {
         </a>
       </div>
 
-      {records.length === 0 ? (
+      {/* Sub-tab navigation */}
+      <div className="border-b border-card-border">
+        <div className="flex gap-1 overflow-x-auto">
+          {medicalSubTabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setSubTab(t.id)}
+              className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                subTab === t.id
+                  ? "border-sidebar text-sidebar"
+                  : "border-transparent text-warm-gray hover:text-charcoal"
+              }`}
+            >
+              {t.label}
+              <span
+                className={`text-[11px] px-1.5 py-0.5 rounded-full ${
+                  subTab === t.id ? "bg-sidebar/10 text-sidebar" : "bg-cream text-warm-gray"
+                }`}
+              >
+                {counts[t.id]}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Summary cards on Deworming sub-tab */}
+      {subTab === "deworming" && (lastDeworm || dewormingDosage || donkeyWeight) && (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {lastDeworm && (
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-orange-700/80 mb-1">
+                Most Recent Deworming
+              </p>
+              <p className="text-base font-bold text-charcoal">{lastDeworm.title}</p>
+              <p className="text-xs text-warm-gray mt-0.5">
+                {formatRecordDate(lastDeworm.date)}
+              </p>
+            </div>
+          )}
+          {dewormingDosage && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700/80 mb-1">
+                Dosage Profile
+              </p>
+              <p className="text-base font-bold text-charcoal capitalize">
+                {dewormingDosage.category}
+              </p>
+              <p className="text-xs text-warm-gray mt-0.5">
+                {dewormingDosage.doses} × {dewormingDosage.doseGrams}g per treatment
+              </p>
+            </div>
+          )}
+          {donkeyWeight && (
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-700/80 mb-1">
+                Body Weight
+              </p>
+              <p className="text-base font-bold text-charcoal">
+                {donkeyWeight.lbs} lbs
+              </p>
+              <p className="text-xs text-warm-gray mt-0.5">
+                {donkeyWeight.kg.toFixed(1)} kg
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Most recent fecal test summary */}
+      {subTab === "fecal-tests" && counts["fecal-tests"] > 0 && (
+        <div className="bg-teal-50 border border-teal-200 rounded-xl p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-teal-700/80 mb-1">
+            Most Recent Fecal Test
+          </p>
+          {(() => {
+            const last = records.find((r) => r.type === "Fecal Test");
+            return last ? (
+              <>
+                <p className="text-base font-bold text-charcoal">{last.title}</p>
+                <p className="text-xs text-warm-gray mt-0.5">
+                  {formatRecordDate(last.date)}
+                </p>
+              </>
+            ) : null;
+          })()}
+        </div>
+      )}
+      {subTab === "vaccinations" && lastVacc && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-green-700/80 mb-1">
+            Most Recent Vaccination
+          </p>
+          <p className="text-base font-bold text-charcoal">{lastVacc.title}</p>
+          <p className="text-xs text-warm-gray mt-0.5">
+            {formatRecordDate(lastVacc.date)}
+          </p>
+        </div>
+      )}
+
+      {/* ── Hoof Trims sub-tab ── */}
+      {subTab === "hoof-trims" ? (
+        <div className="space-y-4">
+          {/* Most recent trim summary */}
+          {lastTrim && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700/80 mb-1">
+                Most Recent Trim
+              </p>
+              <p className="text-base font-bold text-charcoal">
+                {formatRecordDate(lastTrim.date)}
+              </p>
+              {lastTrim.notes && (
+                <p className="text-sm text-warm-gray mt-1">{lastTrim.notes}</p>
+              )}
+            </div>
+          )}
+
+          {/* Trim profile cards (durable instructions) */}
+          {trimProfile?.protocols && (
+            <div className="bg-white rounded-xl border border-card-border p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-2">
+                Trimming Protocols
+              </p>
+              <p className="text-sm text-charcoal leading-relaxed whitespace-pre-wrap">
+                {trimProfile.protocols}
+              </p>
+            </div>
+          )}
+          {trimProfile?.preTrimTreatment && (
+            <div className="bg-white rounded-xl border border-card-border p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-2">
+                Pre-Trim Treatment
+              </p>
+              <p className="text-sm text-charcoal leading-relaxed">
+                {trimProfile.preTrimTreatment}
+              </p>
+            </div>
+          )}
+          {trimProfile?.squishPads && (
+            <div className="bg-white rounded-xl border border-card-border p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-2">
+                Squish Pads
+              </p>
+              <p className="text-sm text-charcoal leading-relaxed">
+                {trimProfile.squishPads}
+              </p>
+            </div>
+          )}
+          {trimProfile?.recentNotes && (
+            <div className="bg-white rounded-xl border border-card-border p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-2">
+                Notes from Recent Trim
+              </p>
+              <p className="text-sm text-charcoal leading-relaxed">
+                {trimProfile.recentNotes}
+              </p>
+            </div>
+          )}
+
+          {/* Trim history */}
+          <div className="flex items-center justify-between pt-2">
+            <h4 className="font-semibold text-charcoal text-sm">
+              Trim History
+              <span className="ml-2 text-xs font-normal text-warm-gray">
+                ({hoofVisits.length})
+              </span>
+            </h4>
+            <a
+              href="/app/hoof-dental"
+              className="text-xs text-sky-600 hover:underline"
+            >
+              View hoof care dashboard →
+            </a>
+          </div>
+
+          {hoofVisits.length === 0 ? (
+            <div className="bg-white rounded-xl border border-card-border p-8 text-center">
+              <Stethoscope className="w-8 h-8 text-warm-gray/30 mx-auto mb-3" />
+              <p className="text-warm-gray font-medium">No trim history yet</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {hoofVisits.map((visit) => (
+                <div
+                  key={visit.id}
+                  className="bg-white rounded-lg border border-card-border p-3"
+                >
+                  <p className="text-xs font-semibold text-charcoal">
+                    {formatRecordDate(visit.date)}
+                  </p>
+                  {visit.notes && visit.notes !== "Hoof trim." && (
+                    <p className="text-xs text-warm-gray mt-0.5 leading-relaxed">
+                      {visit.notes}
+                    </p>
+                  )}
+                  <TrimPhotos visitId={visit.id} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="bg-white rounded-xl border border-card-border p-8 text-center">
           <Stethoscope className="w-8 h-8 text-warm-gray/30 mx-auto mb-3" />
-          <p className="text-warm-gray font-medium">No medical entries yet</p>
+          <p className="text-warm-gray font-medium">
+            {subTab === "all"
+              ? "No medical entries yet"
+              : `No ${medicalSubTabs.find((t) => t.id === subTab)?.label.toLowerCase()} entries yet`}
+          </p>
           <p className="text-sm text-warm-gray/60 mt-1">
-            Add vet visits, lab results, and medications from the{" "}
+            Add records from the{" "}
             <a href="/app/medical" className="text-sky-600 hover:underline">
               Medical Dashboard
             </a>
@@ -445,37 +937,8 @@ function MedicalTab({ animal }: { animal: Animal }) {
         </div>
       ) : (
         <div className="space-y-3">
-          {records.map((record) => (
-            <div
-              key={record.id}
-              className={`bg-white rounded-xl border p-4 flex items-start gap-4 ${
-                record.urgent
-                  ? "border-red-200 bg-red-50/30"
-                  : "border-card-border"
-              }`}
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <MedicalTypeBadge type={record.type} />
-                  {record.urgent && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-red-600">
-                      Urgent
-                    </span>
-                  )}
-                </div>
-                <p className="font-semibold text-charcoal text-sm">
-                  {record.title}
-                </p>
-                <p className="text-xs text-warm-gray mt-0.5">
-                  {formatRecordDate(record.date)}
-                </p>
-                {record.description && (
-                  <p className="text-sm text-warm-gray mt-2 leading-relaxed">
-                    {record.description}
-                  </p>
-                )}
-              </div>
-            </div>
+          {filtered.map((record) => (
+            <MedicalRecordCard key={record.id} record={record} />
           ))}
         </div>
       )}

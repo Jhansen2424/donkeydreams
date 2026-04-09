@@ -5,6 +5,7 @@ import DonationWidget from "@/components/DonationWidget";
 import Gallery from "@/components/Gallery";
 import Impact from "@/components/Impact";
 import Newsletter from "@/components/Newsletter";
+import InstagramFeed from "@/components/InstagramFeed";
 
 export default function Home() {
   return (
@@ -16,6 +17,7 @@ export default function Home() {
       <Gallery />
       <Impact />
       <Newsletter />
+      <InstagramFeed />
     </>
   );
 }

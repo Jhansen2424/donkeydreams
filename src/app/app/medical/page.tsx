@@ -254,13 +254,21 @@ export default function MedicalDashboardPage() {
             Sanctuary-wide health tracking and care management
           </p>
         </div>
-        <button
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors"
-        >
-          {showAddForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          {showAddForm ? "Cancel" : "Add Entry"}
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/app/medical/deworming-schedule"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-card-border text-charcoal rounded-lg text-sm font-medium hover:bg-cream transition-colors"
+          >
+            Deworming Schedule
+          </Link>
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors"
+          >
+            {showAddForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+            {showAddForm ? "Cancel" : "Add Entry"}
+          </button>
+        </div>
       </div>
 
       {/* Add Record Form */}

@@ -1,5 +1,6 @@
 import { animals } from "./animals";
 import { watchList } from "./sanctuary-data";
+import { donkeyWeights } from "./scheduled-and-events-data";
 
 // ── Types ──
 export type WeightTrend = "gaining" | "losing" | "stable" | "insufficient";
@@ -69,53 +70,35 @@ function getDefaultConfig(animalName: string): WeightConfig {
   };
 }
 
-// ── Simulated weight history ──
-// Standard donkey weight: 400-600 lbs. Miniatures: 200-350 lbs.
-function generateWeightHistory(): WeighIn[] {
+// ── Weight history ──
+// Real weights sourced from deworming schedule CSVs (see donkeyWeights map).
+// For donkeys with a CSV weight, emit a single anchor weigh-in dated to when the
+// CSVs were originally compiled. Donkeys without CSV data have no history yet —
+// add via the /app/weight UI.
+function buildWeightHistory(): WeighIn[] {
   const weighIns: WeighIn[] = [];
-  const today = new Date();
-  const staff = ["Edj", "Amber", "Staff"];
+  // Approximate compile date of the CSVs (Jun 2025 deworming schedules).
+  const csvAnchorDate = "2025-06-18";
 
-  animals.forEach((animal, i) => {
-    const config = getDefaultConfig(animal.name);
-    // Base weight varies by "age" for variety
-    const ageNum = parseInt(animal.age) || 5;
-    const baseWeight = 350 + (i % 20) * 15 + ageNum * 3;
-    // Slight random-ish drift per entry
-    const drift = (idx: number) => Math.round(Math.sin(i * 7 + idx * 3) * 8);
+  for (const animal of animals) {
+    const csvWeight = donkeyWeights.get(animal.name);
+    if (!csvWeight) continue;
 
-    // Generate 6 past weigh-ins
-    for (let j = 0; j < 6; j++) {
-      const daysAgo = j * config.weighInIntervalDays + ((i * 3 + j * 5) % 7);
-      const date = new Date(today);
-      date.setDate(date.getDate() - daysAgo);
-      const weight = baseWeight + drift(j);
-
-      // BCS every other visit typically
-      const bcs = j % 2 === 0
-        ? (Math.min(9, Math.max(1, 5 + Math.round(Math.sin(i + j) * 1.5))) as BCSScore)
-        : null;
-
-      weighIns.push({
-        id: `weight-${animal.slug}-${j}`,
-        animal: animal.name,
-        date: date.toISOString().split("T")[0],
-        weight,
-        bcs,
-        notes: j === 0 && drift(0) < -5
-          ? "Looks thinner than usual, monitor closely."
-          : j === 0 && drift(0) > 5
-            ? "Good appetite, filling out nicely."
-            : "",
-        recordedBy: staff[j % 3],
-      });
-    }
-  });
+    weighIns.push({
+      id: `weight-csv-${animal.slug}`,
+      animal: animal.name,
+      date: csvAnchorDate,
+      weight: csvWeight.lbs,
+      bcs: null,
+      notes: "Weight from deworming schedule CSV.",
+      recordedBy: "CSV import",
+    });
+  }
 
   return weighIns.sort((a, b) => b.date.localeCompare(a.date));
 }
 
-export const weighInHistory = generateWeightHistory();
+export const weighInHistory = buildWeightHistory();
 
 // ── Compute statuses ──
 function daysBetween(a: string, b: string): number {

@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import MetricTabs from "@/components/app/dashboard/MetricTabs";
+import SanctuaryStats from "@/components/app/dashboard/SanctuaryStats";
 import DashboardTaskList from "@/components/app/dashboard/DashboardTaskList";
 import DashboardCalendar, { todayEvents } from "@/components/app/dashboard/DashboardCalendar";
 import WatchAndMedical from "@/components/app/dashboard/WatchAndMedical";
@@ -44,6 +45,9 @@ export default function AppDashboard() {
         watchCount={watchList.length}
         upcomingMedicalCount={upcomingMedicalCount}
       />
+
+      {/* ── Sanctuary At a Glance (adoption-CSV stats) ── */}
+      <SanctuaryStats />
 
       {/* ── Three-column workspace ── */}
       <div className="grid gap-5 lg:grid-cols-3 lg:auto-rows-fr lg:[grid-template-rows:minmax(0,calc(100vh-16rem))]">

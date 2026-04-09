@@ -8,7 +8,8 @@ export type MedicalEntryType =
   | "Temperature"
   | "Weight"
   | "Vaccination"
-  | "Deworming";
+  | "Deworming"
+  | "Fecal Test";
 
 export interface MedicalEntry {
   id: string;
@@ -33,6 +34,7 @@ export const entryTypes: MedicalEntryType[] = [
   "Weight",
   "Vaccination",
   "Deworming",
+  "Fecal Test",
 ];
 
 export const recordTypes = entryTypes;
@@ -49,6 +51,7 @@ export const typeBadgeColors: Record<
   Weight: { bg: "bg-slate-100", text: "text-slate-700" },
   Vaccination: { bg: "bg-green-100", text: "text-green-700" },
   Deworming: { bg: "bg-orange-100", text: "text-orange-700" },
+  "Fecal Test": { bg: "bg-teal-100", text: "text-teal-700" },
 };
 
 let nextId = 1;
@@ -251,10 +254,93 @@ export const medicalEntries: MedicalEntry[] = [
 // Backwards-compatible alias
 export const medicalRecords = medicalEntries;
 
+// ── Imported entries (parsed from CSVs) ──
+import { importedMedicalEntries } from "./deworming-vaccination-data";
+import { powerPackEntries } from "./power-pack-data";
+import {
+  braveActualEntries,
+  scheduledDewormingEntries,
+} from "./scheduled-and-events-data";
+import { annualExamEntries } from "./donkey-profiles-data";
+
+// Sources of deworming truth, in order of authority (highest first):
+//   1. brave-events.csv  → braveActualEntries  (per-donkey events with weights)
+//   2. power-pack-doses.csv → powerPackEntries (day-by-day power-pack log)
+//   3. deworming-vaccination.csv (history strings) → importedMedicalEntries
+// When a higher-authority source has a record for (animal, drug) within
+// OVERLAP_DAYS, lower-authority records are dropped.
+
+function dayDiff(a: string, b: string): number {
+  return Math.abs(
+    Math.round(
+      (new Date(a + "T00:00:00").getTime() -
+        new Date(b + "T00:00:00").getTime()) /
+        (1000 * 60 * 60 * 24)
+    )
+  );
+}
+
+function entryDrug(e: MedicalEntry): string | null {
+  const t = e.title.toLowerCase();
+  if (t.includes("fenbendazole")) return "Fenbendazole";
+  if (t.includes("pyrantel")) return "Pyrantel";
+  if (t.includes("ivermectin")) return "Ivermectin";
+  if (t.includes("moxidectin")) return "Moxidectin";
+  if (t.includes("tri-wormer")) return "Tri-wormer";
+  return null;
+}
+
+const OVERLAP_DAYS = 7; // wider window for power-pack vs power-pack overlap
+
+// Brave events are the authoritative source for Brave herd dosing.
+// Drop any power-pack entry for an animal that also has a Brave event for the
+// same drug within OVERLAP_DAYS — the Brave events have the correct start dates.
+const dedupedPowerPackEntries = powerPackEntries.filter((pp) => {
+  return !braveActualEntries.some((b) => {
+    if (b.animal !== pp.animal) return false;
+    const bDrug = entryDrug(b);
+    if (bDrug !== pp.drug) return false;
+    return dayDiff(b.date, pp.date) <= OVERLAP_DAYS;
+  });
+});
+
+// Then drop summary-level entries that overlap with EITHER higher-authority source.
+const dedupedDewormingImports = importedMedicalEntries.filter((e) => {
+  if (e.type !== "Deworming") return true;
+  const drug = entryDrug(e);
+  if (!drug) return true;
+  const overlapsHighAuth = (other: { animal: string; date: string; drug?: string; title?: string }) => {
+    if (other.animal !== e.animal) return false;
+    const otherDrug =
+      "drug" in other && other.drug
+        ? other.drug
+        : entryDrug(other as MedicalEntry);
+    if (otherDrug !== drug) return false;
+    return dayDiff(other.date, e.date) <= OVERLAP_DAYS;
+  };
+  if (dedupedPowerPackEntries.some(overlapsHighAuth)) return false;
+  if (braveActualEntries.some(overlapsHighAuth)) return false;
+  return true;
+});
+
+// Strip the extra `drug` field from power-pack entries when merging into MedicalEntry[]
+const powerPackAsMedical: MedicalEntry[] = dedupedPowerPackEntries.map(
+  ({ drug: _drug, ...rest }) => rest
+);
+
+export const allMedicalEntries: MedicalEntry[] = [
+  ...medicalEntries,
+  ...dedupedDewormingImports,
+  ...powerPackAsMedical,
+  ...braveActualEntries,
+  ...scheduledDewormingEntries,
+  ...annualExamEntries,
+];
+
 // ── Helper Functions ──
 
 export function getEntriesForAnimal(animalName: string): MedicalEntry[] {
-  return medicalEntries
+  return allMedicalEntries
     .filter((r) => r.animal === animalName)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
@@ -262,7 +348,7 @@ export function getEntriesForAnimal(animalName: string): MedicalEntry[] {
 export const getRecordsForAnimal = getEntriesForAnimal;
 
 export function getAllEntriesSorted(): MedicalEntry[] {
-  return [...medicalEntries].sort(
+  return [...allMedicalEntries].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
 }

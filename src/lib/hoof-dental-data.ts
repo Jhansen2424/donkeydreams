@@ -1,5 +1,6 @@
 import { animals } from "./animals";
 import { watchList } from "./sanctuary-data";
+import { importedHoofVisits } from "./trimming-data";
 
 // ── Types ──
 export type CareType = "hoof" | "dental";
@@ -47,85 +48,48 @@ export const providers = [
   { name: "Valley Equine Dental", type: "Equine Dentist" as const, phone: "(760) 555-0311" },
 ];
 
-// ── Per-animal intervals (special needs animals get shorter intervals) ──
-const specialHoofAnimals = new Set(["Gabriel", "Shelley", "Pete", "Swayze"]);
-const specialDentalAnimals = new Set(["Blossom", "Pete", "Gabriel"]);
+// ── Per-animal hoof intervals (special needs animals trim more frequently) ──
+// Sourced from real trimming protocols in donkey-trimming-notes.csv
+const hoofIntervalOverrides: Record<string, { weeks: number; notes: string }> = {
+  Gracie: { weeks: 2, notes: "Laminitis — fronts every 2 weeks, backs every 4-6 weeks. Sling trim with bute/dorma." },
+  Skyla: { weeks: 4, notes: "Laminitis — monthly trims with sedation. Use sling." },
+  Shelley: { weeks: 3, notes: "Long right leg — weekly rasping, full trim every 3 weeks in sling." },
+  Winnie: { weeks: 3, notes: "Long left leg — full trim every 3 weeks in sling." },
+  Cassidy: { weeks: 5, notes: "Clubfoot — rasp special hoof every 1-2 weeks, full sling trim every 5-6 weeks." },
+  Lila: { weeks: 5, notes: "Trim every 4-6 weeks. Does better with longer hooves and more concavity." },
+  Petey: { weeks: 5, notes: "Senior — trim every 4-6 weeks." },
+  Peggy: { weeks: 6, notes: "Cushings — corrective hoof care. Prone to bruising/abscess after trim." },
+  Cinder: { weeks: 6, notes: "Curled passenger leg — sling trim with valerian." },
+  Gabriel: { weeks: 6, notes: "Prosthetic leg — trim 1 hoof at a time while lying down." },
+  Swayze: { weeks: 6, notes: "Sway back — one hoof per session unless under dorma." },
+  Pete: { weeks: 6, notes: "Senior — monitor for laminitis signs." },
+};
+
+const specialDentalAnimals = new Set(["Blossom", "Petey", "Gabriel", "Herman", "Tenzel"]);
 
 function getInterval(animalName: string): CareInterval {
+  const hoofOverride = hoofIntervalOverrides[animalName];
   return {
     animal: animalName,
-    hoofWeeks: specialHoofAnimals.has(animalName) ? 6 : 8,
+    hoofWeeks: hoofOverride?.weeks ?? 8,
     dentalMonths: specialDentalAnimals.has(animalName) ? 6 : 12,
-    hoofNotes: specialHoofAnimals.has(animalName)
-      ? animalName === "Gabriel"
-        ? "Prosthetic leg — extra care on remaining hooves"
-        : animalName === "Shelley"
-          ? "Brace leg — careful positioning during trim"
-          : "Senior — monitor for laminitis signs"
-      : "",
+    hoofNotes: hoofOverride?.notes ?? "",
     dentalNotes: specialDentalAnimals.has(animalName)
       ? animalName === "Blossom"
         ? "Dental issues — soft food only. Check for sharp points."
-        : "Senior — may need sedation for float"
+        : animalName === "Herman" || animalName === "Tenzel"
+          ? "Cannot eat hay — needs mash-only diet"
+          : "Senior — may need sedation for float"
       : "",
   };
 }
 
-// ── Simulated visit history ──
-// Generates realistic past visits so the page has data from day one
-function generateVisitHistory(): CareVisit[] {
-  const visits: CareVisit[] = [];
-  const farriers = ["Dr. Martinez", "Desert Hoof Care"];
-  const dentists = ["Dr. Chen", "Valley Equine Dental"];
-  const today = new Date();
-
-  // Give each animal 2-3 past hoof trims and 1-2 dental visits
-  animals.forEach((animal, i) => {
-    const interval = getInterval(animal.name);
-
-    // Last hoof trim — scattered across recent weeks
-    const hoofDaysAgo = ((i * 7 + 3) % (interval.hoofWeeks * 7)) + 5;
-    const lastHoof = new Date(today);
-    lastHoof.setDate(lastHoof.getDate() - hoofDaysAgo);
-    visits.push({
-      id: `hoof-${animal.slug}-1`,
-      animal: animal.name,
-      type: "hoof",
-      date: lastHoof.toISOString().split("T")[0],
-      provider: farriers[i % 2],
-      notes: interval.hoofNotes || "Routine trim. All four hooves in good condition.",
-    });
-
-    // Previous hoof trim
-    const prevHoof = new Date(lastHoof);
-    prevHoof.setDate(prevHoof.getDate() - interval.hoofWeeks * 7);
-    visits.push({
-      id: `hoof-${animal.slug}-2`,
-      animal: animal.name,
-      type: "hoof",
-      date: prevHoof.toISOString().split("T")[0],
-      provider: farriers[(i + 1) % 2],
-      notes: "Routine trim.",
-    });
-
-    // Last dental
-    const dentalDaysAgo = ((i * 23 + 14) % (interval.dentalMonths * 30)) + 30;
-    const lastDental = new Date(today);
-    lastDental.setDate(lastDental.getDate() - dentalDaysAgo);
-    visits.push({
-      id: `dental-${animal.slug}-1`,
-      animal: animal.name,
-      type: "dental",
-      date: lastDental.toISOString().split("T")[0],
-      provider: dentists[i % 2],
-      notes: interval.dentalNotes || "Float completed. No issues found.",
-    });
-  });
-
-  return visits.sort((a, b) => b.date.localeCompare(a.date));
-}
-
-export const visitHistory = generateVisitHistory();
+// ── Visit history ──
+// Real hoof trim data parsed from donkey-trimming-notes.csv (see scripts/parse-trimming-csv.ts).
+// Dental visits are not yet imported — add manually via the /app/hoof-dental dashboard.
+export const visitHistory: CareVisit[] = [...importedHoofVisits].sort((a, b) =>
+  b.date.localeCompare(a.date)
+);
 
 // ── Compute status for each animal ──
 function daysBetween(a: string, b: string): number {

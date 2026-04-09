@@ -1,3 +1,5 @@
+import { donkeyProfiles } from "./donkey-profiles-data";
+
 export interface Animal {
   name: string;
   slug: string;
@@ -26,6 +28,23 @@ export interface Animal {
     urgent: boolean;
   }[];
   tasks: { title: string; interval: string; type: string }[];
+  // ── Adoption / identity fields (from donkey-adoption.csv) ──
+  birthDate?: string | null;
+  color?: string;
+  size?: string; // "Mini" | "Standard" | "Mammoth"
+  microchip?: string | null;
+  needsChip?: boolean;
+  // Adoption status flags
+  momBabyCount?: number;
+  isBondedPair?: boolean;
+  isSpecialNeedsFlag?: boolean;
+  isOver20?: boolean;
+  // Family relationships extracted from notes
+  parents?: string[];
+  children?: string[];
+  bondedWith?: string[];
+  // Additional medical
+  lastAnnualExam?: string | null;
 }
 
 function slug(name: string) {
@@ -276,26 +295,47 @@ function makeDonkey(
   overrides: Partial<Animal> = {}
 ): Animal {
   const status = overrides.status ?? "Active";
+  // Look up real adoption-CSV data for this donkey (if present)
+  const profile = donkeyProfiles.get(name);
+
+  // Real CSV data takes precedence over rotating placeholder pools.
+  // Explicit overrides passed to makeDonkey still win over both
+  // (preserves curated entries for Pink, Eli, Gabriel, etc.).
   return {
     name,
     slug: slug(name),
-    age: ages[i % ages.length],
-    sex: sexes[i % sexes.length],
-    origin: origins[i % origins.length],
+    age: profile?.age ?? ages[i % ages.length],
+    sex: profile?.sex ?? sexes[i % sexes.length],
+    origin: profile?.origin ?? origins[i % origins.length],
     status,
-    herd,
-    pen: herdPens[herd] ?? "",
+    herd: profile?.herd ?? herd,
+    pen: herdPens[profile?.herd ?? herd] ?? "",
     tags: [{ label: "Healthy", color: "green" }],
     traits: [],
-    bestFriends: [],
+    bestFriends: profile?.bondedWith ?? [],
     tagline: "",
     story: [],
     sponsorable: false,
-    intakeDate: intakeDates[i % intakeDates.length],
+    intakeDate: profile?.intakeDate ?? intakeDates[i % intakeDates.length],
     adoptedFrom: adoptedFromPool[i % adoptedFromPool.length],
-    behavioralNotes: behaviorPool[i % behaviorPool.length],
+    behavioralNotes:
+      profile?.specialNeedsDetail || profile?.notes || behaviorPool[i % behaviorPool.length],
     medicalRecords: medicalForAnimal(name, status, i),
     tasks: tasksForAnimal(name, herd, status, i),
+    // ── Adoption / identity fields ──
+    birthDate: profile?.birthDate ?? null,
+    color: profile?.color,
+    size: profile?.size,
+    microchip: profile?.microchip,
+    needsChip: profile?.needsChip ?? false,
+    momBabyCount: profile?.momBabyCount ?? 0,
+    isBondedPair: profile?.isBondedPair ?? false,
+    isSpecialNeedsFlag: profile?.isSpecialNeeds ?? false,
+    isOver20: profile?.isOver20 ?? false,
+    parents: profile?.parents ?? [],
+    children: profile?.children ?? [],
+    bondedWith: profile?.bondedWith ?? [],
+    lastAnnualExam: profile?.lastAnnualExam ?? null,
     ...overrides,
   };
 }
@@ -315,12 +355,12 @@ export const herds = [
 export type HerdName = (typeof herds)[number];
 
 export const herdCounts: Record<HerdName, number> = {
-  "Elsie's Herd": 22,
+  "Elsie's Herd": 24,
   Brave: 17,
   Unicorns: 10,
   Pegasus: 11,
-  Seniors: 8,
-  "Pinky's Herd": 12,
+  Seniors: 9,
+  "Pinky's Herd": 13,
   Dragons: 8,
   Angels: 7,
   Legacy: 4,
@@ -363,6 +403,8 @@ export const animals: Animal[] = [
   makeDonkey("Moses", "Elsie's Herd", idx++, { sex: "Jack", age: "11 yr old", traits: ["Wise", "Gentle"] }),
   makeDonkey("Peter", "Elsie's Herd", idx++, { sex: "Gelding", age: "15 yr old", traits: ["Elder", "Calm"], tags: [{ label: "Senior Care", color: "amber" }] }),
   makeDonkey("Wendy", "Elsie's Herd", idx++, { sex: "Jenny", age: "7 yr old", traits: ["Affectionate", "Trusting"] }),
+  makeDonkey("Jethro", "Elsie's Herd", idx++, { sex: "Jack", age: "1 yr old", traits: ["Young", "Curious"], tagline: "Sophie's surrogate baby" }),
+  makeDonkey("Jemma", "Elsie's Herd", idx++, { sex: "Jenny", age: "1 yr old", traits: ["Young", "Sweet"], tagline: "Sophie's surrogate baby" }),
 
   // ── Brave (17) ──
   makeDonkey("Leilani", "Brave", idx++, { sex: "Jenny", age: "6 yr old", traits: ["Graceful", "Loving"], bestFriends: ["Ophelia"] }),
@@ -447,6 +489,13 @@ export const animals: Animal[] = [
   makeDonkey("Churro", "Seniors", idx++, { age: "19 yr old", sex: "Gelding", traits: ["Friendly", "Warm"], tags: [{ label: "Senior Care", color: "amber" }], behavioralNotes: "Weight management — monitor portions. Very treat-motivated." }),
   makeDonkey("Jasper", "Seniors", idx++, { age: "21 yr old", sex: "Jack", traits: ["Wise", "Observant"], tags: [{ label: "Senior Care", color: "amber" }], behavioralNotes: "Mild hearing loss. Use visual cues. Excellent with volunteers." }),
   makeDonkey("Rodney", "Seniors", idx++, { age: "17 yr old", sex: "Gelding", traits: ["Laid-back", "Gentle"], tags: [{ label: "Senior Care", color: "amber" }], behavioralNotes: "History of colic — monitor eating habits. Prefers shade in summer." }),
+  makeDonkey("Mrs. Truman", "Seniors", idx++, {
+    age: "Senior", sex: "Jenny",
+    traits: ["Calm", "Gentle"],
+    tags: [{ label: "Senior Care", color: "amber" }],
+    tagline: "Surrendered to PVDR with Nelly Belle",
+    behavioralNotes: "Surrendered by owner to PVDR on 12/20/20 alongside Nelly Belle and Blossom.",
+  }),
 
   // ── Pinky's Herd (12) ──
   makeDonkey("Pink", "Pinky's Herd", idx++, {
@@ -526,6 +575,12 @@ export const animals: Animal[] = [
     tags: [{ label: "Special Needs", color: "red" }, { label: "Sponsor Available", color: "blue" }],
     sponsorable: true,
     behavioralNotes: "Hoarding rescue — corrective hoof care ongoing. Needs daily hoof therapy walk (15 min) and afternoon hoof soak. Very patient during treatment.",
+  }),
+  makeDonkey("Cora", "Pinky's Herd", idx++, {
+    sex: "Jenny", age: "10 yr old", origin: "Saline Valley, CA",
+    traits: ["Trusting", "Patient"],
+    tagline: "Returned from previous adoption",
+    behavioralNotes: "Previously trained by Amy. Returned by SAC. Separated from her son, Vader, when he got adopted and she did not.",
   }),
 
   // ── Dragons (8) ──
