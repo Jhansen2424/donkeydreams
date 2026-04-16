@@ -16,22 +16,25 @@ import {
   Settings,
   UtensilsCrossed,
   AlertTriangle,
+  Inbox,
 } from "lucide-react";
+import { useParkingLot } from "@/lib/parking-lot-context";
 
 const navGroups = [
   {
     label: "Main",
     items: [
       { name: "Dashboard", href: "/app", icon: LayoutDashboard },
-      { name: "Animals", href: "/app/animals", icon: Heart, badge: 99 },
-      { name: "Watch List", href: "/app/watch", icon: AlertTriangle, badge: 6 },
+      { name: "Animals", href: "/app/animals", icon: Heart },
+      { name: "Notes", href: "/app/notes", icon: Inbox, dynamicBadge: "notes" as const },
+      { name: "Watch List", href: "/app/watch", icon: AlertTriangle },
     ],
   },
   {
     label: "Care",
     items: [
       { name: "Medical Entries", href: "/app/medical", icon: Stethoscope },
-      { name: "Daily Schedule", href: "/app/tasks", icon: ClipboardCheck, badge: 34 },
+      { name: "Daily Schedule", href: "/app/tasks", icon: ClipboardCheck },
       { name: "Feed Buckets", href: "/app/feed", icon: UtensilsCrossed },
       { name: "Hoof Care", href: "/app/hoof-dental?tab=hoof", icon: Footprints },
       { name: "Dental Care", href: "/app/hoof-dental?tab=dental", icon: Footprints },
@@ -58,6 +61,15 @@ const navGroups = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { unresolvedCount } = useParkingLot();
+
+  const resolveBadge = (item: (typeof navGroups)[number]["items"][number]): number | undefined => {
+    if ("dynamicBadge" in item && item.dynamicBadge === "notes") {
+      return unresolvedCount > 0 ? unresolvedCount : undefined;
+    }
+    if ("badge" in item && typeof item.badge === "number") return item.badge;
+    return undefined;
+  };
 
   return (
     <aside className="hidden md:flex flex-col w-64 bg-sidebar text-cream min-h-screen fixed left-0 top-0 z-40">
@@ -88,6 +100,7 @@ export default function Sidebar() {
                     ? pathname === "/app"
                     : pathname.startsWith(hrefPath);
                 const Icon = item.icon;
+                const badge = resolveBadge(item);
                 return (
                   <li key={item.name}>
                     <Link
@@ -100,9 +113,9 @@ export default function Sidebar() {
                     >
                       <Icon className="w-[18px] h-[18px] shrink-0" />
                       <span className="flex-1">{item.name}</span>
-                      {item.badge && (
+                      {badge !== undefined && (
                         <span className="bg-sand text-sidebar text-[11px] font-bold px-2 py-0.5 rounded-full">
-                          {item.badge}
+                          {badge}
                         </span>
                       )}
                     </Link>

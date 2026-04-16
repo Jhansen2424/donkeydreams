@@ -1,11 +1,19 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   generateDailySchedule,
   type ScheduleBlock,
   type ScheduleTask,
   type TaskCategory,
+  type TaskSource,
 } from "./sanctuary-data";
 
 export interface NewTaskInput {
@@ -17,13 +25,25 @@ export interface NewTaskInput {
   category?: TaskCategory;
 }
 
+export interface EditTaskInput {
+  task?: string;
+  assignedTo?: string;
+  animalSpecific?: string;
+  note?: string;
+  blockName?: string;
+}
+
 interface ScheduleContextValue {
   schedule: ScheduleBlock[];
-  toggleTask: (blockIdx: number, taskIdx: number) => void;
-  assignTask: (blockIdx: number, taskIdx: number, memberName: string) => void;
-  bulkAssign: (blockIdx: number, memberName: string) => void;
-  addTask: (input: NewTaskInput) => void;
-  resetSchedule: () => void;
+  toggleTask: (blockIdx: number, taskIdx: number) => Promise<void>;
+  assignTask: (blockIdx: number, taskIdx: number, memberName: string) => Promise<void>;
+  bulkAssign: (blockIdx: number, memberName: string) => Promise<void>;
+  addTask: (input: NewTaskInput) => Promise<void>;
+  editTask: (blockIdx: number, taskIdx: number, updates: EditTaskInput) => Promise<void>;
+  deleteTask: (blockIdx: number, taskIdx: number) => Promise<void>;
+  resetSchedule: () => Promise<void>;
+  loading: boolean;
+  error: string | null;
 }
 
 function currentBlockName(): "Breakfast" | "Lunch" | "Dinner" {
@@ -33,96 +53,326 @@ function currentBlockName(): "Breakfast" | "Lunch" | "Dinner" {
   return "Dinner";
 }
 
+// ── Augmented ScheduleTask with the server-side id ──
+// We keep the existing ScheduleTask shape so components can stay unchanged.
+// `serverId` is attached as an extra property (ignored by components) so
+// mutations can look up the DB row to update.
+type TaskWithId = ScheduleTask & { serverId?: string };
+
+interface ApiTask {
+  id: string;
+  task: string;
+  block: string;
+  category: string;
+  date: string;
+  assignedTo: string | null;
+  done: boolean;
+  note: string | null;
+  animalSpecific: string | null;
+  templateId: string | null;
+  createdAt: string;
+}
+
+function apiToTask(a: ApiTask): TaskWithId {
+  return {
+    task: a.task,
+    assignedTo: a.assignedTo || undefined,
+    done: a.done,
+    animalSpecific: a.animalSpecific || undefined,
+    note: a.note || undefined,
+    category: (a.category as TaskCategory) || "routine",
+    source: (a.templateId ? "base" : "manual") as TaskSource,
+    serverId: a.id,
+  };
+}
+
+// Merge a flat list of tasks into the empty 3-block skeleton from
+// generateDailySchedule(). Any task whose block doesn't match a known block
+// goes into the first block as a fallback.
+function mergeTasksIntoSchedule(tasks: TaskWithId[], blockOf: (t: TaskWithId) => string): ScheduleBlock[] {
+  const skeleton: ScheduleBlock[] = generateDailySchedule().map((b) => ({ ...b, tasks: [] }));
+  const byName = new Map(skeleton.map((b) => [b.name, b]));
+  for (const t of tasks) {
+    const name = blockOf(t);
+    const target = byName.get(name) ?? skeleton[0];
+    target.tasks.push(t);
+  }
+  return skeleton;
+}
+
 const ScheduleContext = createContext<ScheduleContextValue | null>(null);
 
 export function ScheduleProvider({ children }: { children: ReactNode }) {
-  const [schedule, setSchedule] = useState<ScheduleBlock[]>(generateDailySchedule);
+  const [schedule, setSchedule] = useState<ScheduleBlock[]>(() =>
+    generateDailySchedule().map((b) => ({ ...b, tasks: [] as ScheduleTask[] }))
+  );
+  const [taskBlocks, setTaskBlocks] = useState<Map<string, string>>(new Map());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const toggleTask = useCallback((blockIdx: number, taskIdx: number) => {
-    setSchedule((prev) =>
+  const refresh = useCallback(async () => {
+    setError(null);
+    try {
+      const res = await fetch("/api/tasks", { cache: "no-store" });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to load");
+      const body = (await res.json()) as { tasks: ApiTask[] };
+      const tasks = body.tasks.map(apiToTask);
+      const blockMap = new Map(body.tasks.map((a) => [a.id, a.block]));
+      setTaskBlocks(blockMap);
+      setSchedule(mergeTasksIntoSchedule(tasks, (t) => (t.serverId ? blockMap.get(t.serverId) : undefined) ?? "Breakfast"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load tasks");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  // Resolve a (blockIdx, taskIdx) into the current server id + block name.
+  const resolveIds = (blockIdx: number, taskIdx: number) => {
+    const block = schedule[blockIdx];
+    const task = block?.tasks[taskIdx] as TaskWithId | undefined;
+    if (!block || !task || !task.serverId) return null;
+    return { serverId: task.serverId, blockName: block.name };
+  };
+
+  // Apply a transform to local state, then roll it back on API failure.
+  const localUpdate = (
+    transform: (prev: ScheduleBlock[]) => ScheduleBlock[]
+  ): ScheduleBlock[] => {
+    let snapshot: ScheduleBlock[] = schedule;
+    setSchedule((prev) => {
+      snapshot = prev;
+      return transform(prev);
+    });
+    return snapshot;
+  };
+
+  // ── Mutations ──
+  const toggleTask = useCallback(async (blockIdx: number, taskIdx: number) => {
+    const ids = resolveIds(blockIdx, taskIdx);
+    if (!ids) return;
+    const current = schedule[blockIdx].tasks[taskIdx];
+    const nextDone = !current.done;
+
+    const snapshot = localUpdate((prev) =>
       prev.map((block, bi) =>
         bi === blockIdx
-          ? {
-              ...block,
-              tasks: block.tasks.map((task, ti) =>
-                ti === taskIdx ? { ...task, done: !task.done } : task
-              ),
-            }
+          ? { ...block, tasks: block.tasks.map((t, ti) => (ti === taskIdx ? { ...t, done: nextDone } : t)) }
           : block
       )
     );
-  }, []);
 
-  const assignTask = useCallback((blockIdx: number, taskIdx: number, memberName: string) => {
-    setSchedule((prev) =>
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ids.serverId, done: nextDone }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to update");
+    } catch (e) {
+      setSchedule(snapshot);
+      setError(e instanceof Error ? e.message : "Failed to update task");
+    }
+  }, [schedule]);
+
+  const assignTask = useCallback(async (blockIdx: number, taskIdx: number, memberName: string) => {
+    const ids = resolveIds(blockIdx, taskIdx);
+    if (!ids) return;
+    const current = schedule[blockIdx].tasks[taskIdx];
+    const list = current.assignedTo ? current.assignedTo.split(", ").filter(Boolean) : [];
+    const nextList = list.includes(memberName) ? list.filter((n) => n !== memberName) : [...list, memberName];
+    const nextAssignedTo = nextList.join(", ") || undefined;
+
+    const snapshot = localUpdate((prev) =>
       prev.map((block, bi) =>
         bi === blockIdx
-          ? {
-              ...block,
-              tasks: block.tasks.map((task, ti) => {
-                if (ti !== taskIdx) return task;
-                const current = task.assignedTo
-                  ? task.assignedTo.split(", ").filter(Boolean)
-                  : [];
-                const next = current.includes(memberName)
-                  ? current.filter((n) => n !== memberName)
-                  : [...current, memberName];
-                return { ...task, assignedTo: next.join(", ") || undefined };
-              }),
-            }
+          ? { ...block, tasks: block.tasks.map((t, ti) => (ti === taskIdx ? { ...t, assignedTo: nextAssignedTo } : t)) }
           : block
       )
     );
-  }, []);
 
-  const bulkAssign = useCallback((blockIdx: number, memberName: string) => {
-    setSchedule((prev) =>
-      prev.map((block, bi) => {
-        if (bi !== blockIdx) return block;
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ids.serverId, assignedTo: nextAssignedTo ?? null }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to assign");
+    } catch (e) {
+      setSchedule(snapshot);
+      setError(e instanceof Error ? e.message : "Failed to assign task");
+    }
+  }, [schedule]);
+
+  const bulkAssign = useCallback(async (blockIdx: number, memberName: string) => {
+    const block = schedule[blockIdx];
+    if (!block) return;
+    // Add memberName to any task in this block that doesn't already include them.
+    const patches: Array<{ id: string; assignedTo: string }> = [];
+    const snapshot = localUpdate((prev) =>
+      prev.map((b, bi) => {
+        if (bi !== blockIdx) return b;
         return {
-          ...block,
-          tasks: block.tasks.map((task) => {
-            const current = task.assignedTo
-              ? task.assignedTo.split(", ").filter(Boolean)
-              : [];
-            if (current.includes(memberName)) return task;
-            return { ...task, assignedTo: [...current, memberName].join(", ") };
+          ...b,
+          tasks: b.tasks.map((t) => {
+            const tid = (t as TaskWithId).serverId;
+            const list = t.assignedTo ? t.assignedTo.split(", ").filter(Boolean) : [];
+            if (list.includes(memberName)) return t;
+            const next = [...list, memberName].join(", ");
+            if (tid) patches.push({ id: tid, assignedTo: next });
+            return { ...t, assignedTo: next } as TaskWithId;
           }),
         };
       })
     );
-  }, []);
 
-  const addTask = useCallback((input: NewTaskInput) => {
-    const targetBlock = input.blockName ?? currentBlockName();
-    const newTask: ScheduleTask = {
-      task: input.task,
-      assignedTo: input.assignedTo,
-      done: false,
-      animalSpecific: input.animalSpecific,
-      note: input.note,
-      category: input.category ?? "routine",
-      source: "manual",
-    };
-    setSchedule((prev) => {
-      // If the target block exists, append. Otherwise fall back to the first block.
-      const hasTarget = prev.some((b) => b.name === targetBlock);
-      const blockToUse = hasTarget ? targetBlock : prev[0]?.name;
-      return prev.map((block) =>
-        block.name === blockToUse
-          ? { ...block, tasks: [...block.tasks, newTask] }
-          : block
+    try {
+      await Promise.all(patches.map((p) =>
+        fetch("/api/tasks", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(p),
+        }).then((r) => { if (!r.ok) throw new Error("patch failed"); })
+      ));
+    } catch (e) {
+      setSchedule(snapshot);
+      setError(e instanceof Error ? e.message : "Failed to bulk assign");
+    }
+  }, [schedule]);
+
+  const addTask = useCallback(async (input: NewTaskInput) => {
+    const block = input.blockName ?? currentBlockName();
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          task: input.task,
+          block,
+          category: input.category ?? "routine",
+          assignedTo: input.assignedTo,
+          animalSpecific: input.animalSpecific,
+          note: input.note,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to add");
+      const body = (await res.json()) as { task: ApiTask };
+      const newTask = apiToTask(body.task);
+      setTaskBlocks((prev) => {
+        const next = new Map(prev);
+        next.set(body.task.id, body.task.block);
+        return next;
+      });
+      setSchedule((prev) =>
+        prev.map((b) => (b.name === body.task.block ? { ...b, tasks: [...b.tasks, newTask] } : b))
       );
-    });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to add task");
+    }
   }, []);
 
-  const resetSchedule = useCallback(() => {
-    setSchedule(generateDailySchedule());
-  }, []);
+  const editTask = useCallback(async (blockIdx: number, taskIdx: number, updates: EditTaskInput) => {
+    const ids = resolveIds(blockIdx, taskIdx);
+    if (!ids) return;
+    const moving = updates.blockName && updates.blockName !== ids.blockName;
+
+    // Optimistic patch locally
+    const snapshot = localUpdate((prev) => {
+      const target = prev[blockIdx]?.tasks[taskIdx];
+      if (!target) return prev;
+      const patched: TaskWithId = {
+        ...target,
+        task: updates.task ?? target.task,
+        assignedTo: updates.assignedTo !== undefined ? updates.assignedTo || undefined : target.assignedTo,
+        animalSpecific: updates.animalSpecific !== undefined ? updates.animalSpecific || undefined : target.animalSpecific,
+        note: updates.note !== undefined ? updates.note || undefined : target.note,
+      };
+      if (!moving) {
+        return prev.map((b, bi) =>
+          bi === blockIdx ? { ...b, tasks: b.tasks.map((t, ti) => (ti === taskIdx ? patched : t)) } : b
+        );
+      }
+      return prev.map((b, bi) => {
+        if (bi === blockIdx) return { ...b, tasks: b.tasks.filter((_, ti) => ti !== taskIdx) };
+        if (b.name === updates.blockName) return { ...b, tasks: [...b.tasks, patched] };
+        return b;
+      });
+    });
+
+    try {
+      const patchBody: Record<string, unknown> = { id: ids.serverId };
+      if (updates.task !== undefined) patchBody.task = updates.task;
+      if (updates.assignedTo !== undefined) patchBody.assignedTo = updates.assignedTo || null;
+      if (updates.animalSpecific !== undefined) patchBody.animalSpecific = updates.animalSpecific || null;
+      if (updates.note !== undefined) patchBody.note = updates.note || null;
+      if (moving) patchBody.block = updates.blockName;
+
+      const res = await fetch("/api/tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patchBody),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to edit");
+
+      if (moving && updates.blockName) {
+        setTaskBlocks((prev) => {
+          const next = new Map(prev);
+          next.set(ids.serverId, updates.blockName!);
+          return next;
+        });
+      }
+    } catch (e) {
+      setSchedule(snapshot);
+      setError(e instanceof Error ? e.message : "Failed to edit task");
+    }
+  }, [schedule]);
+
+  const deleteTask = useCallback(async (blockIdx: number, taskIdx: number) => {
+    const ids = resolveIds(blockIdx, taskIdx);
+    if (!ids) return;
+
+    const snapshot = localUpdate((prev) =>
+      prev.map((b, bi) =>
+        bi === blockIdx ? { ...b, tasks: b.tasks.filter((_, ti) => ti !== taskIdx) } : b
+      )
+    );
+
+    try {
+      const res = await fetch(`/api/tasks?id=${encodeURIComponent(ids.serverId)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to delete");
+      setTaskBlocks((prev) => {
+        const next = new Map(prev);
+        next.delete(ids.serverId);
+        return next;
+      });
+    } catch (e) {
+      setSchedule(snapshot);
+      setError(e instanceof Error ? e.message : "Failed to delete task");
+    }
+  }, [schedule]);
+
+  const resetSchedule = useCallback(async () => {
+    await refresh();
+  }, [refresh]);
 
   return (
     <ScheduleContext.Provider
-      value={{ schedule, toggleTask, assignTask, bulkAssign, addTask, resetSchedule }}
+      value={{
+        schedule,
+        toggleTask,
+        assignTask,
+        bulkAssign,
+        addTask,
+        editTask,
+        deleteTask,
+        resetSchedule,
+        loading,
+        error,
+      }}
     >
       {children}
     </ScheduleContext.Provider>

@@ -44,7 +44,7 @@ export default function ParkingLot() {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Inbox className="w-5 h-5 text-sidebar" />
-          <h3 className="font-bold text-charcoal text-lg">Parking Lot</h3>
+          <h3 className="font-bold text-charcoal text-lg">Notes</h3>
           {unresolved.length > 0 && (
             <span className="bg-sidebar text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
               {unresolved.length}

@@ -29,6 +29,7 @@ import {
 import { volunteers } from "@/lib/volunteer-data";
 import { useSchedule } from "@/lib/schedule-context";
 import VolunteerLoadBar from "@/components/app/VolunteerLoadBar";
+import TaskEditModal, { type TaskEditModalMode } from "@/components/app/TaskEditModal";
 
 type ViewMode = "time" | "animal";
 type CategoryFilter = TaskCategory | "all";
@@ -264,6 +265,23 @@ export default function TasksPage() {
   // Bulk assign popover state
   const [bulkPopoverBlock, setBulkPopoverBlock] = useState<number | null>(null);
 
+  // Task edit / add modal state
+  const [modalMode, setModalMode] = useState<TaskEditModalMode | null>(null);
+  const openAdd = (defaultBlock?: string) =>
+    setModalMode({ kind: "add", defaultBlock });
+  const openEdit = (blockIdx: number, taskIdx: number) => {
+    const block = schedule[blockIdx];
+    const task = block?.tasks[taskIdx];
+    if (!block || !task) return;
+    setModalMode({
+      kind: "edit",
+      blockIdx,
+      taskIdx,
+      task,
+      defaultBlock: block.name,
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -306,11 +324,19 @@ export default function TasksPage() {
             </button>
           </div>
           <button
+            onClick={() => openAdd()}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-bold hover:bg-sidebar-light transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add task
+          </button>
+          <button
             onClick={resetSchedule}
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-card-border rounded-lg text-sm font-medium text-charcoal hover:bg-cream transition-colors"
+            title="Reload tasks from database"
           >
             <RotateCcw className="w-4 h-4" />
-            Reset
+            Reload
           </button>
         </div>
       </div>
@@ -457,14 +483,22 @@ export default function TasksPage() {
                         onAssign={(name) =>
                           assignTask(origIdx, origTaskIdx, name)
                         }
+                        onEdit={() => openEdit(origIdx, origTaskIdx)}
                       />
                     );
                   })}
                   {block.tasks.length === 0 && (
-                    <p className="text-sm text-warm-gray/50 text-center py-4">
-                      No {categoryFilter} tasks this block
+                    <p className="text-sm text-warm-gray/50 text-center py-3">
+                      No tasks yet
                     </p>
                   )}
+                  <button
+                    onClick={() => openAdd(block.name)}
+                    className="mt-1 w-full inline-flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-sidebar border-2 border-dashed border-card-border rounded-lg hover:border-sidebar hover:bg-sidebar/5 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add to {block.name}
+                  </button>
                 </div>
               </div>
             );
@@ -517,6 +551,11 @@ export default function TasksPage() {
                                 assignTask(blockIdx, taskIdx, name);
                               }
                             }}
+                            onEdit={
+                              blockIdx >= 0 && taskIdx >= 0
+                                ? () => openEdit(blockIdx, taskIdx)
+                                : undefined
+                            }
                             hideAnimal
                           />
                         </div>
@@ -587,6 +626,15 @@ export default function TasksPage() {
           </div>
         </div>
       </div>
+
+      {/* Task add / edit modal */}
+      {modalMode && (
+        <TaskEditModal
+          open={modalMode !== null}
+          mode={modalMode}
+          onClose={() => setModalMode(null)}
+        />
+      )}
     </div>
   );
 }
@@ -645,11 +693,13 @@ function TaskRow({
   task,
   onToggle,
   onAssign,
+  onEdit,
   hideAnimal,
 }: {
   task: ScheduleTask;
   onToggle: () => void;
   onAssign: (name: string) => void;
+  onEdit?: () => void;
   hideAnimal?: boolean;
 }) {
   const meta = categoryMeta[task.category];
@@ -657,7 +707,7 @@ function TaskRow({
 
   return (
     <div
-      className={`flex items-start gap-3 p-3 rounded-lg transition-all text-left ${
+      className={`group relative flex items-start gap-3 p-3 rounded-lg transition-all text-left ${
         task.done
           ? "bg-emerald-50/50 border border-emerald-200"
           : "bg-cream/30 border border-card-border hover:border-sand"
@@ -675,13 +725,17 @@ function TaskRow({
       </button>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <p
-            className={`text-sm font-medium ${
+          <button
+            type="button"
+            onClick={onEdit}
+            disabled={!onEdit}
+            className={`text-sm font-medium text-left ${
               task.done ? "text-warm-gray line-through" : "text-charcoal"
-            }`}
+            } ${onEdit ? "hover:underline cursor-pointer" : "cursor-default"}`}
+            title={onEdit ? "Click to edit" : undefined}
           >
             {task.task}
-          </p>
+          </button>
           <span
             className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${meta.color} ${meta.bg}`}
           >

@@ -15,7 +15,7 @@ import {
   Stethoscope,
 } from "lucide-react";
 import {
-  medicalRecords as baseRecords,
+  allMedicalEntries as baseRecords,
   recordTypes,
   typeBadgeColors,
   type MedicalRecord,

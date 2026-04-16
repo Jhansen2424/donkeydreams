@@ -1,11 +1,19 @@
 import { PrismaClient } from "@prisma/client";
-import { PrismaNeonHttp } from "@prisma/adapter-neon";
+import { PrismaNeon } from "@prisma/adapter-neon";
+import ws from "ws";
+import { neonConfig } from "@neondatabase/serverless";
+
+// Node lacks a native WebSocket; the Neon driver needs one for transactions
+// (upsert/createMany use them). Point it at the `ws` library.
+neonConfig.webSocketConstructor = ws;
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
   throw new Error("DATABASE_URL must be set for seeding");
 }
-const adapter = new PrismaNeonHttp(connectionString, {});
+// Use the WebSocket-based adapter for seeding so transactions work.
+// The app itself keeps using PrismaNeonHttp for serverless-friendly requests.
+const adapter = new PrismaNeon({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
 // ── Import static data ──
@@ -48,8 +56,12 @@ async function main() {
   console.log("  Animals done.");
 
   // ── 2. Medical Entries ──
-  const { medicalEntries } = await import("../src/lib/medical-data");
-  console.log(`Seeding ${medicalEntries.length} medical entries...`);
+  // Only seed CSV-sourced medical records (deworming/vaccination history from
+  // the sanctuary's real logs). The dummy hand-typed `medicalEntries` in
+  // medical-data.ts is NOT seeded — users add real entries via the app.
+  const { importedDewormingEntries } = await import("../src/lib/deworming-vaccination-data");
+  const medicalEntries = importedDewormingEntries;
+  console.log(`Seeding ${medicalEntries.length} medical entries (CSV-sourced)...`);
 
   for (const entry of medicalEntries) {
     const animal = await prisma.animal.findFirst({
@@ -73,86 +85,34 @@ async function main() {
   }
   console.log("  Medical entries done.");
 
-  // ── 3. Watch Alerts ──
-  const { watchList } = await import("../src/lib/sanctuary-data");
-  console.log(`Seeding ${watchList.length} watch alerts...`);
+  // ── 3. Watch Alerts, Feed Schedules — NOT seeded ──
+  // These were hand-typed dummy data and are no longer part of the seed.
+  // Users add real watch alerts and feed schedules via the app.
 
-  for (const entry of watchList) {
-    const animal = await prisma.animal.findFirst({
-      where: { name: entry.animal },
-    });
-    if (!animal) {
-      console.warn(`  Skipping watch alert for unknown animal: ${entry.animal}`);
-      continue;
-    }
-    await prisma.watchAlert.create({
-      data: {
-        animalId: animal.id,
-        animalName: entry.animal,
-        date: entry.date,
-        issue: entry.issue,
-        treatment: entry.treatment,
-        assignedTo: entry.assignedTo,
-        severity: entry.severity,
-      },
-    });
-  }
-  console.log("  Watch alerts done.");
-
-  // ── 4. Feed Schedules ──
-  const { feedSchedules } = await import("../src/lib/sanctuary-data");
-  console.log(`Seeding ${feedSchedules.length} feed schedules...`);
-
-  for (const feed of feedSchedules) {
-    const animal = await prisma.animal.findFirst({
-      where: { name: feed.animal },
-    });
-    if (!animal) {
-      console.warn(`  Skipping feed schedule for unknown animal: ${feed.animal}`);
-      continue;
-    }
-    await prisma.feedSchedule.upsert({
-      where: { animalId: animal.id },
-      update: {},
-      create: {
-        animalId: animal.id,
-        animalName: feed.animal,
-        amPlan: JSON.parse(JSON.stringify(feed.plan.am)),
-        midPlan: JSON.parse(JSON.stringify(feed.plan.mid)),
-        pmPlan: JSON.parse(JSON.stringify(feed.plan.pm)),
-        notes: feed.notes ?? null,
-      },
-    });
-  }
-  console.log("  Feed schedules done.");
-
-  // ── 5. Volunteers ──
-  const { volunteers } = await import("../src/lib/volunteer-data");
-  console.log(`Seeding ${volunteers.length} volunteers...`);
-
-  for (const vol of volunteers) {
+  // ── 4. Volunteers ──
+  // Seed only the three core admins. Other volunteers are added via the app.
+  const coreAdmins = [
+    { name: "Edj Fish",  email: "edj@donkeydreams.org" },
+    { name: "Amber",     email: "amber@donkeydreams.org" },
+    { name: "Josh",      email: "joshua@webaholics.co" },
+  ];
+  console.log(`Seeding ${coreAdmins.length} core admins...`);
+  for (const admin of coreAdmins) {
     await prisma.volunteer.upsert({
-      where: { email: vol.email },
+      where: { email: admin.email },
       update: {},
       create: {
-        name: vol.name,
-        email: vol.email,
-        phone: vol.phone,
-        role: vol.role,
-        status: vol.status,
-        startDate: vol.startDate,
-        availability: vol.availability,
-        skills: vol.skills,
-        emergencyName: vol.emergencyContact.name,
-        emergencyPhone: vol.emergencyContact.phone,
-        emergencyRelation: vol.emergencyContact.relation,
-        notes: vol.notes,
-        hoursThisMonth: vol.hoursThisMonth,
-        committedHoursPerDay: vol.committedHoursPerDay,
+        name: admin.name,
+        email: admin.email,
+        role: "admin",
+        status: "active",
+        startDate: new Date().toISOString().split("T")[0],
+        availability: [],
+        skills: [],
       },
     });
   }
-  console.log("  Volunteers done.");
+  console.log("  Core admins done.");
 
   // ── 6. Hoof & Dental Visits ──
   const { visitHistory } = await import("../src/lib/hoof-dental-data");

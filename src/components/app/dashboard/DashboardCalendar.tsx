@@ -16,14 +16,10 @@ const eventStyles: Record<string, { bg: string; border: string; dot: string }> =
   task: { bg: "bg-emerald-50", border: "border-emerald-200", dot: "bg-emerald-500" },
 };
 
-// Hardcoded sample events for now — will connect to real calendar later
-export const todayEvents: CalendarEvent[] = [
-  { time: "6:00 AM", title: "Morning feed & supplements", type: "task" },
-  { time: "10:30 AM", title: "Lunch prep & drop buckets", type: "task" },
-  { time: "2:00 PM", title: "Dr. Moreno — Gabriel prosthetic check", type: "vet", animal: "Gabriel" },
-  { time: "4:00 PM", title: "Dinner feed & evening routine", type: "task" },
-  { time: "5:00 PM", title: "Put on Shelley's brace", type: "task", animal: "Shelley" },
-];
+// Dummy data removed. A real calendar feed will replace this later —
+// likely by merging today's DB-backed tasks with vet/farrier appointments
+// once those have their own table.
+export const todayEvents: CalendarEvent[] = [];
 
 export default function DashboardCalendar() {
   return (
@@ -37,6 +33,11 @@ export default function DashboardCalendar() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
+        {todayEvents.length === 0 && (
+          <p className="text-xs text-warm-gray/60 text-center py-8">
+            No events scheduled today.
+          </p>
+        )}
         {todayEvents.map((event, i) => {
           const style = eventStyles[event.type];
           return (

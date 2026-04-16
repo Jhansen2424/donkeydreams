@@ -8,56 +8,10 @@ export interface WatchListEntry {
   severity: "high" | "medium" | "low";
 }
 
-export const watchList: WatchListEntry[] = [
-  {
-    date: "3/22",
-    animal: "Fernie",
-    issue: "Bleeding growth on body",
-    treatment: "Keeping it bandaged. Monitor daily.",
-    assignedTo: "Amber",
-    severity: "high",
-  },
-  {
-    date: "3/21",
-    animal: "Draco",
-    issue: "Itching, fur falling off",
-    treatment: "Daily topical treatments",
-    assignedTo: "Staff",
-    severity: "medium",
-  },
-  {
-    date: "3/21",
-    animal: "Jett",
-    issue: "Itching, fur falling off",
-    treatment: "Daily topical treatments",
-    assignedTo: "Staff",
-    severity: "medium",
-  },
-  {
-    date: "3/22",
-    animal: "Maku",
-    issue: "Itchiness",
-    treatment: "Getting Benadryl",
-    assignedTo: "Amber",
-    severity: "medium",
-  },
-  {
-    date: "3/20",
-    animal: "Shelley",
-    issue: "Leg brace maintenance",
-    treatment: "Brace on at 5pm, remove + clean at lunch",
-    assignedTo: "Staff",
-    severity: "high",
-  },
-  {
-    date: "3/18",
-    animal: "Gabriel",
-    issue: "Prosthetic monitoring",
-    treatment: "Daily bandage check on leg",
-    assignedTo: "Staff",
-    severity: "medium",
-  },
-];
+// Dummy data removed — real watch alerts live in Neon (WatchAlert table).
+// Consumers that still read this array will simply see no items. The watch
+// list UI will be wired to the DB in a later phase.
+export const watchList: WatchListEntry[] = [];
 
 // ── Feed Schedules ──
 export interface FeedEntry {
@@ -77,7 +31,12 @@ export interface FeedSchedule {
   notes: string;
 }
 
-export const feedSchedules: FeedSchedule[] = [
+// Dummy data removed — feed schedules will live in Neon (FeedSchedule table).
+export const feedSchedules: FeedSchedule[] = [];
+
+/* Removed hand-typed feed schedules — kept here commented for reference until
+   the admin UI is built. TODO: delete block when FeedSchedule admin exists.
+const _removedFeedSchedules: FeedSchedule[] = [
   {
     animal: "Pete",
     plan: {
@@ -315,6 +274,7 @@ export const feedSchedules: FeedSchedule[] = [
     notes: "",
   },
 ];
+*/
 
 export type FeedNoteCategory = "daily" | "ongoing" | "evergreen";
 
@@ -323,11 +283,8 @@ export interface FeedNote {
   category: FeedNoteCategory;
 }
 
-export const feedNotes: FeedNote[] = [
-  { text: "This teff is powdery — make sure buckets are moist when served.", category: "evergreen" },
-  { text: "Make sure to look at the ground when giving supplements to make sure pills don't drop. Especially Shelley + Winnie.", category: "evergreen" },
-  { text: "Things to order: mineral powder.", category: "daily" },
-];
+// Dummy data removed — feed notes will be editable via the app later.
+export const feedNotes: FeedNote[] = [];
 
 // ── Daily Schedule ──
 export type TaskCategory = "routine" | "feeding" | "treatment" | "special-needs" | "hoof-dental" | "weight" | "sponsor";
@@ -355,91 +312,31 @@ export interface AnimalTaskGroup {
   tasks: { task: ScheduleTask; block: string }[];
 }
 
-// ── Default duration estimates by category (minutes) ──
-const defaultDurations: Record<TaskCategory, number> = {
-  routine: 10,
-  feeding: 15,
-  treatment: 10,
-  "special-needs": 10,
-  "hoof-dental": 5,
-  weight: 5,
-  sponsor: 15,
-};
-
-// ── Routine Assignments — auto-populate assignedTo based on day ──
-// Maps volunteer name → { days: DayOfWeek[], blocks: block names, categories: task categories }
+// ── Routine Assignments (dummy data removed) ──
 export interface RoutineAssignment {
   volunteer: string;
-  days: string[]; // e.g. ["Sat", "Sun"]
-  blocks?: string[]; // e.g. ["Breakfast"] — if omitted, all blocks
-  categories?: TaskCategory[]; // if omitted, all categories
+  days: string[];
+  blocks?: string[];
+  categories?: TaskCategory[];
+}
+export const routineAssignments: RoutineAssignment[] = [];
+
+// ── Daily schedule skeleton ──
+// The whiteboard task templates have been removed. The schedule starts empty
+// each day; tasks are added via the app (or by Joshy) and will be persisted
+// to Neon in a later phase. Keep the three time blocks so the UI layout
+// renders correctly.
+export function generateDailySchedule(): ScheduleBlock[] {
+  return [
+    { name: "Breakfast", time: "6:00 – 9:00 AM", tasks: [] },
+    { name: "Lunch",     time: "10:30 AM – 2:00 PM", tasks: [] },
+    { name: "Dinner",    time: "4:00 – 6:30 PM", tasks: [] },
+  ];
 }
 
-export const routineAssignments: RoutineAssignment[] = [
-  { volunteer: "Rachel Green", days: ["Sat", "Sun"], blocks: ["Breakfast"], categories: ["feeding"] },
-  { volunteer: "Marcus Chen", days: ["Wed", "Thu", "Sat"], categories: ["routine"] },
-  { volunteer: "Sophie Baker", days: ["Mon", "Fri"], categories: ["feeding", "sponsor"] },
-];
-
-// Base schedule — the whiteboard routine tasks (before smart injection)
-const baseSchedule: ScheduleBlock[] = [
-  {
-    name: "Breakfast",
-    time: "6:00 – 9:00 AM",
-    tasks: [
-      { task: "Drop front buckets", done: false, category: "routine", source: "base", estimatedMinutes: 15 },
-      { task: "Drop back buckets", done: false, category: "routine", source: "base", estimatedMinutes: 15 },
-      { task: "Let front donkeys out", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
-      { task: "Let back donkeys out", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
-      { task: "Front supplements", done: false, category: "feeding", source: "base", estimatedMinutes: 20 },
-      { task: "Back supplements", done: false, category: "feeding", source: "base", estimatedMinutes: 20 },
-      { task: "Mask on Izabelle", done: false, animalSpecific: "Izabelle", category: "special-needs", source: "base", estimatedMinutes: 5 },
-      { task: "Spray Tenzel + Blossom", done: false, animalSpecific: "Tenzel, Blossom", category: "treatment", source: "base", estimatedMinutes: 10 },
-      { task: "Put Legacy herd away", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
-      { task: "Let Pinky's Herd out into CNR", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
-    ],
-  },
-  {
-    name: "Lunch",
-    time: "10:30 – 10:45 AM",
-    tasks: [
-      { task: "Prep lunch", done: false, category: "feeding", source: "base", estimatedMinutes: 20 },
-      { task: "Drop front buckets @ 10:30", done: false, category: "feeding", source: "base", estimatedMinutes: 15 },
-      { task: "Drop back buckets", done: false, category: "feeding", source: "base", estimatedMinutes: 15 },
-      { task: "Let back out — masks on", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
-      { task: "Brave herd into CDA", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
-      { task: "Alley Herd out — open training center", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
-      { task: "Prep dinner", done: false, category: "feeding", source: "base", estimatedMinutes: 20 },
-      { task: "Remove + clean Shelley's brace", done: false, animalSpecific: "Shelley", category: "special-needs", source: "base", estimatedMinutes: 15 },
-      { task: "Mask on Herman", done: false, animalSpecific: "Herman", category: "special-needs", source: "base", estimatedMinutes: 5 },
-      { task: "Treatment: Will — DMSO", done: false, animalSpecific: "Will", category: "treatment", source: "base", estimatedMinutes: 10 },
-      { task: "Treatment: Winky", done: false, animalSpecific: "Winky", category: "treatment", source: "base", estimatedMinutes: 10 },
-      { task: "Treatment: Blossom", done: false, animalSpecific: "Blossom", category: "treatment", source: "base", estimatedMinutes: 10 },
-      { task: "Treatment: Tenzel", done: false, animalSpecific: "Tenzel", category: "treatment", source: "base", estimatedMinutes: 10 },
-      { task: "Treatment: Herman", done: false, animalSpecific: "Herman", category: "treatment", source: "base", estimatedMinutes: 10 },
-      { task: "Fly spray + Silver or SWAT as needed", done: false, category: "treatment", source: "base", estimatedMinutes: 15 },
-    ],
-  },
-  {
-    name: "Dinner",
-    time: "4:00 – 6:30 PM",
-    tasks: [
-      { task: "Put on Shelley's brace @ 5pm", done: false, animalSpecific: "Shelley", category: "special-needs", source: "base", estimatedMinutes: 15 },
-      { task: "Drop front buckets", done: false, category: "feeding", source: "base", estimatedMinutes: 15 },
-      { task: "Drop back buckets", done: false, category: "feeding", source: "base", estimatedMinutes: 15 },
-      { task: "Let front donkeys out", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
-      { task: "Let back donkeys out", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
-      { task: "Let seniors out", done: false, category: "routine", source: "base", estimatedMinutes: 10 },
-      { task: "Prep breakfast (next day)", done: false, category: "feeding", source: "base", estimatedMinutes: 20 },
-      { task: "Herman PM snack", done: false, animalSpecific: "Herman", category: "feeding", source: "base", estimatedMinutes: 5 },
-      { task: "Masks off: Herman, Tenzel", done: false, animalSpecific: "Herman, Tenzel", category: "special-needs", source: "base", estimatedMinutes: 5 },
-    ],
-  },
-];
-
-// ── Smart Task Engine ──
-// Generates today's schedule by merging base routine + watch list alerts + feed-derived tasks
-export function generateDailySchedule(): ScheduleBlock[] {
+// Legacy generator body (commented out — referenced removed data).
+/*
+function _unusedScheduleEngine(): ScheduleBlock[] {
   const schedule: ScheduleBlock[] = baseSchedule.map((block) => ({
     ...block,
     tasks: block.tasks.map((t) => ({ ...t })),
@@ -694,8 +591,9 @@ export function generateDailySchedule(): ScheduleBlock[] {
 
   return schedule;
 }
+*/
 
-// Convenience export — use this instead of raw baseSchedule
+// Convenience export (now empty — daily schedule starts blank)
 export const dailySchedule = generateDailySchedule();
 
 // ── Group Tasks By Animal ──
@@ -756,13 +654,8 @@ export const sourceMeta: Record<TaskSource, { label: string; badge: boolean }> =
   manual: { label: "Just Added", badge: true },
 };
 
-// ── Alley Herd Rotation ──
-export const alleyHerdRotation = [
-  { date: "3/26", herd: "Angels" },
-  { date: "3/27", herd: "Pegasus" },
-  { date: "3/28", herd: "Angels" },
-  { date: "3/29", herd: "Pegasus" },
-];
+// ── Alley Herd Rotation (dummy data removed) ──
+export const alleyHerdRotation: { date: string; herd: string }[] = [];
 
 // ── Salts & Minerals Schedule ──
 export const saltsAndMinerals = { days: ["Sunday", "Wednesday"] };

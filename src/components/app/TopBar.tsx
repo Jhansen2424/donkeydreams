@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Ear, EarOff, Mic } from "lucide-react";
+import Link from "next/link";
+import { Ear, EarOff, Mic, Inbox } from "lucide-react";
 import { format } from "date-fns";
 import QuickInput from "@/components/app/QuickInput";
 import WakeWordListener from "@/components/app/WakeWordListener";
@@ -98,17 +99,25 @@ export default function TopBar() {
               )}
             </button>
 
+            <Link
+              href="/app/notes"
+              title="View Notes inbox"
+              className="relative inline-flex items-center justify-center w-10 h-10 rounded-lg text-warm-gray border border-card-border bg-white hover:bg-cream hover:text-charcoal transition-colors"
+            >
+              <Inbox className="w-4 h-4" />
+              {unresolvedCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {unresolvedCount}
+                </span>
+              )}
+            </Link>
+
             <button
               onClick={() => setQuickInputOpen(true)}
               className="relative inline-flex items-center gap-1.5 px-4 py-2.5 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors"
             >
               <Mic className="w-4 h-4" />
               Add Note
-              {unresolvedCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                  {unresolvedCount}
-                </span>
-              )}
             </button>
           </div>
         </div>

@@ -16,6 +16,7 @@ import {
   Loader2,
   Check,
   Pencil,
+  Trash2,
 } from "lucide-react";
 import { useParkingLot, type EntryType } from "@/lib/parking-lot-context";
 import { useSchedule } from "@/lib/schedule-context";
@@ -38,6 +39,8 @@ const actionLabels: Record<string, { label: string; icon: typeof ClipboardCheck;
   feed: { label: "Feed Note", icon: UtensilsCrossed, color: "text-amber-700" },
   note: { label: "Note", icon: StickyNote, color: "text-warm-gray" },
   query: { label: "Answer", icon: Sparkles, color: "text-sidebar" },
+  edit_task: { label: "Edit Task", icon: Pencil, color: "text-sky-700" },
+  delete_task: { label: "Delete Task", icon: Trash2, color: "text-red-700" },
 };
 
 function getCurrentTimeBlock(): string {
@@ -49,6 +52,20 @@ function getCurrentTimeBlock(): string {
 
 function todayISO(): string {
   return new Date().toISOString().split("T")[0];
+}
+
+// Cheap client-side classifier: does this utterance likely need the live
+// schedule/parking-lot context? Queries, edits, and deletes do — they reference
+// existing items. Plain creates ("Fernie's bandage needs changing") don't.
+// Skipping the payload when not needed saves ~1500 tokens per request, which
+// roughly triples the daily Groq free-tier budget.
+function needsLiveContext(text: string): boolean {
+  const t = text.toLowerCase();
+  const queryWords = /\b(what|who|when|where|which|how|how many|is|are|was|were|show|list|tell me|any|anything|anyone|currently|right now|today|assigned|left|remaining|urgent)\b/;
+  const editWords = /\b(change|move|reassign|rename|update|edit|replace|swap)\b/;
+  const deleteWords = /\b(delete|remove|cancel|drop|get rid of|take off|clear|unassign)\b/;
+  const referenceWords = /\b(that task|the task|this task|it instead|that one|existing)\b/;
+  return queryWords.test(t) || editWords.test(t) || deleteWords.test(t) || referenceWords.test(t);
 }
 
 // ── AI parsed result type ──
@@ -64,6 +81,8 @@ interface JoshyResult {
     severity?: string | null;
     title?: string | null;
     date?: string | null;
+    blockIdx?: number | null;
+    taskIdx?: number | null;
   };
   clarify?: string | null;
 }
@@ -140,7 +159,7 @@ export default function QuickInput({
   initialText?: string;
 }) {
   const { addEntry, entries } = useParkingLot();
-  const { addTask, schedule } = useSchedule();
+  const { addTask, editTask, deleteTask, schedule } = useSchedule();
   const [activeTab, setActiveTab] = useState<EntryType | "joshy">("joshy");
   const [text, setText] = useState("");
 
@@ -198,28 +217,35 @@ export default function QuickInput({
   }, [open]);
 
   // ── Build a compact snapshot of today's live state for Joshy queries ──
+  // Build a compact snapshot of today's live state. We preserve original
+  // blockIdx/taskIdx values even after filtering out done tasks, so Joshy's
+  // returned indices still point at the correct item in the full schedule.
   const buildLiveContext = useCallback(() => {
     return {
       now: new Date().toISOString(),
-      schedule: schedule.map((block) => ({
+      schedule: schedule.map((block, blockIdx) => ({
+        blockIdx,
         block: block.name,
         time: block.time,
-        tasks: block.tasks.map((t) => ({
-          task: t.task,
-          assignee: t.assignedTo || null,
-          done: t.done,
-          animal: t.animalSpecific || null,
-          category: t.category,
+        tasks: block.tasks
+          .map((t, taskIdx) => ({ t, taskIdx }))
+          .filter(({ t }) => !t.done)
+          .map(({ t, taskIdx }) => ({
+            taskIdx,
+            task: t.task,
+            assignee: t.assignedTo || null,
+            animal: t.animalSpecific || null,
+          })),
+      })),
+      parkingLot: entries
+        .filter((e) => !e.resolved)
+        .map((e) => ({
+          type: e.type,
+          text: e.text,
+          animal: e.data?.animal || null,
+          assignee: e.data?.assignee || null,
+          severity: e.data?.severity || null,
         })),
-      })),
-      parkingLot: entries.map((e) => ({
-        type: e.type,
-        text: e.text,
-        resolved: e.resolved,
-        animal: e.data?.animal || null,
-        assignee: e.data?.assignee || null,
-        severity: e.data?.severity || null,
-      })),
     };
   }, [schedule, entries]);
 
@@ -227,7 +253,10 @@ export default function QuickInput({
   // isFollowUp = true means `raw` is the user's spoken answer to a previous
   // clarifying question. We append it to the running conversation context
   // so Joshy gets both the original note and the clarification.
-  const submitToJoshy = useCallback(async (raw: string, isFollowUp = false) => {
+  // retryWithContext = true forces sending live state even if the classifier
+  // thought it wasn't needed (used when Joshy's first response signals it
+  // needed to see the schedule).
+  const submitToJoshy = useCallback(async (raw: string, isFollowUp = false, retryWithContext = false) => {
     const t = raw.trim();
     if (!t) return;
 
@@ -241,11 +270,18 @@ export default function QuickInput({
     setAiResult(null);
     confirmHandledRef.current = false;
 
+    // Only send live state when the utterance references existing items.
+    // Plain creates don't need it — saves ~1.5k tokens per request.
+    const shouldSendContext = retryWithContext || needsLiveContext(fullText);
+
     try {
       const res = await fetch("/api/joshy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: fullText, context: buildLiveContext() }),
+        body: JSON.stringify({
+          text: fullText,
+          ...(shouldSendContext ? { context: buildLiveContext() } : {}),
+        }),
       });
 
       if (!res.ok) {
@@ -254,6 +290,25 @@ export default function QuickInput({
       }
 
       const result: JoshyResult = await res.json();
+
+      // Safety net: if Joshy returned an edit/delete/query but we didn't send
+      // context (classifier missed it), retry once with context attached.
+      const needsContextAction =
+        result.action === "edit_task" ||
+        result.action === "delete_task" ||
+        result.action === "query";
+      if (!shouldSendContext && needsContextAction) {
+        const retry = await fetch("/api/joshy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: fullText, context: buildLiveContext() }),
+        });
+        if (retry.ok) {
+          setAiResult(await retry.json());
+          return;
+        }
+      }
+
       setAiResult(result);
     } catch (e) {
       setAiError(e instanceof Error ? e.message : "Something went wrong");
@@ -281,6 +336,25 @@ export default function QuickInput({
         return;
       }
 
+      if (action === "edit_task") {
+        const { blockIdx, taskIdx } = result.data;
+        if (typeof blockIdx !== "number" || typeof taskIdx !== "number") return;
+        editTask(blockIdx, taskIdx, {
+          task: result.data.text || undefined,
+          assignedTo: result.data.assignee ?? undefined,
+          animalSpecific: result.data.animal ?? undefined,
+          blockName: result.data.timeBlock ?? undefined,
+        });
+        return;
+      }
+
+      if (action === "delete_task") {
+        const { blockIdx, taskIdx } = result.data;
+        if (typeof blockIdx !== "number" || typeof taskIdx !== "number") return;
+        deleteTask(blockIdx, taskIdx);
+        return;
+      }
+
       const entryType = (["watch", "medical", "feed", "note"].includes(action)
         ? action
         : "note") as EntryType;
@@ -294,7 +368,7 @@ export default function QuickInput({
         date: result.data.date ?? undefined,
       });
     },
-    [addTask, addEntry]
+    [addTask, addEntry, editTask, deleteTask]
   );
 
   // Speak text aloud, then run a callback when speech ends.
@@ -427,10 +501,22 @@ export default function QuickInput({
           ? "feed note"
           : aiResult.action === "medical"
             ? "medical entry"
-            : aiResult.action;
-    const prompt = aiResult.clarify
-      ? aiResult.clarify
-      : `${aiResult.summary}. Should I create this ${actionWord}? Say yes or no.`;
+            : aiResult.action === "edit_task"
+              ? "edit"
+              : aiResult.action === "delete_task"
+                ? "delete"
+                : aiResult.action;
+    const verb =
+      aiResult.action === "edit_task"
+        ? "apply this"
+        : aiResult.action === "delete_task"
+          ? "go ahead and"
+          : "create this";
+    const confirmQuestion =
+      aiResult.action === "delete_task"
+        ? `${aiResult.summary}. Are you sure you want to delete it? Say yes or no.`
+        : `${aiResult.summary}. Should I ${verb} ${actionWord}? Say yes or no.`;
+    const prompt = aiResult.clarify ? aiResult.clarify : confirmQuestion;
     speakThen(prompt, () => {
       if (!confirmHandledRef.current) startListening();
     });
@@ -743,7 +829,17 @@ export default function QuickInput({
                 </div>
               )}
 
-              {/* Action buttons — Confirm/Edit for create actions, Done for queries */}
+              {/* Delete confirmation warning banner */}
+              {aiResult.action === "delete_task" && !aiResult.clarify && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-xs text-red-700 font-semibold flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    This will permanently remove the task. Confirm to delete.
+                  </p>
+                </div>
+              )}
+
+              {/* Action buttons — Done for queries, Delete button for delete_task, Confirm for everything else */}
               {aiResult.action === "query" ? (
                 <button
                   onClick={() => {
@@ -758,6 +854,22 @@ export default function QuickInput({
                   <Check className="w-4 h-4" />
                   Done
                 </button>
+              ) : aiResult.action === "delete_task" ? (
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleConfirmAi}
+                    className="flex-1 inline-flex items-center justify-center gap-2 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors text-sm"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Yes, delete
+                  </button>
+                  <button
+                    onClick={() => setAiResult(null)}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-white border border-card-border text-charcoal font-medium rounded-xl hover:bg-cream transition-colors text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
               ) : (
                 <div className="flex gap-2">
                   <button
