@@ -17,6 +17,7 @@ import {
   UtensilsCrossed,
   AlertTriangle,
   Inbox,
+  Sparkles,
 } from "lucide-react";
 import { useParkingLot } from "@/lib/parking-lot-context";
 
@@ -28,13 +29,14 @@ const navGroups = [
       { name: "Animals", href: "/app/animals", icon: Heart },
       { name: "Notes", href: "/app/notes", icon: Inbox, dynamicBadge: "notes" as const },
       { name: "Watch List", href: "/app/watch", icon: AlertTriangle },
+      { name: "Sanctuary Updates", href: "/app/updates", icon: Sparkles },
     ],
   },
   {
     label: "Care",
     items: [
       { name: "Medical Entries", href: "/app/medical", icon: Stethoscope },
-      { name: "Daily Schedule", href: "/app/tasks", icon: ClipboardCheck },
+      { name: "Daily Routine", href: "/app/tasks", icon: ClipboardCheck },
       { name: "Feed Buckets", href: "/app/feed", icon: UtensilsCrossed },
       { name: "Hoof Care", href: "/app/hoof-dental?tab=hoof", icon: Footprints },
       { name: "Dental Care", href: "/app/hoof-dental?tab=dental", icon: Footprints },
@@ -47,7 +49,7 @@ const navGroups = [
 
       { name: "Admin", href: "/app/admin", icon: Users },
       { name: "Donations", href: "/app/donations", icon: DollarSign },
-      { name: "Events", href: "/app/events", icon: CalendarDays },
+      { name: "Events / Visitors / Schedule", href: "/app/events", icon: CalendarDays },
     ],
   },
   {

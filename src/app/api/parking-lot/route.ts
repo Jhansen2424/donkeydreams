@@ -73,15 +73,21 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, resolved } = body ?? {};
+    const { id, resolved, type, text, data } = body ?? {};
 
     if (!id || typeof id !== "string") {
       return NextResponse.json({ error: "Missing 'id'" }, { status: 400 });
     }
 
+    const update: Record<string, unknown> = {};
+    if (typeof resolved === "boolean") update.resolved = resolved;
+    if (typeof type === "string" && type.length > 0) update.type = type;
+    if (typeof text === "string" && text.length > 0) update.text = text;
+    if (data !== undefined) update.data = data;
+
     const row = await db.parkingLotEntry.update({
       where: { id },
-      data: { resolved: typeof resolved === "boolean" ? resolved : undefined },
+      data: update as Parameters<typeof db.parkingLotEntry.update>[0]["data"],
     });
     return NextResponse.json({ entry: toApi(row) });
   } catch (error) {

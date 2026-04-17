@@ -287,7 +287,7 @@ export interface FeedNote {
 export const feedNotes: FeedNote[] = [];
 
 // ── Daily Schedule ──
-export type TaskCategory = "routine" | "feeding" | "treatment" | "special-needs" | "hoof-dental" | "weight" | "sponsor";
+export type TaskCategory = "routine" | "feeding" | "treatment" | "special-needs" | "hoof-dental" | "weight" | "sponsor" | "projects";
 export type TaskSource = "base" | "watch-list" | "feed-schedule" | "hoof-dental" | "weight" | "sponsor" | "manual";
 
 export interface ScheduleTask {
@@ -328,9 +328,9 @@ export const routineAssignments: RoutineAssignment[] = [];
 // renders correctly.
 export function generateDailySchedule(): ScheduleBlock[] {
   return [
-    { name: "Breakfast", time: "6:00 – 9:00 AM", tasks: [] },
-    { name: "Lunch",     time: "10:30 AM – 2:00 PM", tasks: [] },
-    { name: "Dinner",    time: "4:00 – 6:30 PM", tasks: [] },
+    { name: "AM",  time: "6:00 – 9:00 AM", tasks: [] },
+    { name: "Mid", time: "10:30 AM – 2:00 PM", tasks: [] },
+    { name: "PM",  time: "4:00 – 6:30 PM", tasks: [] },
   ];
 }
 
@@ -641,6 +641,7 @@ export const categoryMeta: Record<TaskCategory, { label: string; color: string; 
   "hoof-dental": { label: "Hoof/Dental", color: "text-purple-700", bg: "bg-purple-50" },
   weight: { label: "Weight", color: "text-sky-700", bg: "bg-sky-50" },
   sponsor: { label: "Sponsor", color: "text-pink-700", bg: "bg-pink-50" },
+  projects: { label: "Projects", color: "text-indigo-700", bg: "bg-indigo-50" },
 };
 
 // ── Source labels for auto-generated badge ──

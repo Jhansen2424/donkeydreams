@@ -9,6 +9,7 @@ import {
   UtensilsCrossed,
   AlertTriangle,
   StickyNote,
+  Sparkles,
 } from "lucide-react";
 import { useParkingLot, type EntryType } from "@/lib/parking-lot-context";
 
@@ -21,6 +22,7 @@ const typeConfig: Record<
   medical: { label: "Medical", icon: Stethoscope, color: "text-purple-700", bg: "bg-purple-50", border: "border-purple-200" },
   feed: { label: "Feed", icon: UtensilsCrossed, color: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200" },
   watch: { label: "Watch", icon: AlertTriangle, color: "text-red-700", bg: "bg-red-50", border: "border-red-200" },
+  update: { label: "Update", icon: Sparkles, color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200" },
 };
 
 function formatTime(date: Date): string {

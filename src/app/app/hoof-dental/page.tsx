@@ -80,20 +80,56 @@ function HoofDentalPage() {
     Record<string, { hoofWeeks?: number; dentalMonths?: number }>
   >({});
 
+  // Manual "next due" dates — let the user set the next trim / dental date
+  // directly, even when no visit history exists yet. Keyed by animal name.
+  const [nextDueOverrides, setNextDueOverrides] = useState<
+    Record<string, { nextHoofDue?: string; nextDentalDue?: string }>
+  >({});
+
   // ── Derived data ──
   const statuses = useMemo(() => {
     const base = computeAnimalCareStatuses();
-    // Apply interval overrides
+    const today = new Date().toISOString().split("T")[0];
+    const daysBetween = (a: string, b: string) => {
+      const d1 = new Date(a + "T00:00:00").getTime();
+      const d2 = new Date(b + "T00:00:00").getTime();
+      return Math.round((d2 - d1) / 86_400_000);
+    };
+    const getStatus = (days: number | null): VisitStatus => {
+      if (days === null) return "no-history";
+      if (days < 0) return "overdue";
+      if (days <= 7) return "due-soon";
+      return "good";
+    };
     return base.map((s) => {
-      const override = intervalOverrides[s.animal];
-      if (!override) return s;
+      const intervalOverride = intervalOverrides[s.animal];
+      const nextOverride = nextDueOverrides[s.animal];
+      let next = {
+        nextHoofDue: s.nextHoofDue,
+        nextDentalDue: s.nextDentalDue,
+        daysUntilHoof: s.daysUntilHoof,
+        daysUntilDental: s.daysUntilDental,
+        hoofStatus: s.hoofStatus,
+        dentalStatus: s.dentalStatus,
+      };
+      if (nextOverride?.nextHoofDue) {
+        next.nextHoofDue = nextOverride.nextHoofDue;
+        next.daysUntilHoof = daysBetween(today, nextOverride.nextHoofDue);
+        next.hoofStatus = getStatus(next.daysUntilHoof);
+      }
+      if (nextOverride?.nextDentalDue) {
+        next.nextDentalDue = nextOverride.nextDentalDue;
+        next.daysUntilDental = daysBetween(today, nextOverride.nextDentalDue);
+        next.dentalStatus = getStatus(next.daysUntilDental);
+      }
       return {
         ...s,
-        hoofInterval: override.hoofWeeks ?? s.hoofInterval,
-        dentalInterval: override.dentalMonths ?? s.dentalInterval,
+        ...next,
+        hoofInterval: intervalOverride?.hoofWeeks ?? s.hoofInterval,
+        dentalInterval: intervalOverride?.dentalMonths ?? s.dentalInterval,
       };
     });
-  }, [visits, intervalOverrides]);
+  }, [visits, intervalOverrides, nextDueOverrides]);
 
   const stats = useMemo(() => getHoofDentalStats(), [visits]);
 
@@ -156,12 +192,22 @@ function HoofDentalPage() {
   };
 
   // ── Quick log handler ──
-  const logVisit = (visit: Omit<CareVisit, "id">) => {
+  // If the user supplied a next-due date alongside the visit, apply it as
+  // an override so it shows up immediately in the table.
+  const logVisit = (visit: Omit<CareVisit, "id"> & { nextDue?: string | null }) => {
+    const { nextDue, ...rest } = visit;
     const newVisit: CareVisit = {
-      ...visit,
-      id: `${visit.type}-${Date.now()}`,
+      ...rest,
+      id: `${rest.type}-${Date.now()}`,
     };
     setVisits((prev) => [newVisit, ...prev]);
+    if (nextDue) {
+      updateNextDue(
+        rest.animal,
+        rest.type === "hoof" ? "nextHoofDue" : "nextDentalDue",
+        nextDue
+      );
+    }
     setLogModalAnimal(null);
   };
 
@@ -181,6 +227,18 @@ function HoofDentalPage() {
       ...prev,
       [animal]: { ...prev[animal], [field]: value },
     }));
+  };
+
+  // ── Update next-due date directly (bypasses interval math) ──
+  const updateNextDue = (
+    animal: string,
+    field: "nextHoofDue" | "nextDentalDue",
+    value: string | null
+  ) => {
+    setNextDueOverrides((prev) => {
+      const next = { ...prev[animal], [field]: value ?? undefined };
+      return { ...prev, [animal]: next };
+    });
   };
 
   // ── Add provider ──
@@ -237,7 +295,7 @@ function HoofDentalPage() {
         ))}
       </div>
 
-      {/* Stat cards */}
+      {/* Stat cards — click "Overdue" / "Due This Week" to filter the table */}
       <div className={`grid ${careTab === "both" ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-2 lg:grid-cols-3"} gap-4`}>
         {careTab !== "dental" && (
           <StatCard
@@ -245,6 +303,8 @@ function HoofDentalPage() {
             value={stats.hoofOverdue}
             subtitle={`${stats.hoofDueSoon} due soon`}
             urgent={stats.hoofOverdue > 0}
+            active={filterStatus === "overdue"}
+            onClick={() => setFilterStatus((cur) => (cur === "overdue" ? "all" : "overdue"))}
           />
         )}
         {careTab !== "hoof" && (
@@ -253,6 +313,8 @@ function HoofDentalPage() {
             value={stats.dentalOverdue}
             subtitle={`${stats.dentalDueSoon} due soon`}
             urgent={stats.dentalOverdue > 0}
+            active={filterStatus === "overdue"}
+            onClick={() => setFilterStatus((cur) => (cur === "overdue" ? "all" : "overdue"))}
           />
         )}
         <StatCard
@@ -260,6 +322,8 @@ function HoofDentalPage() {
           value={stats.dueThisWeek}
           subtitle={careTab === "both" ? "Hoof or dental" : careTab === "hoof" ? "Hoof trims" : "Dental visits"}
           urgent={false}
+          active={filterStatus === "due-soon"}
+          onClick={() => setFilterStatus((cur) => (cur === "due-soon" ? "all" : "due-soon"))}
         />
         {careTab !== "dental" && (
           <StatCard
@@ -368,6 +432,7 @@ function HoofDentalPage() {
               editingInterval={editingInterval}
               setEditingInterval={setEditingInterval}
               intervalOverrides={intervalOverrides[animal.animal]}
+              onEditNextDue={(field, value) => updateNextDue(animal.animal, field, value)}
             />
           ))}
           {filtered.length === 0 && (
@@ -410,28 +475,51 @@ function StatCard({
   subtitle,
   urgent,
   isDate,
+  onClick,
+  active,
 }: {
   label: string;
   value: number | string;
   subtitle: string;
   urgent: boolean;
   isDate?: boolean;
+  onClick?: () => void;
+  active?: boolean;
 }) {
-  return (
-    <div
-      className={`rounded-xl border p-4 ${
-        urgent ? "bg-red-50 border-red-200" : "bg-white border-card-border"
-      }`}
-    >
-      <p className={`text-xs font-semibold uppercase tracking-wider ${urgent ? "text-red-600" : "text-warm-gray"}`}>
-        {label}
-      </p>
-      <p className={`text-2xl font-bold mt-1 ${urgent ? "text-red-700" : isDate ? "text-base text-charcoal" : "text-charcoal"}`}>
-        {value}
-      </p>
-      <p className={`text-xs mt-0.5 ${urgent ? "text-red-600/70" : "text-warm-gray/70"}`}>{subtitle}</p>
-    </div>
+  const classes = `rounded-xl border p-4 text-left transition-all ${
+    active
+      ? "bg-sidebar text-white border-sidebar"
+      : urgent
+      ? "bg-red-50 border-red-200"
+      : "bg-white border-card-border"
+  } ${onClick ? "hover:shadow-md hover:-translate-y-0.5 cursor-pointer" : ""}`;
+
+  const labelCls = `text-xs font-semibold uppercase tracking-wider ${
+    active ? "text-white/90" : urgent ? "text-red-600" : "text-warm-gray"
+  }`;
+  const valueCls = `text-2xl font-bold mt-1 ${
+    active ? "text-white" : urgent ? "text-red-700" : isDate ? "text-base text-charcoal" : "text-charcoal"
+  }`;
+  const subtitleCls = `text-xs mt-0.5 ${
+    active ? "text-white/80" : urgent ? "text-red-600/70" : "text-warm-gray/70"
+  }`;
+
+  const content = (
+    <>
+      <p className={labelCls}>{label}</p>
+      <p className={valueCls}>{value}</p>
+      <p className={subtitleCls}>{subtitle}</p>
+    </>
   );
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={classes}>
+        {content}
+      </button>
+    );
+  }
+  return <div className={classes}>{content}</div>;
 }
 
 // ══════════════════════════════════════════
@@ -455,6 +543,79 @@ function SortHeader({
       {label}
       {current === field && (dir === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
     </button>
+  );
+}
+
+// ══════════════════════════════════════════
+// ── Next Due cell — shows the date + a pencil that opens a date input
+// ══════════════════════════════════════════
+function NextDueCell({
+  value,
+  days,
+  onSave,
+}: {
+  value: string | null;
+  days: number | null;
+  onSave: (v: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? "");
+  useEffect(() => {
+    setDraft(value ?? "");
+  }, [value]);
+
+  if (editing) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <input
+          type="date"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          className="px-2 py-1 text-xs border border-card-border rounded-md text-charcoal focus:outline-none focus:ring-1 focus:ring-sand"
+          autoFocus
+        />
+        <button
+          onClick={() => {
+            onSave(draft || null);
+            setEditing(false);
+          }}
+          className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-md"
+          title="Save"
+        >
+          <Check className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={() => {
+            setDraft(value ?? "");
+            setEditing(false);
+          }}
+          className="p-1 text-warm-gray hover:bg-cream rounded-md"
+          title="Cancel"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 text-sm text-charcoal">
+      {value ? (
+        <>
+          {formatDate(value)}
+          <DaysLabel days={days} />
+        </>
+      ) : (
+        <span className="text-warm-gray/50">—</span>
+      )}
+      <button
+        onClick={() => setEditing(true)}
+        className="p-1 text-warm-gray/60 hover:text-sidebar hover:bg-cream rounded-md"
+        title="Set next date"
+      >
+        <Pencil className="w-3 h-3" />
+      </button>
+    </span>
   );
 }
 
@@ -487,6 +648,7 @@ function AnimalRow({
   editingInterval,
   setEditingInterval,
   intervalOverrides,
+  onEditNextDue,
 }: {
   status: AnimalCareStatus;
   careTab: CareTab;
@@ -500,6 +662,7 @@ function AnimalRow({
   editingInterval: string | null;
   setEditingInterval: (v: string | null) => void;
   intervalOverrides?: { hoofWeeks?: number; dentalMonths?: number };
+  onEditNextDue?: (field: "nextHoofDue" | "nextDentalDue", value: string | null) => void;
 }) {
   const hoofVisits = visits.filter((v) => v.type === "hoof").sort((a, b) => b.date.localeCompare(a.date));
   const dentalVisits = visits.filter((v) => v.type === "dental").sort((a, b) => b.date.localeCompare(a.date));
@@ -530,18 +693,15 @@ function AnimalRow({
             <StatusBadge status={status.hoofStatus} />
           </div>
         )}
-        {/* Next trim */}
+        {/* Next trim — inline-editable */}
         {careTab !== "dental" && (
-          <span className="hidden sm:block text-sm text-charcoal">
-            {status.nextHoofDue ? (
-              <>
-                {formatDate(status.nextHoofDue)}
-                <DaysLabel days={status.daysUntilHoof} />
-              </>
-            ) : (
-              <span className="text-warm-gray/50">—</span>
-            )}
-          </span>
+          <div className="hidden sm:block" onClick={(e) => e.stopPropagation()}>
+            <NextDueCell
+              value={status.nextHoofDue}
+              days={status.daysUntilHoof}
+              onSave={(v) => onEditNextDue?.("nextHoofDue", v)}
+            />
+          </div>
         )}
         {/* Dental status */}
         {careTab !== "hoof" && (
@@ -549,18 +709,15 @@ function AnimalRow({
             <StatusBadge status={status.dentalStatus} />
           </div>
         )}
-        {/* Next dental */}
+        {/* Next dental — inline-editable */}
         {careTab !== "hoof" && (
-          <span className="hidden sm:block text-sm text-charcoal">
-            {status.nextDentalDue ? (
-              <>
-                {formatDate(status.nextDentalDue)}
-                <DaysLabel days={status.daysUntilDental} />
-              </>
-            ) : (
-              <span className="text-warm-gray/50">—</span>
-            )}
-          </span>
+          <div className="hidden sm:block" onClick={(e) => e.stopPropagation()}>
+            <NextDueCell
+              value={status.nextDentalDue}
+              days={status.daysUntilDental}
+              onSave={(v) => onEditNextDue?.("nextDentalDue", v)}
+            />
+          </div>
         )}
         {/* Actions */}
         <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -774,7 +931,7 @@ function QuickLogModal({
 }: {
   animal: string;
   providers: { name: string; type: string }[];
-  onLog: (v: Omit<CareVisit, "id">) => void;
+  onLog: (v: Omit<CareVisit, "id"> & { nextDue?: string | null }) => void;
   onClose: () => void;
 }) {
   const today = new Date().toISOString().split("T")[0];
@@ -782,6 +939,7 @@ function QuickLogModal({
   const [date, setDate] = useState(today);
   const [provider, setProvider] = useState(providers[0]?.name ?? "");
   const [notes, setNotes] = useState("");
+  const [nextDue, setNextDue] = useState("");
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-4" onClick={onClose}>
@@ -835,6 +993,20 @@ function QuickLogModal({
             </select>
           </div>
 
+          {/* Next treatment — prompted per the change list so a next
+              date is always recorded alongside the visit. */}
+          <div>
+            <label className="text-xs font-semibold text-warm-gray uppercase tracking-wider">
+              Next {type === "hoof" ? "Trim" : "Dental"} Date
+            </label>
+            <input
+              type="date"
+              value={nextDue}
+              onChange={(e) => setNextDue(e.target.value)}
+              className="w-full mt-1 px-3 py-2 border border-card-border rounded-lg text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-sky/50"
+            />
+          </div>
+
           {/* Notes */}
           <div>
             <label className="text-xs font-semibold text-warm-gray uppercase tracking-wider">Notes</label>
@@ -849,7 +1021,16 @@ function QuickLogModal({
 
           {/* Submit */}
           <button
-            onClick={() => onLog({ animal, type, date, provider, notes: notes || "Routine visit." })}
+            onClick={() =>
+              onLog({
+                animal,
+                type,
+                date,
+                provider,
+                notes: notes || "Routine visit.",
+                nextDue: nextDue || null,
+              })
+            }
             className="w-full py-3 bg-sky text-white font-bold rounded-lg hover:bg-sky-dark transition-colors"
           >
             <Check className="w-4 h-4 inline mr-1.5" />

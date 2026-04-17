@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 interface ApiTask {
   id: string;
   task: string;
-  block: string;           // "Breakfast" | "Lunch" | "Dinner"
+  block: string;           // "AM" | "Mid" | "PM"
   category: string;
   date: string;            // ISO YYYY-MM-DD
   assignedTo: string | null;

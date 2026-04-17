@@ -31,8 +31,9 @@ import { useSchedule } from "@/lib/schedule-context";
 import VolunteerLoadBar from "@/components/app/VolunteerLoadBar";
 import TaskEditModal, { type TaskEditModalMode } from "@/components/app/TaskEditModal";
 
-type ViewMode = "time" | "animal";
+type ViewMode = "time" | "animal" | "human";
 type CategoryFilter = TaskCategory | "all";
+type HumanFilter = string | "all";
 
 // ── Team members (active admins + volunteers) ──
 interface TeamMember {
@@ -214,6 +215,7 @@ export default function TasksPage() {
   } = useSchedule();
   const [viewMode, setViewMode] = useState<ViewMode>("time");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+  const [humanFilter, setHumanFilter] = useState<HumanFilter>("all");
   const [search, setSearch] = useState("");
 
   const totalTasks = schedule.reduce((s, b) => s + b.tasks.length, 0);
@@ -249,16 +251,45 @@ export default function TasksPage() {
       ...block,
       tasks: block.tasks.filter((t) => {
         if (categoryFilter !== "all" && t.category !== categoryFilter) return false;
+        if (humanFilter !== "all") {
+          const assignees = getAssignees(t);
+          if (!assignees.includes(humanFilter)) return false;
+        }
         return taskMatchesSearch(t);
       }),
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schedule, categoryFilter, search]);
+  }, [schedule, categoryFilter, humanFilter, search]);
 
   const animalGroups = useMemo(
     () => groupTasksByAnimal(filteredSchedule),
     [filteredSchedule]
   );
+
+  // Group filtered tasks by assigned human. An unassigned task shows up
+  // under a synthetic "Unassigned" bucket so it doesn't disappear.
+  const humanGroups = useMemo(() => {
+    const map = new Map<string, { task: ScheduleTask; block: string; blockIdx: number; taskIdx: number }[]>();
+    filteredSchedule.forEach((block) => {
+      const origBlockIdx = schedule.findIndex((b) => b.name === block.name);
+      block.tasks.forEach((task) => {
+        const origTaskIdx = schedule[origBlockIdx]?.tasks.findIndex(
+          (t) => t.task === task.task && t.animalSpecific === task.animalSpecific
+        ) ?? -1;
+        const assignees = getAssignees(task);
+        const targets = assignees.length > 0 ? assignees : ["Unassigned"];
+        targets.forEach((name) => {
+          if (!map.has(name)) map.set(name, []);
+          map.get(name)!.push({ task, block: block.name, blockIdx: origBlockIdx, taskIdx: origTaskIdx });
+        });
+      });
+    });
+    return Array.from(map.entries()).sort(([a], [b]) => {
+      if (a === "Unassigned") return 1;
+      if (b === "Unassigned") return -1;
+      return a.localeCompare(b);
+    });
+  }, [filteredSchedule, schedule]);
 
   const filteredTotal = filteredSchedule.reduce((s, b) => s + b.tasks.length, 0);
 
@@ -287,7 +318,7 @@ export default function TasksPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-charcoal">Daily Schedule</h1>
+          <h1 className="text-2xl font-bold text-charcoal">Daily Routine</h1>
           <p className="text-sm text-warm-gray mt-0.5">
             {doneTasks}/{totalTasks} tasks complete · {pct}% done · ~{Math.round(totalMinutes / 60)}h total
             {autoGenCount > 0 && (
@@ -322,6 +353,17 @@ export default function TasksPage() {
               <User className="w-4 h-4" />
               By Animal
             </button>
+            <button
+              onClick={() => setViewMode("human")}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${
+                viewMode === "human"
+                  ? "bg-sidebar text-white"
+                  : "text-charcoal hover:bg-cream"
+              }`}
+            >
+              <UserPlus className="w-4 h-4" />
+              By Human
+            </button>
           </div>
           <button
             onClick={() => openAdd()}
@@ -355,19 +397,41 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {/* Team legend */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60">Team:</span>
-        {teamMembers.map((m) => (
-          <span key={m.id} className="inline-flex items-center gap-1.5">
-            <span
-              className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white ${m.color}`}
+      {/* Team legend — click a name to filter by that person */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60">By Human:</span>
+        <button
+          onClick={() => setHumanFilter("all")}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+            humanFilter === "all"
+              ? "bg-sidebar text-white border-sidebar"
+              : "bg-white text-charcoal border-card-border hover:bg-cream"
+          }`}
+        >
+          All
+        </button>
+        {teamMembers.map((m) => {
+          const active = humanFilter === m.name;
+          return (
+            <button
+              key={m.id}
+              onClick={() => setHumanFilter((cur) => (cur === m.name ? "all" : m.name))}
+              className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium border transition-colors ${
+                active
+                  ? "bg-sidebar text-white border-sidebar"
+                  : "bg-white text-charcoal border-card-border hover:bg-cream"
+              }`}
+              title={`Show tasks assigned to ${m.name}`}
             >
-              {m.initials}
-            </span>
-            <span className="text-xs text-charcoal">{m.name}</span>
-          </span>
-        ))}
+              <span
+                className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white ${m.color}`}
+              >
+                {m.initials}
+              </span>
+              {m.name}
+            </button>
+          );
+        })}
       </div>
 
       {/* Volunteer workload */}
@@ -570,6 +634,66 @@ export default function TasksPage() {
                 {search
                   ? <>No animals match &ldquo;{search}&rdquo;</>
                   : "No animal-specific tasks for this filter"}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ BY HUMAN VIEW ═══ */}
+      {viewMode === "human" && (
+        <div className="space-y-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {humanGroups.map(([name, items]) => {
+              const member = getMemberByName(name);
+              const done = items.filter((it) => it.task.done).length;
+              const total = items.length;
+              return (
+                <div key={name} className="bg-white rounded-xl border border-card-border overflow-hidden">
+                  <div className="bg-sidebar px-5 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white ${
+                          member?.color || "bg-gray-400"
+                        }`}
+                      >
+                        {member?.initials || name.slice(0, 2)}
+                      </span>
+                      <h2 className="font-bold text-white">{name}</h2>
+                    </div>
+                    <span className="text-cream/70 text-sm font-medium">
+                      {done}/{total}
+                    </span>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    {items.map(({ task, block, blockIdx, taskIdx }, idx) => (
+                      <div key={idx}>
+                        <p className="text-[10px] font-semibold text-warm-gray/50 uppercase tracking-wider mb-0.5 ml-8">
+                          {block}
+                        </p>
+                        <TaskRow
+                          task={task}
+                          onToggle={() => {
+                            if (blockIdx >= 0 && taskIdx >= 0) toggleTask(blockIdx, taskIdx);
+                          }}
+                          onAssign={(n) => {
+                            if (blockIdx >= 0 && taskIdx >= 0) assignTask(blockIdx, taskIdx, n);
+                          }}
+                          onEdit={
+                            blockIdx >= 0 && taskIdx >= 0
+                              ? () => openEdit(blockIdx, taskIdx)
+                              : undefined
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {humanGroups.length === 0 && (
+              <p className="text-sm text-warm-gray/50 col-span-full text-center py-8">
+                No tasks match the current filters.
               </p>
             )}
           </div>

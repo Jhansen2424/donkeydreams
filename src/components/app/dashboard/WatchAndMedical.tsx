@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Stethoscope } from "lucide-react";
+import { AlertTriangle, Stethoscope, Check } from "lucide-react";
 import type { WatchListEntry } from "@/lib/sanctuary-data";
 
 interface UpcomingMedicalEvent {
@@ -29,6 +30,21 @@ const severityDot = {
 };
 
 export default function WatchAndMedical({ watchList, upcomingMedical }: WatchAndMedicalProps) {
+  // Local "done" state so care staff can tick off an upcoming medical item
+  // from the dashboard. Keyed by "date|name|description" so it survives
+  // list re-renders.
+  const [doneKeys, setDoneKeys] = useState<Set<string>>(new Set());
+  const keyFor = (e: UpcomingMedicalEvent) => `${e.date}|${e.name}|${e.description}`;
+  const toggleDone = (e: UpcomingMedicalEvent) => {
+    setDoneKeys((prev) => {
+      const next = new Set(prev);
+      const k = keyFor(e);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+  };
+
   const sortedWatch = [...watchList].sort((a, b) => {
     const order = { high: 0, medium: 1, low: 2 };
     return order[a.severity] - order[b.severity];
@@ -90,7 +106,7 @@ export default function WatchAndMedical({ watchList, upcomingMedical }: WatchAnd
               {upcomingMedical.length}
             </span>
           </div>
-          <Link href="/app/hoof-dental" className="text-[11px] font-medium text-sky hover:text-sky-dark">
+          <Link href="/app/medical" className="text-[11px] font-medium text-sky hover:text-sky-dark">
             View all →
           </Link>
         </div>
@@ -100,27 +116,45 @@ export default function WatchAndMedical({ watchList, upcomingMedical }: WatchAnd
               Nothing coming up.
             </p>
           ) : (
-            upcomingMedical.map((event, i) => (
-              <div
-                key={i}
-                className={`flex items-start gap-2.5 p-2 rounded-lg border ${
-                  event.urgent ? "bg-red-50/50 border-red-200" : "bg-cream/40 border-card-border"
-                }`}
-              >
-                <div className="flex flex-col items-center shrink-0 w-10 pt-0.5">
-                  <span className={`text-[9px] font-bold uppercase ${event.urgent ? "text-red-600" : "text-warm-gray/60"}`}>
-                    {event.date.split(" ")[0]}
-                  </span>
-                  <span className={`text-base font-bold leading-none ${event.urgent ? "text-red-700" : "text-charcoal"}`}>
-                    {event.date.split(" ")[1]}
-                  </span>
+            upcomingMedical.map((event, i) => {
+              const isDone = doneKeys.has(keyFor(event));
+              return (
+                <div
+                  key={i}
+                  className={`flex items-start gap-2.5 p-2 rounded-lg border transition-all ${
+                    isDone
+                      ? "bg-emerald-50/60 border-emerald-200 opacity-70"
+                      : event.urgent
+                      ? "bg-red-50/50 border-red-200"
+                      : "bg-cream/40 border-card-border"
+                  }`}
+                >
+                  <button
+                    onClick={() => toggleDone(event)}
+                    title={isDone ? "Mark not done" : "Mark done"}
+                    className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
+                      isDone
+                        ? "bg-emerald-500 border-emerald-500"
+                        : "bg-white border-warm-gray/30 hover:border-emerald-400"
+                    }`}
+                  >
+                    {isDone && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                  </button>
+                  <div className="flex flex-col items-center shrink-0 w-10 pt-0.5">
+                    <span className={`text-[9px] font-bold uppercase ${event.urgent && !isDone ? "text-red-600" : "text-warm-gray/60"}`}>
+                      {event.date.split(" ")[0]}
+                    </span>
+                    <span className={`text-base font-bold leading-none ${event.urgent && !isDone ? "text-red-700" : "text-charcoal"}`}>
+                      {event.date.split(" ")[1]}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-semibold ${isDone ? "line-through text-warm-gray/60" : "text-charcoal"}`}>{event.name}</p>
+                    <p className={`text-[11px] leading-snug ${isDone ? "line-through text-warm-gray/50" : "text-warm-gray"}`}>{event.description}</p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-charcoal">{event.name}</p>
-                  <p className="text-[11px] text-warm-gray leading-snug">{event.description}</p>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

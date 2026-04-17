@@ -66,7 +66,7 @@ export default function MetricTabs({
       value: String(upcomingMedicalCount),
       subtitle: "in the next 7 days",
       icon: Stethoscope,
-      href: "/app/hoof-dental",
+      href: "/app/medical",
       accent: "from-amber-200 to-amber-50 text-amber-700 border-amber-200",
     },
   ];

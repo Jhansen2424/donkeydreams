@@ -45,9 +45,9 @@ const actionLabels: Record<string, { label: string; icon: typeof ClipboardCheck;
 
 function getCurrentTimeBlock(): string {
   const hour = new Date().getHours();
-  if (hour < 10) return "Breakfast";
-  if (hour < 16) return "Lunch";
-  return "Dinner";
+  if (hour < 10) return "AM";
+  if (hour < 16) return "Mid";
+  return "PM";
 }
 
 function todayISO(): string {
@@ -924,7 +924,7 @@ export default function QuickInput({
                         Time Block
                       </label>
                       <div className="flex gap-1.5">
-                        {["Breakfast", "Lunch", "Dinner"].map((block) => (
+                        {["AM", "Mid", "PM"].map((block) => (
                           <button
                             key={block}
                             onClick={() => setTimeBlock(block)}
@@ -934,7 +934,7 @@ export default function QuickInput({
                                 : "bg-cream text-charcoal hover:bg-sand/30"
                             }`}
                           >
-                            {block === "Breakfast" ? "AM" : block === "Lunch" ? "Mid" : "PM"}
+                            {block}
                           </button>
                         ))}
                       </div>

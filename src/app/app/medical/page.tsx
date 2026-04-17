@@ -114,6 +114,16 @@ export default function MedicalDashboardPage() {
   const [formDate, setFormDate] = useState("2026-03-31");
   const [formDesc, setFormDesc] = useState("");
   const [formUrgent, setFormUrgent] = useState(false);
+  const [formNextDate, setFormNextDate] = useState("");
+
+  // Types that should prompt the user for a follow-up ("next treatment")
+  // date alongside the main entry.
+  const typesNeedingNextDate: MedicalRecordType[] = [
+    "Deworming",
+    "Hoof & Dental",
+    "Vaccination",
+  ];
+  const needsNextDate = typesNeedingNextDate.includes(formType);
 
   const allRecords = useMemo(
     () => [...baseRecords, ...localRecords],
@@ -221,19 +231,44 @@ export default function MedicalDashboardPage() {
 
   function handleAddRecord() {
     if (!formTitle.trim()) return;
+    // For treatment types we require a next-date so follow-ups don't slip.
+    if (needsNextDate && !formNextDate) return;
+
+    const desc = formDesc.trim();
+    const combinedDesc = formNextDate
+      ? `${desc}${desc ? "\n\n" : ""}Next treatment due: ${formNextDate}`
+      : desc;
+
     const newRecord: MedicalRecord = {
       id: `local-${Date.now()}`,
       animal: formAnimal,
       type: formType,
       title: formTitle.trim(),
       date: formDate,
-      description: formDesc.trim(),
+      description: combinedDesc,
       urgent: formUrgent,
     };
     setLocalRecords((prev) => [...prev, newRecord]);
+
+    // If the user supplied a next-treatment date, also drop a synthetic
+    // "upcoming" entry on that date so the schedule reflects the follow-up.
+    if (formNextDate) {
+      const followUp: MedicalRecord = {
+        id: `local-next-${Date.now()}`,
+        animal: formAnimal,
+        type: formType,
+        title: `${formTitle.trim()} — follow-up`,
+        date: formNextDate,
+        description: `Scheduled follow-up for ${formType.toLowerCase()} on ${formDate}.`,
+        urgent: false,
+      };
+      setLocalRecords((prev) => [...prev, followUp]);
+    }
+
     setFormTitle("");
     setFormDesc("");
     setFormUrgent(false);
+    setFormNextDate("");
     setShowAddForm(false);
   }
 
@@ -351,6 +386,27 @@ export default function MedicalDashboardPage() {
               className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
             />
           </div>
+          {needsNextDate && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-amber-800 mb-1">
+                Next Treatment Date
+                <span className="ml-1 text-[10px] font-medium text-amber-700">
+                  (required for {formType})
+                </span>
+              </label>
+              <input
+                type="date"
+                value={formNextDate}
+                onChange={(e) => setFormNextDate(e.target.value)}
+                min={formDate}
+                className="w-full px-3 py-2 text-sm border border-amber-300 rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-amber-300/50"
+              />
+              <p className="text-[11px] text-amber-700 mt-1">
+                We&apos;ll add a follow-up entry on this date so the next dose
+                / visit shows up in the upcoming list.
+              </p>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
               Description
@@ -366,7 +422,7 @@ export default function MedicalDashboardPage() {
           <div className="flex justify-end">
             <button
               onClick={handleAddRecord}
-              disabled={!formTitle.trim()}
+              disabled={!formTitle.trim() || (needsNextDate && !formNextDate)}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Plus className="w-4 h-4" />
@@ -376,9 +432,15 @@ export default function MedicalDashboardPage() {
         </div>
       )}
 
-      {/* Stats row */}
+      {/* Stats row — each card filters the list below to the matching tab */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-card-border p-4">
+        <button
+          type="button"
+          onClick={() => setTab("overdue")}
+          className={`text-left bg-white rounded-xl border p-4 transition-all hover:shadow-md hover:-translate-y-0.5 ${
+            tab === "overdue" ? "border-red-400 ring-2 ring-red-200" : "border-card-border"
+          }`}
+        >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
               <AlertTriangle className="w-5 h-5 text-red-600" />
@@ -388,8 +450,14 @@ export default function MedicalDashboardPage() {
               <p className="text-xs text-warm-gray font-medium">Overdue</p>
             </div>
           </div>
-        </div>
-        <div className="bg-white rounded-xl border border-card-border p-4">
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("upcoming")}
+          className={`text-left bg-white rounded-xl border p-4 transition-all hover:shadow-md hover:-translate-y-0.5 ${
+            tab === "upcoming" ? "border-amber-400 ring-2 ring-amber-200" : "border-card-border"
+          }`}
+        >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
               <Clock className="w-5 h-5 text-amber-600" />
@@ -399,8 +467,14 @@ export default function MedicalDashboardPage() {
               <p className="text-xs text-warm-gray font-medium">Due This Week</p>
             </div>
           </div>
-        </div>
-        <div className="bg-white rounded-xl border border-card-border p-4">
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("recent")}
+          className={`text-left bg-white rounded-xl border p-4 transition-all hover:shadow-md hover:-translate-y-0.5 ${
+            tab === "recent" ? "border-emerald-400 ring-2 ring-emerald-200" : "border-card-border"
+          }`}
+        >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
               <CheckCircle2 className="w-5 h-5 text-emerald-600" />
@@ -412,8 +486,14 @@ export default function MedicalDashboardPage() {
               <p className="text-xs text-warm-gray font-medium">This Month</p>
             </div>
           </div>
-        </div>
-        <div className="bg-white rounded-xl border border-card-border p-4">
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("all")}
+          className={`text-left bg-white rounded-xl border p-4 transition-all hover:shadow-md hover:-translate-y-0.5 ${
+            tab === "all" ? "border-slate-400 ring-2 ring-slate-200" : "border-card-border"
+          }`}
+        >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
               <FileText className="w-5 h-5 text-slate-600" />
@@ -423,7 +503,7 @@ export default function MedicalDashboardPage() {
               <p className="text-xs text-warm-gray font-medium">Total Entries</p>
             </div>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Search bar */}

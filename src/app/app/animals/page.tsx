@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   LayoutGrid,
@@ -40,14 +40,28 @@ export default function AnimalsPage() {
   const [view, setView] = useState<"grid" | "table">("grid");
   const [activeFilter, setActiveFilter] = useState("All Animals");
   const [search, setSearch] = useState("");
-  const [collapsedHerds, setCollapsedHerds] = useState<Set<string>>(new Set());
+  // Default every herd to collapsed — the user has to tap a herd header
+  // to expand its list.
+  const [collapsedHerds, setCollapsedHerds] = useState<Set<string>>(
+    () => new Set(herds)
+  );
 
-  const isHerdFilter = (herds as readonly string[]).includes(activeFilter);
-  const groupByHerd =
-    activeFilter === "All Animals" ||
-    activeFilter === "Special Needs" ||
-    activeFilter === "Senior" ||
-    activeFilter === "Sponsor Available";
+  // We always group by herd so the herd headers stay visible (and clickable)
+  // even when a herd filter or search is active. That makes "tap to open"
+  // work consistently.
+  const groupByHerd = true;
+
+  // Auto-expand the matching herd when the user clicks a herd filter tab.
+  useEffect(() => {
+    if ((herds as readonly string[]).includes(activeFilter)) {
+      setCollapsedHerds((prev) => {
+        if (!prev.has(activeFilter)) return prev;
+        const next = new Set(prev);
+        next.delete(activeFilter);
+        return next;
+      });
+    }
+  }, [activeFilter]);
 
   const filtered = animals.filter((a) => {
     const q = search.toLowerCase();
@@ -82,15 +96,15 @@ export default function AnimalsPage() {
     router.push(`/app/animals/${animal.slug}`);
   };
 
-  // Group by herd for display
-  const grouped = groupByHerd
-    ? herds
-        .map((herd) => ({
-          herd,
-          animals: filtered.filter((a) => a.herd === herd),
-        }))
-        .filter((g) => g.animals.length > 0)
-    : [{ herd: activeFilter, animals: filtered }];
+  // Group by herd for display. When a herd filter or a search with a match
+  // in that herd narrows results, we still render the herd header so the
+  // user can expand it.
+  const grouped = herds
+    .map((herd) => ({
+      herd,
+      animals: filtered.filter((a) => a.herd === herd),
+    }))
+    .filter((g) => g.animals.length > 0);
 
   return (
     <div className="space-y-6">

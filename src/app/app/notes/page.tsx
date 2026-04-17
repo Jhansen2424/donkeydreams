@@ -13,6 +13,7 @@ import {
   ArrowRight,
   Sparkles,
   Loader2,
+  Tag,
 } from "lucide-react";
 import { useParkingLot, type EntryType } from "@/lib/parking-lot-context";
 import { useSchedule } from "@/lib/schedule-context";
@@ -26,25 +27,29 @@ const typeConfig: Record<
   medical: { label: "Medical", icon: Stethoscope,     color: "text-purple-700", bg: "bg-purple-50",  border: "border-purple-200" },
   feed:    { label: "Feed",    icon: UtensilsCrossed, color: "text-amber-700",  bg: "bg-amber-50",   border: "border-amber-200" },
   watch:   { label: "Watch",   icon: AlertTriangle,   color: "text-red-700",    bg: "bg-red-50",     border: "border-red-200" },
+  update:  { label: "Update",  icon: Sparkles,        color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200" },
 };
 
 function formatTime(date: Date): string {
   return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 }
 
-function currentTimeBlock(): "Breakfast" | "Lunch" | "Dinner" {
+function currentTimeBlock(): "AM" | "Mid" | "PM" {
   const h = new Date().getHours();
-  if (h < 10) return "Breakfast";
-  if (h < 16) return "Lunch";
-  return "Dinner";
+  if (h < 10) return "AM";
+  if (h < 16) return "Mid";
+  return "PM";
 }
 
 type FilterKey = "all" | EntryType;
 
 export default function NotesPage() {
-  const { entries, resolveEntry, removeEntry, loading, error } = useParkingLot();
+  const { entries, resolveEntry, removeEntry, updateEntry, loading, error } = useParkingLot();
   const { addTask } = useSchedule();
   const [filter, setFilter] = useState<FilterKey>("all");
+  // Track which entry's category picker is open so we can show a dropdown
+  // on demand without cluttering the default layout.
+  const [catPickerId, setCatPickerId] = useState<string | null>(null);
 
   const unresolved = entries.filter((e) => !e.resolved);
   const resolved = entries.filter((e) => e.resolved);
@@ -72,6 +77,7 @@ export default function NotesPage() {
     medical: unresolved.filter((e) => e.type === "medical").length,
     feed: unresolved.filter((e) => e.type === "feed").length,
     watch: unresolved.filter((e) => e.type === "watch").length,
+    update: unresolved.filter((e) => e.type === "update").length,
   };
 
   const filterTabs: { key: FilterKey; label: string; icon?: typeof StickyNote }[] = [
@@ -213,7 +219,7 @@ export default function NotesPage() {
                     </div>
                   )}
 
-                  {/* Actions */}
+                  {/* Actions — promote to a task, re-category, or dismiss. */}
                   <div className="flex flex-wrap items-center gap-2 mt-3">
                     <button
                       onClick={() => promoteToTask(entry.id)}
@@ -223,16 +229,51 @@ export default function NotesPage() {
                       <ArrowRight className="w-3.5 h-3.5" />
                       Make a task
                     </button>
-                    <button
-                      onClick={() => resolveEntry(entry.id)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      Mark handled
-                    </button>
+                    <div className="relative">
+                      <button
+                        onClick={() =>
+                          setCatPickerId((cur) => (cur === entry.id ? null : entry.id))
+                        }
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-charcoal bg-white border border-card-border hover:bg-cream rounded-lg transition-colors"
+                        title="Change category"
+                      >
+                        <Tag className="w-3.5 h-3.5" />
+                        Category: {typeConfig[entry.type].label}
+                      </button>
+                      {catPickerId === entry.id && (
+                        <div className="absolute left-0 top-full mt-1 z-20 bg-white rounded-lg border border-card-border shadow-lg p-1 min-w-[160px]">
+                          {(Object.keys(typeConfig) as EntryType[]).map((t) => {
+                            const TIcon = typeConfig[t].icon;
+                            return (
+                              <button
+                                key={t}
+                                onClick={async () => {
+                                  setCatPickerId(null);
+                                  if (t !== entry.type) {
+                                    await updateEntry(entry.id, { type: t });
+                                  }
+                                }}
+                                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-sm transition-colors ${
+                                  entry.type === t
+                                    ? "bg-cream text-charcoal"
+                                    : "text-charcoal hover:bg-cream/60"
+                                }`}
+                              >
+                                <TIcon className={`w-3.5 h-3.5 ${typeConfig[t].color}`} />
+                                <span>{typeConfig[t].label}</span>
+                                {entry.type === t && (
+                                  <Check className="w-3.5 h-3.5 text-emerald-500 ml-auto" />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                     <button
                       onClick={() => removeEntry(entry.id)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-warm-gray hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-auto"
+                      title="Dismiss this note"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       Dismiss

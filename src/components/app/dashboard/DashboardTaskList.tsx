@@ -2,18 +2,19 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { ListChecks, Briefcase, Tractor, Heart, Check, Plus } from "lucide-react";
+import { ListChecks, Briefcase, Tractor, Heart, Check, Plus, Hammer } from "lucide-react";
 import type { ScheduleBlock, ScheduleTask, TaskCategory } from "@/lib/sanctuary-data";
 
-type Bucket = "admin" | "ranch" | "care";
+type Bucket = "admin" | "care" | "projects" | "ranch";
 
-// Map the existing category taxonomy onto the dashboard's Admin/Ranch/Care
-// buckets. Sponsor work = admin; routine + feeding = ranch operations;
-// everything animal-care related goes under care.
+// Map the existing category taxonomy onto the dashboard's
+// Admin / Care / Projects / Ranch buckets.
 function bucketForCategory(category: TaskCategory): Bucket {
   switch (category) {
     case "sponsor":
       return "admin";
+    case "projects":
+      return "projects";
     case "routine":
     case "feeding":
       return "ranch";
@@ -28,8 +29,9 @@ function bucketForCategory(category: TaskCategory): Bucket {
 
 const bucketMeta: Record<Bucket, { label: string; icon: typeof Briefcase; color: string; accent: string }> = {
   admin: { label: "Admin", icon: Briefcase, color: "text-pink-700", accent: "border-pink-500 text-pink-700 bg-pink-50" },
-  ranch: { label: "Ranch", icon: Tractor, color: "text-amber-700", accent: "border-amber-500 text-amber-700 bg-amber-50" },
   care: { label: "Care", icon: Heart, color: "text-emerald-700", accent: "border-emerald-500 text-emerald-700 bg-emerald-50" },
+  projects: { label: "Projects", icon: Hammer, color: "text-indigo-700", accent: "border-indigo-500 text-indigo-700 bg-indigo-50" },
+  ranch: { label: "Ranch", icon: Tractor, color: "text-amber-700", accent: "border-amber-500 text-amber-700 bg-amber-50" },
 };
 
 interface FlatTask {
@@ -51,7 +53,7 @@ export default function DashboardTaskList({ schedule, onToggle, onEdit, onAdd }:
 
   // Flatten the schedule and group tasks by bucket.
   const buckets = useMemo(() => {
-    const result: Record<Bucket, FlatTask[]> = { admin: [], ranch: [], care: [] };
+    const result: Record<Bucket, FlatTask[]> = { admin: [], care: [], projects: [], ranch: [] };
     schedule.forEach((block, blockIdx) => {
       block.tasks.forEach((task, taskIdx) => {
         const b = bucketForCategory(task.category);
@@ -66,13 +68,17 @@ export default function DashboardTaskList({ schedule, onToggle, onEdit, onAdd }:
       total: buckets.admin.length,
       remaining: buckets.admin.filter((t) => !t.task.done).length,
     },
-    ranch: {
-      total: buckets.ranch.length,
-      remaining: buckets.ranch.filter((t) => !t.task.done).length,
-    },
     care: {
       total: buckets.care.length,
       remaining: buckets.care.filter((t) => !t.task.done).length,
+    },
+    projects: {
+      total: buckets.projects.length,
+      remaining: buckets.projects.filter((t) => !t.task.done).length,
+    },
+    ranch: {
+      total: buckets.ranch.length,
+      remaining: buckets.ranch.filter((t) => !t.task.done).length,
     },
   };
 
@@ -99,8 +105,8 @@ export default function DashboardTaskList({ schedule, onToggle, onEdit, onAdd }:
           )}
         </div>
 
-        {/* Sub-tabs: Admin / Ranch / Care */}
-        <div className="flex gap-1.5">
+        {/* Sub-tabs: Admin / Care / Projects / Ranch */}
+        <div className="flex gap-1">
           {(Object.keys(bucketMeta) as Bucket[]).map((b) => {
             const meta = bucketMeta[b];
             const Icon = meta.icon;

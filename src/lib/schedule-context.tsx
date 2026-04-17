@@ -18,7 +18,7 @@ import {
 
 export interface NewTaskInput {
   task: string;
-  blockName?: string; // "Breakfast" | "Lunch" | "Dinner" — defaults to current time block
+  blockName?: string; // "AM" | "Mid" | "PM" — defaults to current time block
   assignedTo?: string;
   animalSpecific?: string;
   note?: string;
@@ -46,11 +46,26 @@ interface ScheduleContextValue {
   error: string | null;
 }
 
-function currentBlockName(): "Breakfast" | "Lunch" | "Dinner" {
+function currentBlockName(): "AM" | "Mid" | "PM" {
   const hour = new Date().getHours();
-  if (hour < 10) return "Breakfast";
-  if (hour < 16) return "Lunch";
-  return "Dinner";
+  if (hour < 10) return "AM";
+  if (hour < 16) return "Mid";
+  return "PM";
+}
+
+// Legacy block names used to live on persisted tasks. Map old → new so
+// historical rows still route to the correct column.
+function normalizeBlockName(name: string | undefined): string {
+  switch (name) {
+    case "Breakfast":
+      return "AM";
+    case "Lunch":
+      return "Mid";
+    case "Dinner":
+      return "PM";
+    default:
+      return name || "AM";
+  }
 }
 
 // ── Augmented ScheduleTask with the server-side id ──
@@ -119,7 +134,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       const tasks = body.tasks.map(apiToTask);
       const blockMap = new Map(body.tasks.map((a) => [a.id, a.block]));
       setTaskBlocks(blockMap);
-      setSchedule(mergeTasksIntoSchedule(tasks, (t) => (t.serverId ? blockMap.get(t.serverId) : undefined) ?? "Breakfast"));
+      setSchedule(mergeTasksIntoSchedule(tasks, (t) => normalizeBlockName(t.serverId ? blockMap.get(t.serverId) : undefined)));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load tasks");
     } finally {

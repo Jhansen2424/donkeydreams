@@ -7,7 +7,7 @@ import { volunteers } from "@/lib/volunteer-data";
 import { categoryMeta, type TaskCategory, type ScheduleTask } from "@/lib/sanctuary-data";
 import { useSchedule } from "@/lib/schedule-context";
 
-const BLOCKS: Array<"Breakfast" | "Lunch" | "Dinner"> = ["Breakfast", "Lunch", "Dinner"];
+const BLOCKS: Array<"AM" | "Mid" | "PM"> = ["AM", "Mid", "PM"];
 const CATEGORIES: TaskCategory[] = [
   "routine",
   "feeding",
@@ -16,6 +16,7 @@ const CATEGORIES: TaskCategory[] = [
   "hoof-dental",
   "weight",
   "sponsor",
+  "projects",
 ];
 
 const activeMembers = volunteers.filter((v) => v.status === "active");
@@ -40,7 +41,7 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
 
   // Form state
   const [text, setText] = useState("");
-  const [block, setBlock] = useState<string>("Breakfast");
+  const [block, setBlock] = useState<string>("AM");
   const [assignees, setAssignees] = useState<string[]>([]);
   const [animal, setAnimal] = useState("");
   const [category, setCategory] = useState<TaskCategory>("routine");
@@ -54,7 +55,7 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
     setSaving(false);
     if (mode.kind === "add") {
       setText("");
-      setBlock(mode.defaultBlock ?? "Breakfast");
+      setBlock(mode.defaultBlock ?? "AM");
       setAssignees([]);
       setAnimal("");
       setCategory("routine");
@@ -68,7 +69,7 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
       // accept the caller wrapping this component; for edit mode we read the
       // block from the schedule indirectly, so expose a `block` field too.
       // Simpler: pass block via a side channel — see TaskEditModalEdit below.
-      setBlock(mode.defaultBlock ?? "Breakfast");
+      setBlock(mode.defaultBlock ?? "AM");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, mode]);

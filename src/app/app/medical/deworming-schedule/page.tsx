@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { ArrowLeft, Calculator, Calendar, Pill } from "lucide-react";
+import { ArrowLeft, Calculator, Calendar, Pill, ChevronDown, ChevronRight } from "lucide-react";
 import { animals } from "@/lib/animals";
 import { allMedicalEntries } from "@/lib/medical-data";
 
@@ -54,7 +54,6 @@ function addDays(iso: string, days: number): string {
   return d.toISOString().split("T")[0];
 }
 
-// Match a deworming entry's title to a rotation drug index
 function rotationIndexFromTitle(title: string): number {
   const t = title.toLowerCase();
   if (t.includes("pyrantel")) return 0;
@@ -64,9 +63,16 @@ function rotationIndexFromTitle(title: string): number {
   return -1;
 }
 
+type HerdRow = {
+  name: string;
+  animals: number;
+  lastDose: { drug: string; date: string; rotIdx: number } | null;
+  nextDose: { drug: string; date: string; rotIdx: number } | null;
+};
+
 export default function DewormingSchedulePage() {
   // ── Per-herd last dose + next dose ──
-  const herds = useMemo(() => {
+  const herds = useMemo<HerdRow[]>(() => {
     const byHerd = new Map<
       string,
       {
@@ -82,7 +88,6 @@ export default function DewormingSchedulePage() {
       byHerd.get(animal.herd)!.animals++;
     }
 
-    // Find most recent deworming dose per herd from medical entries
     const dewormings = allMedicalEntries
       .filter((e) => e.type === "Deworming")
       .sort((a, b) => (b.date > a.date ? 1 : -1));
@@ -117,6 +122,16 @@ export default function DewormingSchedulePage() {
   const [weightLbs, setWeightLbs] = useState(400);
   const weightKg = weightLbs * LB_TO_KG;
 
+  // ── Herd expand state — click a row to see the donkeys in that herd ──
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleHerd = (name: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+
   return (
     <div className="space-y-6 max-w-5xl">
       {/* Back link */}
@@ -148,10 +163,7 @@ export default function DewormingSchedulePage() {
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {ROTATION.map((r, i) => (
-            <div
-              key={r.drug}
-              className={`rounded-xl border p-4 ${r.color}`}
-            >
+            <div key={r.drug} className={`rounded-xl border p-4 ${r.color}`}>
               <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">
                 Step {i + 1}
               </p>
@@ -162,55 +174,79 @@ export default function DewormingSchedulePage() {
         </div>
       </section>
 
-      {/* Per-herd schedule */}
+      {/* Per-herd schedule — click to expand the list of individual donkeys;
+          each donkey links to its detail page so the user can edit records. */}
       <section className="bg-white rounded-xl border border-card-border p-5">
-        <h2 className="font-bold text-charcoal mb-4">Schedule by Herd</h2>
+        <h2 className="font-bold text-charcoal mb-1">Schedule by Herd</h2>
+        <p className="text-xs text-warm-gray mb-4">
+          Tap a herd to see the individuals — each links to that donkey&apos;s page.
+        </p>
         <div className="space-y-3">
-          {herds.map((h) => (
-            <div
-              key={h.name}
-              className="border border-card-border rounded-xl p-4 grid md:grid-cols-3 gap-4 items-center"
-            >
-              <div>
-                <p className="font-bold text-charcoal">{h.name}</p>
-                <p className="text-xs text-warm-gray">{h.animals} animals</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-warm-gray/60">
-                  Last Dose
-                </p>
-                {h.lastDose ? (
-                  <>
-                    <p className="text-sm font-semibold text-charcoal">
-                      {h.lastDose.drug}
+          {herds.map((h) => {
+            const herdAnimals = animals
+              .filter((a) => a.herd === h.name)
+              .sort((a, b) => a.name.localeCompare(b.name));
+            const isOpen = expanded.has(h.name);
+            return (
+              <div key={h.name} className="border border-card-border rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleHerd(h.name)}
+                  className="w-full text-left p-4 grid md:grid-cols-[auto_1fr_1fr_1fr] gap-4 items-center hover:bg-cream/40 transition-colors"
+                >
+                  <span className="text-warm-gray/60">
+                    {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  </span>
+                  <div>
+                    <p className="font-bold text-charcoal">{h.name}</p>
+                    <p className="text-xs text-warm-gray">{h.animals} animals</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-warm-gray/60">
+                      Last Dose
                     </p>
-                    <p className="text-xs text-warm-gray">
-                      {formatDate(h.lastDose.date)}
+                    {h.lastDose ? (
+                      <>
+                        <p className="text-sm font-semibold text-charcoal">{h.lastDose.drug}</p>
+                        <p className="text-xs text-warm-gray">{formatDate(h.lastDose.date)}</p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-warm-gray/60">No history</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-warm-gray/60">
+                      Next Dose
                     </p>
-                  </>
-                ) : (
-                  <p className="text-sm text-warm-gray/60">No history</p>
+                    {h.nextDose ? (
+                      <>
+                        <p className="text-sm font-semibold text-charcoal">{h.nextDose.drug}</p>
+                        <p className="text-xs text-warm-gray">Due {formatDate(h.nextDose.date)}</p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-warm-gray/60">—</p>
+                    )}
+                  </div>
+                </button>
+                {isOpen && herdAnimals.length > 0 && (
+                  <div className="bg-cream/30 border-t border-card-border px-4 py-3">
+                    <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                      {herdAnimals.map((a) => (
+                        <li key={a.slug}>
+                          <Link
+                            href={`/app/animals/${a.slug}`}
+                            className="block px-3 py-2 bg-white rounded-lg border border-card-border text-sm text-charcoal hover:bg-sidebar hover:text-white hover:border-sidebar transition-colors"
+                          >
+                            {a.name}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-warm-gray/60">
-                  Next Dose
-                </p>
-                {h.nextDose ? (
-                  <>
-                    <p className="text-sm font-semibold text-charcoal">
-                      {h.nextDose.drug}
-                    </p>
-                    <p className="text-xs text-warm-gray">
-                      Due {formatDate(h.nextDose.date)}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-sm text-warm-gray/60">—</p>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 

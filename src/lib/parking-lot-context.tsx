@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 
-export type EntryType = "task" | "medical" | "feed" | "watch" | "note";
+export type EntryType = "task" | "medical" | "feed" | "watch" | "note" | "update";
 
 export interface ParkingLotEntry {
   id: string;
@@ -30,6 +30,10 @@ export interface ParkingLotEntry {
 interface ParkingLotContextValue {
   entries: ParkingLotEntry[];
   addEntry: (type: EntryType, text: string, data?: ParkingLotEntry["data"]) => Promise<void>;
+  updateEntry: (
+    id: string,
+    patch: { type?: EntryType; text?: string; data?: ParkingLotEntry["data"] }
+  ) => Promise<void>;
   resolveEntry: (id: string) => Promise<void>;
   removeEntry: (id: string) => Promise<void>;
   unresolvedCount: number;
@@ -116,6 +120,40 @@ export function ParkingLotProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const updateEntry = useCallback(
+    async (
+      id: string,
+      patch: { type?: EntryType; text?: string; data?: ParkingLotEntry["data"] }
+    ) => {
+      // Optimistic update; revert on failure.
+      const snapshot = entries;
+      setEntries((prev) =>
+        prev.map((e) =>
+          e.id === id
+            ? {
+                ...e,
+                type: patch.type ?? e.type,
+                text: patch.text ?? e.text,
+                data: patch.data ?? e.data,
+              }
+            : e
+        )
+      );
+      try {
+        const res = await fetch("/api/parking-lot", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, ...patch }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error || "Failed to update");
+      } catch (e) {
+        setEntries(snapshot);
+        setError(e instanceof Error ? e.message : "Failed to update note");
+      }
+    },
+    [entries]
+  );
+
   const resolveEntry = useCallback(async (id: string) => {
     // Optimistic mark-resolved; revert on failure.
     setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, resolved: true } : e)));
@@ -151,7 +189,7 @@ export function ParkingLotProvider({ children }: { children: ReactNode }) {
 
   return (
     <ParkingLotContext.Provider
-      value={{ entries, addEntry, resolveEntry, removeEntry, unresolvedCount, loading, error, refresh }}
+      value={{ entries, addEntry, updateEntry, resolveEntry, removeEntry, unresolvedCount, loading, error, refresh }}
     >
       {children}
     </ParkingLotContext.Provider>

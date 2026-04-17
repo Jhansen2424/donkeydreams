@@ -5,8 +5,12 @@ import {
   AlertTriangle,
   Plus,
   Clock,
+  X,
+  Check,
 } from "lucide-react";
 import { watchList, type WatchListEntry } from "@/lib/sanctuary-data";
+import { useParkingLot } from "@/lib/parking-lot-context";
+import { animals } from "@/lib/animals";
 
 const severityStyles = {
   high: { dot: "bg-red-500", bg: "bg-red-50 border-red-200", label: "High" },
@@ -26,9 +30,26 @@ export default function WatchListPage() {
   const [filter, setFilter] = useState<"all" | "high" | "medium" | "low">(
     "all"
   );
+  const [addOpen, setAddOpen] = useState(false);
+  const { entries, addEntry } = useParkingLot();
+
+  // Pull any parking-lot watch entries into the merged view so newly-added
+  // alerts render immediately, alongside whatever seed watchList is loaded.
+  const parkingWatch: WatchListEntry[] = entries
+    .filter((e) => e.type === "watch" && !e.resolved)
+    .map((e) => ({
+      date: e.timestamp.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      animal: e.data?.animal || "—",
+      issue: e.text,
+      treatment: e.data?.title || "",
+      assignedTo: e.data?.assignee || "",
+      severity: (e.data?.severity as "high" | "medium" | "low") || "medium",
+    }));
+
+  const merged = [...parkingWatch, ...watchList];
 
   const filtered =
-    filter === "all" ? watchList : watchList.filter((e) => e.severity === filter);
+    filter === "all" ? merged : merged.filter((e) => e.severity === filter);
 
   return (
     <div className="space-y-6">
@@ -40,14 +61,33 @@ export default function WatchListPage() {
             Donkeys to Watch
           </h1>
           <p className="text-sm text-warm-gray mt-0.5">
-            {watchList.length} active alerts
+            {merged.length} active alerts
           </p>
         </div>
-        <button className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors self-start">
+        <button
+          type="button"
+          onClick={() => setAddOpen(true)}
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors self-start"
+        >
           <Plus className="w-4 h-4" />
           Add Alert
         </button>
       </div>
+
+      {addOpen && (
+        <AddAlertModal
+          onClose={() => setAddOpen(false)}
+          onSubmit={async ({ animal, issue, treatment, assignedTo, severity }) => {
+            await addEntry("watch", issue, {
+              animal,
+              title: treatment || undefined,
+              assignee: assignedTo || undefined,
+              severity,
+            });
+            setAddOpen(false);
+          }}
+        />
+      )}
 
       {/* Severity filters */}
       <div className="flex gap-2">
@@ -62,8 +102,8 @@ export default function WatchListPage() {
             }`}
           >
             {level === "all"
-              ? `All (${watchList.length})`
-              : `${level.charAt(0).toUpperCase() + level.slice(1)} (${watchList.filter((e) => e.severity === level).length})`}
+              ? `All (${merged.length})`
+              : `${level.charAt(0).toUpperCase() + level.slice(1)} (${merged.filter((e) => e.severity === level).length})`}
           </button>
         ))}
       </div>
@@ -81,6 +121,150 @@ export default function WatchListPage() {
           <p className="text-warm-gray font-medium">No alerts at this level</p>
         </div>
       )}
+    </div>
+  );
+}
+
+function AddAlertModal({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (input: {
+    animal: string;
+    issue: string;
+    treatment: string;
+    assignedTo: string;
+    severity: "high" | "medium" | "low";
+  }) => Promise<void> | void;
+}) {
+  const [animal, setAnimal] = useState("");
+  const [issue, setIssue] = useState("");
+  const [treatment, setTreatment] = useState("");
+  const [assignedTo, setAssignedTo] = useState("");
+  const [severity, setSeverity] = useState<"high" | "medium" | "low">("medium");
+  const [saving, setSaving] = useState(false);
+
+  const canSave = animal.trim().length > 0 && issue.trim().length > 0;
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl overflow-hidden shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-sidebar px-5 py-4 flex items-center justify-between">
+          <h2 className="font-bold text-white text-lg">New watch alert</h2>
+          <button onClick={onClose} className="text-cream/60 hover:text-white p-1">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1 block">
+              Animal
+            </label>
+            <input
+              list="watch-animal-list"
+              value={animal}
+              onChange={(e) => setAnimal(e.target.value)}
+              placeholder="Start typing..."
+              className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+              autoFocus
+            />
+            <datalist id="watch-animal-list">
+              {[...animals]
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((a) => (
+                  <option key={a.slug} value={a.name} />
+                ))}
+            </datalist>
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1 block">
+              Issue
+            </label>
+            <textarea
+              value={issue}
+              onChange={(e) => setIssue(e.target.value)}
+              rows={2}
+              placeholder="e.g. Limping on left front, needs monitoring"
+              className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50 resize-none"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1 block">
+              Treatment / plan
+            </label>
+            <input
+              value={treatment}
+              onChange={(e) => setTreatment(e.target.value)}
+              placeholder="Bute 1g BID, recheck in 3 days"
+              className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1 block">
+                Assigned to
+              </label>
+              <input
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+                placeholder="Name"
+                className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1 block">
+                Severity
+              </label>
+              <select
+                value={severity}
+                onChange={(e) => setSeverity(e.target.value as "high" | "medium" | "low")}
+                className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal bg-white focus:outline-none focus:ring-2 focus:ring-sand/50"
+              >
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div className="px-5 py-4 border-t border-card-border flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-charcoal bg-white border border-card-border rounded-lg hover:bg-cream transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            disabled={!canSave || saving}
+            onClick={async () => {
+              if (!canSave) return;
+              setSaving(true);
+              try {
+                await onSubmit({
+                  animal: animal.trim(),
+                  issue: issue.trim(),
+                  treatment: treatment.trim(),
+                  assignedTo: assignedTo.trim(),
+                  severity,
+                });
+              } finally {
+                setSaving(false);
+              }
+            }}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-sidebar rounded-lg hover:bg-sidebar-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <Check className="w-4 h-4" />
+            Save alert
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

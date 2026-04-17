@@ -21,6 +21,7 @@ const tabs = [
 
 const moreLinks = [
   { name: "Watch List", href: "/app/watch" },
+  { name: "Sanctuary Updates", href: "/app/updates" },
   { name: "Feed Buckets", href: "/app/feed" },
   { name: "Hoof Care", href: "/app/hoof-dental?tab=hoof" },
   { name: "Dental Care", href: "/app/hoof-dental?tab=dental" },
@@ -28,7 +29,7 @@ const moreLinks = [
 
   { name: "Admin", href: "/app/admin" },
   { name: "Donations", href: "/app/donations" },
-  { name: "Events", href: "/app/events" },
+  { name: "Events / Visitors / Schedule", href: "/app/events" },
   { name: "Impact Report", href: "/app/reports" },
   { name: "Settings", href: "/app/settings" },
 ];
