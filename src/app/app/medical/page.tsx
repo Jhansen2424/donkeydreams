@@ -21,6 +21,7 @@ import {
   type MedicalRecord,
   type MedicalRecordType,
 } from "@/lib/medical-data";
+import { useMedical } from "@/lib/medical-context";
 import { animals } from "@/lib/animals";
 
 type Tab = "upcoming" | "overdue" | "recent" | "all";
@@ -105,7 +106,7 @@ export default function MedicalDashboardPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<MedicalRecordType | "all">("all");
   const [showAddForm, setShowAddForm] = useState(false);
-  const [localRecords, setLocalRecords] = useState<MedicalRecord[]>([]);
+  const { entries: dbEntries, addEntry: addMedicalEntry } = useMedical();
 
   // Add form state
   const [formAnimal, setFormAnimal] = useState(animals[0]?.name || "");
@@ -125,10 +126,19 @@ export default function MedicalDashboardPage() {
   ];
   const needsNextDate = typesNeedingNextDate.includes(formType);
 
-  const allRecords = useMemo(
-    () => [...baseRecords, ...localRecords],
-    [localRecords]
-  );
+  // DB entries are the source of truth for newly-created records. Seed CSVs
+  // (`baseRecords`) still supply historical imports. Dedupe on id so an
+  // optimistic entry doesn't double when the server echo arrives.
+  const allRecords = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: MedicalRecord[] = [];
+    for (const r of [...dbEntries, ...baseRecords]) {
+      if (seen.has(r.id)) continue;
+      seen.add(r.id);
+      merged.push(r);
+    }
+    return merged;
+  }, [dbEntries]);
 
   // Stats
   const stats = useMemo(() => {
@@ -229,7 +239,7 @@ export default function MedicalDashboardPage() {
     return groups;
   }, [filteredRecords]);
 
-  function handleAddRecord() {
+  async function handleAddRecord() {
     if (!formTitle.trim()) return;
     // For treatment types we require a next-date so follow-ups don't slip.
     if (needsNextDate && !formNextDate) return;
@@ -239,30 +249,26 @@ export default function MedicalDashboardPage() {
       ? `${desc}${desc ? "\n\n" : ""}Next treatment due: ${formNextDate}`
       : desc;
 
-    const newRecord: MedicalRecord = {
-      id: `local-${Date.now()}`,
+    await addMedicalEntry({
       animal: formAnimal,
       type: formType,
       title: formTitle.trim(),
       date: formDate,
       description: combinedDesc,
       urgent: formUrgent,
-    };
-    setLocalRecords((prev) => [...prev, newRecord]);
+    });
 
-    // If the user supplied a next-treatment date, also drop a synthetic
-    // "upcoming" entry on that date so the schedule reflects the follow-up.
+    // If the user supplied a next-treatment date, also persist a follow-up
+    // entry on that date so the schedule reflects the next dose/visit.
     if (formNextDate) {
-      const followUp: MedicalRecord = {
-        id: `local-next-${Date.now()}`,
+      await addMedicalEntry({
         animal: formAnimal,
         type: formType,
         title: `${formTitle.trim()} — follow-up`,
         date: formNextDate,
         description: `Scheduled follow-up for ${formType.toLowerCase()} on ${formDate}.`,
         urgent: false,
-      };
-      setLocalRecords((prev) => [...prev, followUp]);
+      });
     }
 
     setFormTitle("");

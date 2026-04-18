@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Calculator, Calendar, Pill, ChevronDown, ChevronRight } from "lucide-react";
 import { animals } from "@/lib/animals";
 import { allMedicalEntries } from "@/lib/medical-data";
+import { useMedical } from "@/lib/medical-context";
 
 // ── Rotation schedule (from PREV-HERD-1..6 template in CSV) ──
 // Every ~60 days, drugs rotate in this order
@@ -71,6 +72,8 @@ type HerdRow = {
 };
 
 export default function DewormingSchedulePage() {
+  const { entries: dbEntries } = useMedical();
+
   // ── Per-herd last dose + next dose ──
   const herds = useMemo<HerdRow[]>(() => {
     const byHerd = new Map<
@@ -88,7 +91,16 @@ export default function DewormingSchedulePage() {
       byHerd.get(animal.herd)!.animals++;
     }
 
-    const dewormings = allMedicalEntries
+    // Merge DB entries with CSV seed; dedupe on id so optimistic echoes don't
+    // double. DB entries come first so they win if the rare id collision occurs.
+    const seen = new Set<string>();
+    const combined = [...dbEntries, ...allMedicalEntries].filter((e) => {
+      if (seen.has(e.id)) return false;
+      seen.add(e.id);
+      return true;
+    });
+
+    const dewormings = combined
       .filter((e) => e.type === "Deworming")
       .sort((a, b) => (b.date > a.date ? 1 : -1));
 
@@ -116,7 +128,7 @@ export default function DewormingSchedulePage() {
         return { name, ...data, nextDose };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, []);
+  }, [dbEntries]);
 
   // ── Dosage calculator ──
   const [weightLbs, setWeightLbs] = useState(400);

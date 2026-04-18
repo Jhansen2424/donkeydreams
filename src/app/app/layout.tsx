@@ -4,6 +4,7 @@ import TopBar from "@/components/app/TopBar";
 import MobileNav from "@/components/app/MobileNav";
 import { ScheduleProvider } from "@/lib/schedule-context";
 import { ParkingLotProvider } from "@/lib/parking-lot-context";
+import { MedicalProvider } from "@/lib/medical-context";
 
 export const metadata: Metadata = {
   title: "Donkey Dreams — Sanctuary Manager",
@@ -18,16 +19,18 @@ export default function AppLayout({
   return (
     <ScheduleProvider>
       <ParkingLotProvider>
-        <div className="min-h-screen bg-cream">
-          <Sidebar />
-          <div className="md:ml-64 flex flex-col min-h-screen">
-            <TopBar />
-            <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
-              {children}
-            </main>
+        <MedicalProvider>
+          <div className="min-h-screen bg-cream">
+            <Sidebar />
+            <div className="md:ml-64 flex flex-col min-h-screen">
+              <TopBar />
+              <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
+                {children}
+              </main>
+            </div>
+            <MobileNav />
           </div>
-          <MobileNav />
-        </div>
+        </MedicalProvider>
       </ParkingLotProvider>
     </ScheduleProvider>
   );

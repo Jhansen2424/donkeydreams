@@ -23,6 +23,7 @@ import {
   type MedicalRecord,
   type MedicalRecordType,
 } from "@/lib/medical-data";
+import { useMedical } from "@/lib/medical-context";
 import { visitHistory } from "@/lib/hoof-dental-data";
 import { getTrimProfile } from "@/lib/trimming-data";
 import { getDewormingDosage } from "@/lib/power-pack-data";
@@ -656,7 +657,22 @@ function MedicalRecordCard({ record }: { record: MedicalRecord }) {
 }
 
 function MedicalTab({ animal }: { animal: Animal }) {
-  const records = getRecordsForAnimal(animal.name);
+  const { entries: dbEntries } = useMedical();
+  const seedRecords = getRecordsForAnimal(animal.name);
+  // Merge DB entries for this animal with the seeded CSV history. Dedupe on
+  // id; keep DB entries first so they win on collision. Sort newest-first to
+  // match `getRecordsForAnimal`'s original contract.
+  const records = (() => {
+    const dbForAnimal = dbEntries.filter((e) => e.animal === animal.name);
+    const seen = new Set<string>();
+    return [...dbForAnimal, ...seedRecords]
+      .filter((r) => {
+        if (seen.has(r.id)) return false;
+        seen.add(r.id);
+        return true;
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  })();
   const [subTab, setSubTab] = useState<MedicalSubTab>("all");
 
   const hoofVisits = visitHistory

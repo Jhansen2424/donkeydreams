@@ -20,7 +20,9 @@ import {
 } from "lucide-react";
 import { useParkingLot, type EntryType } from "@/lib/parking-lot-context";
 import { useSchedule } from "@/lib/schedule-context";
+import { useMedical } from "@/lib/medical-context";
 import { animals } from "@/lib/animals";
+import type { MedicalEntryType } from "@/lib/medical-data";
 
 const sortedAnimals = [...animals].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -52,6 +54,29 @@ function getCurrentTimeBlock(): string {
 
 function todayISO(): string {
   return new Date().toISOString().split("T")[0];
+}
+
+// Map a free-text medical note to one of the MedicalEntry types.
+// Joshy doesn't return the type explicitly, so we infer from keywords.
+function inferMedicalType(text: string, title?: string | null): MedicalEntryType {
+  const haystack = `${title ?? ""} ${text}`.toLowerCase();
+  if (/\b(deworm|dewormed|dewormer|ivermectin|moxidectin|pyrantel|fenbendazole|tri-?wormer|power.?pack)\b/.test(haystack))
+    return "Deworming";
+  if (/\b(vaccin|vaccine|ewt|west nile|rabies|flu|tetanus|encephalitis|booster)\b/.test(haystack))
+    return "Vaccination";
+  if (/\b(fecal|egg count|parasite test|strongyle)\b/.test(haystack))
+    return "Fecal Test";
+  if (/\b(hoof|trim|farrier|dental|float|teeth)\b/.test(haystack))
+    return "Hoof & Dental";
+  if (/\b(temp|temperature|fever|°f|°c|degrees)\b/.test(haystack))
+    return "Temperature";
+  if (/\b(weight|weigh|lbs|pounds|kg)\b/.test(haystack) && /\b(today|was|is)\b/.test(haystack))
+    return "Weight";
+  if (/\b(blood|lab|urinalysis|cbc|chem panel|test result|panel)\b/.test(haystack))
+    return "Lab Result";
+  if (/\b(bute|banamine|equioxx|flunixin|medication|dose|mg|ml|antibiotic|bandage|wrap|ointment|adjust(ed)? .*(bute|med))\b/.test(haystack))
+    return "Medication";
+  return "Vet Visit";
 }
 
 // Cheap client-side classifier: does this utterance likely need the live
@@ -159,6 +184,7 @@ export default function QuickInput({
   initialText?: string;
 }) {
   const { addEntry, entries } = useParkingLot();
+  const { addEntry: addMedicalEntry } = useMedical();
   const { addTask, editTask, deleteTask, schedule } = useSchedule();
   const [activeTab, setActiveTab] = useState<EntryType | "joshy">("joshy");
   const [text, setText] = useState("");
@@ -355,6 +381,23 @@ export default function QuickInput({
         return;
       }
 
+      // Medical entries go to the MedicalEntry table so they show up on the
+      // medical dashboard, the deworming schedule, and the animal's record.
+      // If Joshy didn't identify an animal we can't create a MedicalEntry
+      // (animalId is required), so fall through to the parking lot so the
+      // note isn't lost.
+      if (action === "medical" && result.data.animal) {
+        addMedicalEntry({
+          animal: result.data.animal,
+          type: inferMedicalType(body, result.data.title),
+          title: result.data.title?.trim() || body,
+          date: result.data.date ?? todayISO(),
+          description: body,
+          urgent: false,
+        });
+        return;
+      }
+
       const entryType = (["watch", "medical", "feed", "note"].includes(action)
         ? action
         : "note") as EntryType;
@@ -368,7 +411,7 @@ export default function QuickInput({
         date: result.data.date ?? undefined,
       });
     },
-    [addTask, addEntry, editTask, deleteTask]
+    [addTask, addEntry, addMedicalEntry, editTask, deleteTask]
   );
 
   // Speak text aloud, then run a callback when speech ends.
@@ -581,6 +624,25 @@ export default function QuickInput({
         blockName: timeBlock,
         assignedTo: assignee || undefined,
         animalSpecific: animal || undefined,
+      });
+      setText("");
+      setAnimal("");
+      setAssignee("");
+      onClose();
+      return;
+    }
+
+    // Medical entries get their own table so the medical dashboard, deworming
+    // schedule, and animal record all see them. Needs an animal (required by
+    // the schema); if the user didn't pick one, fall through to parking lot.
+    if (activeTab === "medical" && animal) {
+      addMedicalEntry({
+        animal,
+        type: inferMedicalType(text, null),
+        title: text.trim(),
+        date: date || todayISO(),
+        description: text.trim(),
+        urgent: false,
       });
       setText("");
       setAnimal("");
