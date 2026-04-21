@@ -28,8 +28,10 @@ import {
 } from "@/lib/sanctuary-data";
 import { volunteers } from "@/lib/volunteer-data";
 import { useSchedule } from "@/lib/schedule-context";
+import { useParkingLot } from "@/lib/parking-lot-context";
 import VolunteerLoadBar from "@/components/app/VolunteerLoadBar";
 import TaskEditModal, { type TaskEditModalMode } from "@/components/app/TaskEditModal";
+import { Trash2 } from "lucide-react";
 
 type ViewMode = "time" | "animal" | "human";
 type CategoryFilter = TaskCategory | "all";
@@ -211,12 +213,17 @@ export default function TasksPage() {
     toggleTask,
     assignTask,
     bulkAssign,
+    editTask,
     resetSchedule,
   } = useSchedule();
   const [viewMode, setViewMode] = useState<ViewMode>("time");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [humanFilter, setHumanFilter] = useState<HumanFilter>("all");
   const [search, setSearch] = useState("");
+  // Identifier of the card currently being dragged. Encoded as
+  // `${blockIdx}:${taskIdx}` so the drop handler can locate the source.
+  const [dragSource, setDragSource] = useState<{ blockIdx: number; taskIdx: number } | null>(null);
+  const [dropTargetBlock, setDropTargetBlock] = useState<number | null>(null);
 
   const totalTasks = schedule.reduce((s, b) => s + b.tasks.length, 0);
   const doneTasks = schedule.reduce(
@@ -486,10 +493,37 @@ export default function TasksPage() {
         <div className="grid lg:grid-cols-3 gap-6">
           {filteredSchedule.map((block, _fi) => {
             const origIdx = schedule.findIndex((b) => b.name === block.name);
+            const isDropTarget = dropTargetBlock === origIdx && dragSource && dragSource.blockIdx !== origIdx;
             return (
               <div
                 key={block.name}
-                className="bg-white rounded-xl border border-card-border overflow-hidden"
+                onDragOver={(e) => {
+                  if (dragSource && dragSource.blockIdx !== origIdx) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    if (dropTargetBlock !== origIdx) setDropTargetBlock(origIdx);
+                  }
+                }}
+                onDragLeave={(e) => {
+                  // Only clear if we're really leaving the block — React fires
+                  // dragleave when moving between children, so compare against
+                  // currentTarget.
+                  if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
+                    setDropTargetBlock((cur) => (cur === origIdx ? null : cur));
+                  }
+                }}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  setDropTargetBlock(null);
+                  if (!dragSource || dragSource.blockIdx === origIdx) return;
+                  await editTask(dragSource.blockIdx, dragSource.taskIdx, {
+                    blockName: block.name,
+                  });
+                  setDragSource(null);
+                }}
+                className={`bg-white rounded-xl border overflow-hidden transition-colors ${
+                  isDropTarget ? "border-sidebar ring-2 ring-sidebar/30" : "border-card-border"
+                }`}
               >
                 <div className="bg-sidebar px-5 py-3">
                   <div className="flex items-center justify-between">
@@ -548,6 +582,11 @@ export default function TasksPage() {
                           assignTask(origIdx, origTaskIdx, name)
                         }
                         onEdit={() => openEdit(origIdx, origTaskIdx)}
+                        onDragStart={() => setDragSource({ blockIdx: origIdx, taskIdx: origTaskIdx })}
+                        onDragEnd={() => {
+                          setDragSource(null);
+                          setDropTargetBlock(null);
+                        }}
                       />
                     );
                   })}
@@ -700,6 +739,9 @@ export default function TasksPage() {
         </div>
       )}
 
+      {/* Upcoming (future-dated) tasks */}
+      <UpcomingTasksCard />
+
       {/* Info cards row */}
       <div className="grid sm:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-card-border p-5">
@@ -722,33 +764,7 @@ export default function TasksPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-card-border p-5">
-          <h3 className="font-bold text-charcoal mb-3 flex items-center gap-2">
-            <Info className="w-4 h-4 text-sky" />
-            Reminders
-          </h3>
-          <div className="space-y-3">
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-sm font-medium text-amber-800">
-                Salts & Minerals
-              </p>
-              <p className="text-sm text-amber-700">
-                {saltsAndMinerals.days.join(" & ")}
-              </p>
-            </div>
-            <div className="p-3 bg-sky/5 border border-sky/20 rounded-lg">
-              <p className="text-sm text-charcoal">
-                Teff is powdery — make sure buckets are moist when served.
-              </p>
-            </div>
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-800">
-                Check the ground when giving supplements — pills can drop.
-                Especially Shelley + Winnie.
-              </p>
-            </div>
-          </div>
-        </div>
+        <RemindersCard />
       </div>
 
       {/* Task add / edit modal */}
@@ -759,6 +775,103 @@ export default function TasksPage() {
           onClose={() => setModalMode(null)}
         />
       )}
+    </div>
+  );
+}
+
+// ── Reminders Card ──
+// Persistent, editable reminders list. Backed by parking-lot entries with
+// type "reminder" so they survive reloads and show up wherever parking-lot
+// data is consulted. Seed reminders (salts & minerals, teff, supplement drops)
+// still render when no user reminders exist yet.
+
+function RemindersCard() {
+  const { entries, addEntry, removeEntry } = useParkingLot();
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const userReminders = entries.filter((e) => e.type === "reminder" && !e.resolved);
+
+  async function handleAdd() {
+    const text = draft.trim();
+    if (!text) return;
+    setSaving(true);
+    try {
+      await addEntry("reminder", text);
+      setDraft("");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-card-border p-5">
+      <h3 className="font-bold text-charcoal mb-3 flex items-center gap-2">
+        <Info className="w-4 h-4 text-sky" />
+        Reminders
+      </h3>
+      <div className="space-y-3">
+        {/* Seed reminders — still useful defaults that don't live in the DB. */}
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-sm font-medium text-amber-800">Salts &amp; Minerals</p>
+          <p className="text-sm text-amber-700">
+            {saltsAndMinerals.days.join(" & ")}
+          </p>
+        </div>
+        <div className="p-3 bg-sky/5 border border-sky/20 rounded-lg">
+          <p className="text-sm text-charcoal">
+            Teff is powdery — make sure buckets are moist when served.
+          </p>
+        </div>
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-sm text-red-800">
+            Check the ground when giving supplements — pills can drop.
+            Especially Shelley + Winnie.
+          </p>
+        </div>
+
+        {/* User-added reminders */}
+        {userReminders.map((r) => (
+          <div
+            key={r.id}
+            className="p-3 bg-cream/60 border border-card-border rounded-lg flex items-start gap-2"
+          >
+            <p className="text-sm text-charcoal flex-1">{r.text}</p>
+            <button
+              onClick={() => removeEntry(r.id)}
+              className="text-warm-gray/50 hover:text-red-500 transition-colors shrink-0 mt-0.5"
+              title="Remove reminder"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+
+        {/* Add reminder */}
+        <div className="flex items-center gap-2 pt-1">
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void handleAdd();
+              }
+            }}
+            placeholder="Add a reminder..."
+            className="flex-1 px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal placeholder:text-warm-gray/50 focus:outline-none focus:ring-2 focus:ring-sand/50"
+          />
+          <button
+            onClick={() => void handleAdd()}
+            disabled={!draft.trim() || saving}
+            className="inline-flex items-center gap-1 px-3 py-2 bg-sidebar text-white rounded-lg text-xs font-semibold hover:bg-sidebar-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -819,19 +932,35 @@ function TaskRow({
   onAssign,
   onEdit,
   hideAnimal,
+  onDragStart,
+  onDragEnd,
 }: {
   task: ScheduleTask;
   onToggle: () => void;
   onAssign: (name: string) => void;
   onEdit?: () => void;
   hideAnimal?: boolean;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
 }) {
   const meta = categoryMeta[task.category];
   const source = sourceMeta[task.source];
+  const draggable = Boolean(onDragStart);
 
   return (
     <div
+      draggable={draggable}
+      onDragStart={(e) => {
+        if (!draggable) return;
+        // Required to trigger drag on Firefox.
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", task.task);
+        onDragStart?.();
+      }}
+      onDragEnd={() => onDragEnd?.()}
       className={`group relative flex items-start gap-3 p-3 rounded-lg transition-all text-left ${
+        draggable ? "cursor-grab active:cursor-grabbing" : ""
+      } ${
         task.done
           ? "bg-emerald-50/50 border border-emerald-200"
           : "bg-cream/30 border border-card-border hover:border-sand"
@@ -924,5 +1053,133 @@ function FilterPill({
       )}
       {label}
     </button>
+  );
+}
+
+// ── Upcoming Tasks Card ──
+// Shows tasks scheduled for a future date (tomorrow and on). Separate from
+// the Daily Routine columns (which are strictly today), so future-dated
+// tasks aren't hidden until their date rolls around.
+
+interface UpcomingApiTask {
+  id: string;
+  task: string;
+  block: string;
+  category: string;
+  date: string;
+  assignedTo: string | null;
+  animalSpecific: string | null;
+  done: boolean;
+}
+
+function UpcomingTasksCard() {
+  const [rows, setRows] = useState<UpcomingApiTask[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const today = new Date();
+        today.setDate(today.getDate() + 1);
+        const from = today.toISOString().split("T")[0];
+        const until = new Date();
+        until.setDate(until.getDate() + 30);
+        const to = until.toISOString().split("T")[0];
+        const res = await fetch(
+          `/api/tasks?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+          { cache: "no-store" }
+        );
+        if (!res.ok) return;
+        const body = (await res.json()) as { tasks: UpcomingApiTask[] };
+        if (!cancelled) {
+          setRows(body.tasks);
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (loading || rows.length === 0) return null;
+
+  const grouped = rows.reduce<Record<string, UpcomingApiTask[]>>((acc, r) => {
+    (acc[r.date] ||= []).push(r);
+    return acc;
+  }, {});
+  const sortedDates = Object.keys(grouped).sort();
+  const visibleDates = expanded ? sortedDates : sortedDates.slice(0, 3);
+
+  const formatLabel = (iso: string) => {
+    const d = new Date(iso + "T00:00:00");
+    return d.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-card-border p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-bold text-charcoal flex items-center gap-2">
+          <Clock className="w-4 h-4 text-sky" />
+          Upcoming Tasks
+          <span className="text-[11px] font-semibold text-warm-gray bg-cream px-2 py-0.5 rounded-full">
+            {rows.length}
+          </span>
+        </h3>
+        {sortedDates.length > 3 && (
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="text-xs font-semibold text-sidebar hover:text-sidebar-light"
+          >
+            {expanded ? "Show less" : `Show all (${sortedDates.length} days)`}
+          </button>
+        )}
+      </div>
+      <div className="space-y-3">
+        {visibleDates.map((date) => (
+          <div key={date}>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/70 mb-1.5">
+              {formatLabel(date)}
+            </p>
+            <ul className="space-y-1.5">
+              {grouped[date].map((t) => (
+                <li
+                  key={t.id}
+                  className="flex items-start gap-2 p-2 rounded-lg bg-cream/40 border border-card-border"
+                >
+                  <span className="text-[10px] font-semibold text-warm-gray/70 uppercase shrink-0 mt-0.5">
+                    {t.block}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-charcoal">{t.task}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {t.animalSpecific && (
+                        <span className="text-[10px] font-medium text-sky-dark">
+                          {t.animalSpecific}
+                        </span>
+                      )}
+                      {t.assignedTo && (
+                        <span className="text-[10px] font-medium text-emerald-700">
+                          → {t.assignedTo}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

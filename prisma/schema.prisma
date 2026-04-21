@@ -29,6 +29,9 @@ model Animal {
   galleryImages   String[] @default([])
   traits          String[] @default([])
   bestFriends     String[] @default([])
+  // Next scheduled care dates — set by hoof/dental logging + Joshy voice commands.
+  nextHoofDue     String?
+  nextDentalDue   String?
 
   medicalEntries MedicalEntry[]
   watchAlerts    WatchAlert[]
@@ -54,6 +57,7 @@ model MedicalEntry {
   date        String   // ISO date YYYY-MM-DD
   description String   @default("")
   urgent      Boolean  @default(false)
+  provider    String   @default("")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -174,14 +178,16 @@ model DentalVisit {
 // ── Weight Tracking ──
 
 model WeighIn {
-  id         String @id @default(cuid())
-  animal     Animal @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  id         String  @id @default(cuid())
+  animal     Animal  @relation(fields: [animalId], references: [id], onDelete: Cascade)
   animalId   String
   animalName String
   date       String
-  weight     Float
-  unit       String @default("lbs")
-  notes      String @default("")
+  weight     Float?
+  unit       String  @default("lbs")
+  bcs        Int?    // body condition score 1-9
+  notes      String  @default("")
+  recordedBy String  @default("")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

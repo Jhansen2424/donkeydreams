@@ -10,12 +10,53 @@ import UnassignedTasks from "@/components/app/dashboard/UnassignedTasks";
 import ParkingLot from "@/components/app/dashboard/ParkingLot";
 import TaskEditModal, { type TaskEditModalMode } from "@/components/app/TaskEditModal";
 import { useSchedule } from "@/lib/schedule-context";
-import { watchList } from "@/lib/sanctuary-data";
+import { useParkingLot } from "@/lib/parking-lot-context";
+import { useMedical } from "@/lib/medical-context";
+import { watchList, type WatchListEntry } from "@/lib/sanctuary-data";
 import { upcomingMedical } from "@/lib/animals";
 
 export default function AppDashboard() {
   const { schedule, toggleTask, assignTask } = useSchedule();
+  const { entries: parkingEntries } = useParkingLot();
+  const { entries: medicalEntries } = useMedical();
   const [modalMode, setModalMode] = useState<TaskEditModalMode | null>(null);
+
+  // Merge parking-lot watch entries with the seed watchList so newly-added
+  // alerts appear on the dashboard immediately.
+  const mergedWatch: WatchListEntry[] = useMemo(() => {
+    const fromParking: WatchListEntry[] = parkingEntries
+      .filter((e) => e.type === "watch" && !e.resolved)
+      .map((e) => ({
+        date: e.timestamp.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        animal: e.data?.animal || "—",
+        issue: e.text,
+        treatment: e.data?.title || "",
+        assignedTo: e.data?.assignee || "",
+        severity: (e.data?.severity as "high" | "medium" | "low") || "medium",
+      }));
+    return [...fromParking, ...watchList];
+  }, [parkingEntries]);
+
+  // Upcoming medical = real medical entries dated today or later, sorted
+  // ascending. Falls back to the (hardcoded) `upcomingMedical` seed if the DB
+  // is empty, so the card never sits blank during demos.
+  const mergedUpcomingMedical = useMemo(() => {
+    const todayIso = new Date().toISOString().split("T")[0];
+    const live = medicalEntries
+      .filter((e) => e.date >= todayIso)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((e) => {
+        const d = new Date(e.date + "T00:00:00");
+        const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        return {
+          date: label,
+          name: e.animal,
+          description: e.title,
+          urgent: e.urgent,
+        };
+      });
+    return live.length > 0 ? live : upcomingMedical;
+  }, [medicalEntries]);
 
   const openAdd = () => setModalMode({ kind: "add" });
   const openEdit = (blockIdx: number, taskIdx: number) => {
@@ -48,9 +89,9 @@ export default function AppDashboard() {
     []
   );
 
-  // Upcoming medical events in the next 7 days. The data is hardcoded
-  // April dates so we just count the first 7 entries as a stand-in.
-  const upcomingMedicalCount = Math.min(upcomingMedical.length, 7);
+  // Upcoming medical events in the next 7 days — prefer live counts so the
+  // metric chip matches the list below.
+  const upcomingMedicalCount = Math.min(mergedUpcomingMedical.length, 7);
 
   return (
     <div className="space-y-5">
@@ -59,7 +100,7 @@ export default function AppDashboard() {
         tasksDone={tasksDone}
         tasksTotal={tasksTotal}
         appointmentsToday={appointmentsToday}
-        watchCount={watchList.length}
+        watchCount={mergedWatch.length}
         upcomingMedicalCount={upcomingMedicalCount}
       />
 
@@ -85,7 +126,7 @@ export default function AppDashboard() {
 
         {/* Column 3: Donkeys to Watch + Upcoming Medical */}
         <div className="min-h-[420px] lg:min-h-0 flex flex-col">
-          <WatchAndMedical watchList={watchList} upcomingMedical={upcomingMedical} />
+          <WatchAndMedical watchList={mergedWatch} upcomingMedical={mergedUpcomingMedical} />
         </div>
       </div>
 

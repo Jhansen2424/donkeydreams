@@ -69,17 +69,30 @@ function todayIso(): string {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const date = searchParams.get("date") || todayIso();
+    const date = searchParams.get("date");
+    const from = searchParams.get("from"); // inclusive
+    const to = searchParams.get("to"); // inclusive
+
+    // Caller may request either a single date (default: today) or a
+    // from/to range (used by the Upcoming Tasks panel).
+    const where: { date?: string | { gte?: string; lte?: string } } = {};
+    if (from || to) {
+      where.date = {};
+      if (from) where.date.gte = from;
+      if (to) where.date.lte = to;
+    } else {
+      where.date = date || todayIso();
+    }
 
     const rows = await db.taskCompletion.findMany({
-      where: { date },
-      orderBy: { createdAt: "asc" },
+      where: where as Parameters<typeof db.taskCompletion.findMany>[0] extends { where?: infer W } ? W : never,
+      orderBy: [{ date: "asc" }, { createdAt: "asc" }],
     });
     const tasks = rows.map((r) => {
       const { animal, cleanNote } = extractAnimal(r.note);
       return toApi({ ...r, note: cleanNote }, animal);
     });
-    return NextResponse.json({ tasks, date });
+    return NextResponse.json({ tasks, date: where.date });
   } catch (error) {
     console.error("GET /api/tasks failed:", error);
     return NextResponse.json({ error: "Failed to load tasks" }, { status: 500 });

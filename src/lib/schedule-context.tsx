@@ -23,6 +23,8 @@ export interface NewTaskInput {
   animalSpecific?: string;
   note?: string;
   category?: TaskCategory;
+  /** ISO date (YYYY-MM-DD). Defaults to today. Used for scheduling tasks ahead. */
+  date?: string;
 }
 
 export interface EditTaskInput {
@@ -261,6 +263,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
 
   const addTask = useCallback(async (input: NewTaskInput) => {
     const block = input.blockName ?? currentBlockName();
+    const todayIso = new Date().toISOString().split("T")[0];
+    const taskDate = input.date || todayIso;
     try {
       const res = await fetch("/api/tasks", {
         method: "POST",
@@ -272,6 +276,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
           assignedTo: input.assignedTo,
           animalSpecific: input.animalSpecific,
           note: input.note,
+          date: taskDate,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Failed to add");
@@ -282,9 +287,13 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         next.set(body.task.id, body.task.block);
         return next;
       });
-      setSchedule((prev) =>
-        prev.map((b) => (b.name === body.task.block ? { ...b, tasks: [...b.tasks, newTask] } : b))
-      );
+      // Only splice into today's schedule view when the task is actually for
+      // today. Future-dated tasks will surface when the user views that date.
+      if (taskDate === todayIso) {
+        setSchedule((prev) =>
+          prev.map((b) => (b.name === body.task.block ? { ...b, tasks: [...b.tasks, newTask] } : b))
+        );
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add task");
     }

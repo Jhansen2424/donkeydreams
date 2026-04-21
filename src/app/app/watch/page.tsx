@@ -7,10 +7,13 @@ import {
   Clock,
   X,
   Check,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { watchList, type WatchListEntry } from "@/lib/sanctuary-data";
 import { useParkingLot } from "@/lib/parking-lot-context";
 import { animals } from "@/lib/animals";
+import { volunteers } from "@/lib/volunteer-data";
 
 const severityStyles = {
   high: { dot: "bg-red-500", bg: "bg-red-50 border-red-200", label: "High" },
@@ -26,18 +29,24 @@ const severityStyles = {
   },
 };
 
+// Merged list rows carry an optional parking-lot id so editable rows know
+// which DB entry to update. Seed rows have `editableId: undefined`.
+type MergedWatch = WatchListEntry & { editableId?: string };
+
 export default function WatchListPage() {
   const [filter, setFilter] = useState<"all" | "high" | "medium" | "low">(
     "all"
   );
   const [addOpen, setAddOpen] = useState(false);
-  const { entries, addEntry } = useParkingLot();
+  const [editing, setEditing] = useState<{ id: string; entry: MergedWatch } | null>(null);
+  const { entries, addEntry, updateEntry, removeEntry } = useParkingLot();
 
   // Pull any parking-lot watch entries into the merged view so newly-added
   // alerts render immediately, alongside whatever seed watchList is loaded.
-  const parkingWatch: WatchListEntry[] = entries
+  const parkingWatch: MergedWatch[] = entries
     .filter((e) => e.type === "watch" && !e.resolved)
     .map((e) => ({
+      editableId: e.id,
       date: e.timestamp.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
       animal: e.data?.animal || "—",
       issue: e.text,
@@ -46,7 +55,7 @@ export default function WatchListPage() {
       severity: (e.data?.severity as "high" | "medium" | "low") || "medium",
     }));
 
-  const merged = [...parkingWatch, ...watchList];
+  const merged: MergedWatch[] = [...parkingWatch, ...watchList];
 
   const filtered =
     filter === "all" ? merged : merged.filter((e) => e.severity === filter);
@@ -108,10 +117,43 @@ export default function WatchListPage() {
         ))}
       </div>
 
+      {editing && (
+        <AddAlertModal
+          initial={editing.entry}
+          onClose={() => setEditing(null)}
+          onSubmit={async ({ animal, issue, treatment, assignedTo, severity }) => {
+            await updateEntry(editing.id, {
+              type: "watch",
+              text: issue,
+              data: {
+                animal,
+                title: treatment || undefined,
+                assignee: assignedTo || undefined,
+                severity,
+              },
+            });
+            setEditing(null);
+          }}
+        />
+      )}
+
       {/* Watch entries */}
       <div className="space-y-4">
         {filtered.map((entry, i) => (
-          <WatchCard key={i} entry={entry} />
+          <WatchCard
+            key={entry.editableId ?? i}
+            entry={entry}
+            canEdit={Boolean(entry.editableId)}
+            onEdit={() =>
+              entry.editableId && setEditing({ id: entry.editableId, entry })
+            }
+            onDelete={async () => {
+              if (!entry.editableId) return;
+              if (confirm(`Dismiss watch alert for ${entry.animal}?`)) {
+                await removeEntry(entry.editableId);
+              }
+            }}
+          />
         ))}
       </div>
 
@@ -126,9 +168,11 @@ export default function WatchListPage() {
 }
 
 function AddAlertModal({
+  initial,
   onClose,
   onSubmit,
 }: {
+  initial?: WatchListEntry;
   onClose: () => void;
   onSubmit: (input: {
     animal: string;
@@ -138,11 +182,13 @@ function AddAlertModal({
     severity: "high" | "medium" | "low";
   }) => Promise<void> | void;
 }) {
-  const [animal, setAnimal] = useState("");
-  const [issue, setIssue] = useState("");
-  const [treatment, setTreatment] = useState("");
-  const [assignedTo, setAssignedTo] = useState("");
-  const [severity, setSeverity] = useState<"high" | "medium" | "low">("medium");
+  const [animal, setAnimal] = useState(initial?.animal ?? "");
+  const [issue, setIssue] = useState(initial?.issue ?? "");
+  const [treatment, setTreatment] = useState(initial?.treatment ?? "");
+  const [assignedTo, setAssignedTo] = useState(initial?.assignedTo ?? "");
+  const [severity, setSeverity] = useState<"high" | "medium" | "low">(
+    initial?.severity ?? "medium"
+  );
   const [saving, setSaving] = useState(false);
 
   const canSave = animal.trim().length > 0 && issue.trim().length > 0;
@@ -157,7 +203,7 @@ function AddAlertModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="bg-sidebar px-5 py-4 flex items-center justify-between">
-          <h2 className="font-bold text-white text-lg">New watch alert</h2>
+          <h2 className="font-bold text-white text-lg">{initial ? "Edit watch alert" : "New watch alert"}</h2>
           <button onClick={onClose} className="text-cream/60 hover:text-white p-1">
             <X className="w-5 h-5" />
           </button>
@@ -211,12 +257,21 @@ function AddAlertModal({
               <label className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1 block">
                 Assigned to
               </label>
-              <input
+              <select
                 value={assignedTo}
                 onChange={(e) => setAssignedTo(e.target.value)}
-                placeholder="Name"
-                className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
-              />
+                className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal bg-white focus:outline-none focus:ring-2 focus:ring-sand/50"
+              >
+                <option value="">Unassigned</option>
+                {volunteers
+                  .filter((v) => v.status === "active")
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((v) => (
+                    <option key={v.id} value={v.name}>
+                      {v.name}
+                    </option>
+                  ))}
+              </select>
             </div>
             <div>
               <label className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1 block">
@@ -269,12 +324,22 @@ function AddAlertModal({
   );
 }
 
-function WatchCard({ entry }: { entry: WatchListEntry }) {
+function WatchCard({
+  entry,
+  canEdit,
+  onEdit,
+  onDelete,
+}: {
+  entry: WatchListEntry;
+  canEdit?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}) {
   const styles = severityStyles[entry.severity];
 
   return (
     <div
-      className={`rounded-xl border p-5 ${styles.bg}`}
+      className={`rounded-xl border p-5 ${styles.bg} group`}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
@@ -287,6 +352,24 @@ function WatchCard({ entry }: { entry: WatchListEntry }) {
         <div className="flex items-center gap-1.5 text-warm-gray/60">
           <Clock className="w-3.5 h-3.5" />
           <span className="text-xs font-medium">{entry.date}</span>
+          {canEdit && (
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+              <button
+                onClick={onEdit}
+                title="Edit alert"
+                className="p-1 rounded-md text-warm-gray hover:text-sidebar hover:bg-white/50 transition-colors"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={onDelete}
+                title="Delete alert"
+                className="p-1 rounded-md text-warm-gray hover:text-red-600 hover:bg-white/50 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

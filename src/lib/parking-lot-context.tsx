@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 
-export type EntryType = "task" | "medical" | "feed" | "watch" | "note" | "update";
+export type EntryType = "task" | "medical" | "feed" | "watch" | "note" | "update" | "reminder";
 
 export interface ParkingLotEntry {
   id: string;
@@ -24,6 +24,8 @@ export interface ParkingLotEntry {
     severity?: "high" | "medium" | "low";
     title?: string;
     date?: string;
+    /** Feed-notes sub-category. Only used when `type === "feed"`. */
+    category?: "daily" | "ongoing" | "evergreen";
   };
 }
 

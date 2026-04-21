@@ -111,28 +111,40 @@ function getStatus(daysUntil: number | null): VisitStatus {
   return "good";
 }
 
-export function computeAnimalCareStatuses(): AnimalCareStatus[] {
+export interface ComputeOptions {
+  /** Additional DB-backed visits to merge on top of the seed `visitHistory`. */
+  extraVisits?: CareVisit[];
+  /** Per-animal next-due overrides (from the Animal table). */
+  nextDueByAnimal?: Record<string, { nextHoofDue?: string | null; nextDentalDue?: string | null }>;
+}
+
+export function computeAnimalCareStatuses(
+  options: ComputeOptions = {}
+): AnimalCareStatus[] {
   const today = new Date().toISOString().split("T")[0];
+  const extra = options.extraVisits ?? [];
+  const allVisits = [...visitHistory, ...extra];
 
   return animals.map((animal) => {
     const interval = getInterval(animal.name);
 
-    const hoofVisits = visitHistory
+    const hoofVisits = allVisits
       .filter((v) => v.animal === animal.name && v.type === "hoof")
       .sort((a, b) => b.date.localeCompare(a.date));
-    const dentalVisits = visitHistory
+    const dentalVisits = allVisits
       .filter((v) => v.animal === animal.name && v.type === "dental")
       .sort((a, b) => b.date.localeCompare(a.date));
 
     const lastHoof = hoofVisits[0] ?? null;
     const lastDental = dentalVisits[0] ?? null;
 
-    const nextHoofDue = lastHoof
-      ? addDays(lastHoof.date, interval.hoofWeeks * 7)
-      : null;
-    const nextDentalDue = lastDental
-      ? addDays(lastDental.date, interval.dentalMonths * 30)
-      : null;
+    // Prefer explicit next-due from DB (set by Joshy or user) over the
+    // interval-derived estimate. Falls back to "last visit + interval".
+    const manualNext = options.nextDueByAnimal?.[animal.name];
+    const nextHoofDue = manualNext?.nextHoofDue
+      ?? (lastHoof ? addDays(lastHoof.date, interval.hoofWeeks * 7) : null);
+    const nextDentalDue = manualNext?.nextDentalDue
+      ?? (lastDental ? addDays(lastDental.date, interval.dentalMonths * 30) : null);
 
     const daysUntilHoof = nextHoofDue ? daysBetween(today, nextHoofDue) : null;
     const daysUntilDental = nextDentalDue

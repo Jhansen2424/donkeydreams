@@ -45,6 +45,7 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
   const [assignees, setAssignees] = useState<string[]>([]);
   const [animal, setAnimal] = useState("");
   const [category, setCategory] = useState<TaskCategory>("routine");
+  const [date, setDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -53,12 +54,14 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
     if (!open) return;
     setConfirmDelete(false);
     setSaving(false);
+    const todayIso = new Date().toISOString().split("T")[0];
     if (mode.kind === "add") {
       setText("");
       setBlock(mode.defaultBlock ?? "AM");
       setAssignees([]);
       setAnimal("");
       setCategory("routine");
+      setDate(todayIso);
     } else {
       setText(mode.task.task);
       setAssignees(splitAssignees(mode.task.assignedTo));
@@ -94,6 +97,7 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
           assignedTo,
           animalSpecific: animal || undefined,
           category,
+          date,
         });
       } else {
         await editTask(mode.blockIdx, mode.taskIdx, {
@@ -155,6 +159,25 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
               className="w-full px-3 py-2 text-base border border-card-border rounded-lg text-charcoal placeholder:text-warm-gray/50 focus:outline-none focus:ring-2 focus:ring-sand/50 resize-none"
             />
           </div>
+
+          {/* Date (add mode only — edit keeps its original date) */}
+          {mode.kind === "add" && (
+            <div>
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1 block">
+                Date
+              </label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+              />
+              <p className="text-[11px] text-warm-gray/70 mt-1">
+                Schedule for today or a future date. Today&apos;s routine only
+                shows today&apos;s tasks.
+              </p>
+            </div>
+          )}
 
           {/* Time block */}
           <div>

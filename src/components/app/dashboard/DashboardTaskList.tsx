@@ -2,14 +2,16 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { ListChecks, Briefcase, Tractor, Heart, Check, Plus, Hammer } from "lucide-react";
+import { ListChecks, Briefcase, Tractor, Heart, Check, Plus, Hammer, LayoutList } from "lucide-react";
 import type { ScheduleBlock, ScheduleTask, TaskCategory } from "@/lib/sanctuary-data";
 
-type Bucket = "admin" | "care" | "projects" | "ranch";
+type Bucket = "all" | "admin" | "care" | "projects" | "ranch";
+
+type CategoryBucket = Exclude<Bucket, "all">;
 
 // Map the existing category taxonomy onto the dashboard's
 // Admin / Care / Projects / Ranch buckets.
-function bucketForCategory(category: TaskCategory): Bucket {
+function bucketForCategory(category: TaskCategory): CategoryBucket {
   switch (category) {
     case "sponsor":
       return "admin";
@@ -28,6 +30,7 @@ function bucketForCategory(category: TaskCategory): Bucket {
 }
 
 const bucketMeta: Record<Bucket, { label: string; icon: typeof Briefcase; color: string; accent: string }> = {
+  all: { label: "All", icon: LayoutList, color: "text-slate-700", accent: "border-slate-500 text-slate-700 bg-slate-50" },
   admin: { label: "Admin", icon: Briefcase, color: "text-pink-700", accent: "border-pink-500 text-pink-700 bg-pink-50" },
   care: { label: "Care", icon: Heart, color: "text-emerald-700", accent: "border-emerald-500 text-emerald-700 bg-emerald-50" },
   projects: { label: "Projects", icon: Hammer, color: "text-indigo-700", accent: "border-indigo-500 text-indigo-700 bg-indigo-50" },
@@ -49,40 +52,48 @@ interface DashboardTaskListProps {
 }
 
 export default function DashboardTaskList({ schedule, onToggle, onEdit, onAdd }: DashboardTaskListProps) {
-  const [activeBucket, setActiveBucket] = useState<Bucket>("ranch");
+  const [activeBucket, setActiveBucket] = useState<Bucket>("all");
 
-  // Flatten the schedule and group tasks by bucket.
-  const buckets = useMemo(() => {
-    const result: Record<Bucket, FlatTask[]> = { admin: [], care: [], projects: [], ranch: [] };
+  // Flatten the schedule and group tasks by bucket. The "all" bucket is the
+  // full flat list and drives the top-level counter; category buckets filter
+  // it down.
+  const { all, byCategory } = useMemo(() => {
+    const flat: FlatTask[] = [];
+    const byCat: Record<CategoryBucket, FlatTask[]> = { admin: [], care: [], projects: [], ranch: [] };
     schedule.forEach((block, blockIdx) => {
       block.tasks.forEach((task, taskIdx) => {
-        const b = bucketForCategory(task.category);
-        result[b].push({ task, block: block.name, blockIdx, taskIdx });
+        const item: FlatTask = { task, block: block.name, blockIdx, taskIdx };
+        flat.push(item);
+        byCat[bucketForCategory(task.category)].push(item);
       });
     });
-    return result;
+    return { all: flat, byCategory: byCat };
   }, [schedule]);
 
   const counts: Record<Bucket, { total: number; remaining: number }> = {
+    all: {
+      total: all.length,
+      remaining: all.filter((t) => !t.task.done).length,
+    },
     admin: {
-      total: buckets.admin.length,
-      remaining: buckets.admin.filter((t) => !t.task.done).length,
+      total: byCategory.admin.length,
+      remaining: byCategory.admin.filter((t) => !t.task.done).length,
     },
     care: {
-      total: buckets.care.length,
-      remaining: buckets.care.filter((t) => !t.task.done).length,
+      total: byCategory.care.length,
+      remaining: byCategory.care.filter((t) => !t.task.done).length,
     },
     projects: {
-      total: buckets.projects.length,
-      remaining: buckets.projects.filter((t) => !t.task.done).length,
+      total: byCategory.projects.length,
+      remaining: byCategory.projects.filter((t) => !t.task.done).length,
     },
     ranch: {
-      total: buckets.ranch.length,
-      remaining: buckets.ranch.filter((t) => !t.task.done).length,
+      total: byCategory.ranch.length,
+      remaining: byCategory.ranch.filter((t) => !t.task.done).length,
     },
   };
 
-  const visible = buckets[activeBucket];
+  const visible = activeBucket === "all" ? all : byCategory[activeBucket];
 
   return (
     <div className="bg-white rounded-xl border border-card-border flex flex-col h-full min-h-0">
@@ -140,7 +151,9 @@ export default function DashboardTaskList({ schedule, onToggle, onEdit, onAdd }:
         {visible.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">
             <p className="text-sm text-warm-gray/60">
-              No {bucketMeta[activeBucket].label.toLowerCase()} tasks today.
+              {activeBucket === "all"
+                ? "No tasks today."
+                : `No ${bucketMeta[activeBucket].label.toLowerCase()} tasks today.`}
             </p>
           </div>
         ) : (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, Suspense } from "react";
+import { useState, useMemo, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Footprints,
@@ -50,11 +50,76 @@ export default function HoofDentalPageWrapper() {
   );
 }
 
+interface ApiVisit {
+  id: string;
+  animal: string;
+  date: string;
+  provider: string;
+  notes: string;
+}
+
 function HoofDentalPage() {
   // ── State ──
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as CareTab) || "both";
-  const [visits, setVisits] = useState<CareVisit[]>(initialVisitHistory);
+  // DB-backed visits only. Seed data stays in `initialVisitHistory` (CSV
+  // imports) and is merged inside computeAnimalCareStatuses.
+  const [dbHoofVisits, setDbHoofVisits] = useState<CareVisit[]>([]);
+  const [dbDentalVisits, setDbDentalVisits] = useState<CareVisit[]>([]);
+  const [dbNextHoofDue, setDbNextHoofDue] = useState<Record<string, string | null>>({});
+  const [dbNextDentalDue, setDbNextDentalDue] = useState<Record<string, string | null>>({});
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Keep the variable name `visits` as the merged view so downstream render
+  // code (expanded history sections, edit modals) works unchanged.
+  const visits = useMemo(
+    () => [...initialVisitHistory, ...dbHoofVisits, ...dbDentalVisits],
+    [dbHoofVisits, dbDentalVisits]
+  );
+
+  const reloadVisits = useCallback(async () => {
+    try {
+      const [hoofRes, dentalRes] = await Promise.all([
+        fetch("/api/hoof-visits", { cache: "no-store" }),
+        fetch("/api/dental-visits", { cache: "no-store" }),
+      ]);
+      if (!hoofRes.ok) throw new Error("Failed to load hoof visits");
+      if (!dentalRes.ok) throw new Error("Failed to load dental visits");
+      const hoofBody = (await hoofRes.json()) as { entries: ApiVisit[]; nextDue: Record<string, string | null> };
+      const dentalBody = (await dentalRes.json()) as { entries: ApiVisit[]; nextDue: Record<string, string | null> };
+
+      setDbHoofVisits(
+        hoofBody.entries.map((e) => ({
+          id: e.id,
+          animal: e.animal,
+          type: "hoof" as CareType,
+          date: e.date,
+          provider: e.provider,
+          notes: e.notes,
+        }))
+      );
+      setDbDentalVisits(
+        dentalBody.entries.map((e) => ({
+          id: e.id,
+          animal: e.animal,
+          type: "dental" as CareType,
+          date: e.date,
+          provider: e.provider,
+          notes: e.notes,
+        }))
+      );
+      setDbNextHoofDue(hoofBody.nextDue || {});
+      setDbNextDentalDue(dentalBody.nextDue || {});
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Failed to load visits");
+    }
+  }, []);
+
+  useEffect(() => {
+    void reloadVisits();
+  }, [reloadVisits]);
+
   const [providers, setProviders] = useState(defaultProviders);
   const [careTab, setCareTab] = useState<CareTab>(initialTab);
 
@@ -88,48 +153,37 @@ function HoofDentalPage() {
 
   // ── Derived data ──
   const statuses = useMemo(() => {
-    const base = computeAnimalCareStatuses();
-    const today = new Date().toISOString().split("T")[0];
-    const daysBetween = (a: string, b: string) => {
-      const d1 = new Date(a + "T00:00:00").getTime();
-      const d2 = new Date(b + "T00:00:00").getTime();
-      return Math.round((d2 - d1) / 86_400_000);
-    };
-    const getStatus = (days: number | null): VisitStatus => {
-      if (days === null) return "no-history";
-      if (days < 0) return "overdue";
-      if (days <= 7) return "due-soon";
-      return "good";
-    };
+    // Merge the DB-backed next-due dates with any unsaved user overrides (the
+    // user can still tweak dates inline without waiting for the API roundtrip).
+    const nextDueByAnimal: Record<string, { nextHoofDue?: string | null; nextDentalDue?: string | null }> = {};
+    const animalNames = new Set([
+      ...Object.keys(dbNextHoofDue),
+      ...Object.keys(dbNextDentalDue),
+      ...Object.keys(nextDueOverrides),
+    ]);
+    for (const name of animalNames) {
+      nextDueByAnimal[name] = {
+        nextHoofDue:
+          nextDueOverrides[name]?.nextHoofDue ?? dbNextHoofDue[name] ?? null,
+        nextDentalDue:
+          nextDueOverrides[name]?.nextDentalDue ?? dbNextDentalDue[name] ?? null,
+      };
+    }
+
+    const base = computeAnimalCareStatuses({
+      extraVisits: [...dbHoofVisits, ...dbDentalVisits],
+      nextDueByAnimal,
+    });
+
     return base.map((s) => {
       const intervalOverride = intervalOverrides[s.animal];
-      const nextOverride = nextDueOverrides[s.animal];
-      let next = {
-        nextHoofDue: s.nextHoofDue,
-        nextDentalDue: s.nextDentalDue,
-        daysUntilHoof: s.daysUntilHoof,
-        daysUntilDental: s.daysUntilDental,
-        hoofStatus: s.hoofStatus,
-        dentalStatus: s.dentalStatus,
-      };
-      if (nextOverride?.nextHoofDue) {
-        next.nextHoofDue = nextOverride.nextHoofDue;
-        next.daysUntilHoof = daysBetween(today, nextOverride.nextHoofDue);
-        next.hoofStatus = getStatus(next.daysUntilHoof);
-      }
-      if (nextOverride?.nextDentalDue) {
-        next.nextDentalDue = nextOverride.nextDentalDue;
-        next.daysUntilDental = daysBetween(today, nextOverride.nextDentalDue);
-        next.dentalStatus = getStatus(next.daysUntilDental);
-      }
       return {
         ...s,
-        ...next,
         hoofInterval: intervalOverride?.hoofWeeks ?? s.hoofInterval,
         dentalInterval: intervalOverride?.dentalMonths ?? s.dentalInterval,
       };
     });
-  }, [visits, intervalOverrides, nextDueOverrides]);
+  }, [dbHoofVisits, dbDentalVisits, dbNextHoofDue, dbNextDentalDue, intervalOverrides, nextDueOverrides]);
 
   const stats = useMemo(() => getHoofDentalStats(), [visits]);
 
@@ -192,33 +246,79 @@ function HoofDentalPage() {
   };
 
   // ── Quick log handler ──
-  // If the user supplied a next-due date alongside the visit, apply it as
-  // an override so it shows up immediately in the table.
-  const logVisit = (visit: Omit<CareVisit, "id"> & { nextDue?: string | null }) => {
-    const { nextDue, ...rest } = visit;
-    const newVisit: CareVisit = {
-      ...rest,
-      id: `${rest.type}-${Date.now()}`,
-    };
-    setVisits((prev) => [newVisit, ...prev]);
-    if (nextDue) {
-      updateNextDue(
-        rest.animal,
-        rest.type === "hoof" ? "nextHoofDue" : "nextDentalDue",
-        nextDue
-      );
+  // POST a visit to the right endpoint. If the user also supplied a next-due
+  // date, the API will update the Animal record atomically.
+  const logVisit = async (
+    visit: Omit<CareVisit, "id"> & { nextDue?: string | null }
+  ) => {
+    const url = visit.type === "hoof" ? "/api/hoof-visits" : "/api/dental-visits";
+    const nextField = visit.type === "hoof" ? "nextHoofDue" : "nextDentalDue";
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          animal: visit.animal,
+          date: visit.date,
+          provider: visit.provider,
+          notes: visit.notes,
+          [nextField]: visit.nextDue ?? undefined,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to save visit");
+      await reloadVisits();
+      setLogModalAnimal(null);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Failed to save visit");
     }
-    setLogModalAnimal(null);
   };
 
   // ── Edit visit handler ──
-  const updateVisit = (updated: CareVisit) => {
-    setVisits((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
-    setEditingVisit(null);
+  const updateVisit = async (updated: CareVisit) => {
+    // Only DB-backed visits are editable. Seed CSV visits have short numeric
+    // ids and don't round-trip to any endpoint.
+    const isDbVisit =
+      dbHoofVisits.some((v) => v.id === updated.id) ||
+      dbDentalVisits.some((v) => v.id === updated.id);
+    if (!isDbVisit) {
+      setEditingVisit(null);
+      return;
+    }
+    const url = updated.type === "hoof" ? "/api/hoof-visits" : "/api/dental-visits";
+    try {
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: updated.id,
+          date: updated.date,
+          provider: updated.provider,
+          notes: updated.notes,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to update visit");
+      await reloadVisits();
+      setEditingVisit(null);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Failed to update visit");
+    }
   };
 
-  const deleteVisit = (id: string) => {
-    setVisits((prev) => prev.filter((v) => v.id !== id));
+  const deleteVisit = async (id: string) => {
+    // Detect which endpoint based on which list the visit came from.
+    const isHoof = dbHoofVisits.some((v) => v.id === id);
+    const isDental = dbDentalVisits.some((v) => v.id === id);
+    if (!isHoof && !isDental) return; // seed visit — can't delete
+    const url = isHoof ? "/api/hoof-visits" : "/api/dental-visits";
+    try {
+      const res = await fetch(`${url}?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to delete visit");
+      await reloadVisits();
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Failed to delete visit");
+    }
   };
 
   // ── Update interval ──
@@ -230,7 +330,9 @@ function HoofDentalPage() {
   };
 
   // ── Update next-due date directly (bypasses interval math) ──
-  const updateNextDue = (
+  // Optimistically updates the override map so the cell re-renders
+  // instantly, then persists via the API so the date survives reloads.
+  const updateNextDue = async (
     animal: string,
     field: "nextHoofDue" | "nextDentalDue",
     value: string | null
@@ -239,6 +341,18 @@ function HoofDentalPage() {
       const next = { ...prev[animal], [field]: value ?? undefined };
       return { ...prev, [animal]: next };
     });
+    const url = field === "nextHoofDue" ? "/api/hoof-visits" : "/api/dental-visits";
+    try {
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ animal, [field]: value ?? "" }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to update next-due");
+      await reloadVisits();
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Failed to update next-due date");
+    }
   };
 
   // ── Add provider ──
@@ -273,6 +387,12 @@ function HoofDentalPage() {
           </button>
         </div>
       </div>
+
+      {loadError && (
+        <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+          {loadError}
+        </div>
+      )}
 
       {/* Care type tabs */}
       <div className="inline-flex bg-white border border-card-border rounded-lg overflow-hidden">

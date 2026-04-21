@@ -14,20 +14,23 @@ import {
   Sparkles,
   Loader2,
   Tag,
+  Bell,
 } from "lucide-react";
 import { useParkingLot, type EntryType } from "@/lib/parking-lot-context";
 import { useSchedule } from "@/lib/schedule-context";
+import { categoryMeta, type TaskCategory } from "@/lib/sanctuary-data";
 
 const typeConfig: Record<
   EntryType,
   { label: string; icon: typeof StickyNote; color: string; bg: string; border: string }
 > = {
-  note:    { label: "Note",    icon: StickyNote,      color: "text-warm-gray",  bg: "bg-gray-50",    border: "border-gray-200" },
-  task:    { label: "Task",    icon: ClipboardCheck,  color: "text-sky-700",    bg: "bg-sky/5",      border: "border-sky/20" },
-  medical: { label: "Medical", icon: Stethoscope,     color: "text-purple-700", bg: "bg-purple-50",  border: "border-purple-200" },
-  feed:    { label: "Feed",    icon: UtensilsCrossed, color: "text-amber-700",  bg: "bg-amber-50",   border: "border-amber-200" },
-  watch:   { label: "Watch",   icon: AlertTriangle,   color: "text-red-700",    bg: "bg-red-50",     border: "border-red-200" },
-  update:  { label: "Update",  icon: Sparkles,        color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200" },
+  note:     { label: "Note",     icon: StickyNote,      color: "text-warm-gray",   bg: "bg-gray-50",    border: "border-gray-200" },
+  task:     { label: "Task",     icon: ClipboardCheck,  color: "text-sky-700",     bg: "bg-sky/5",      border: "border-sky/20" },
+  medical:  { label: "Medical",  icon: Stethoscope,     color: "text-purple-700",  bg: "bg-purple-50",  border: "border-purple-200" },
+  feed:     { label: "Feed",     icon: UtensilsCrossed, color: "text-amber-700",   bg: "bg-amber-50",   border: "border-amber-200" },
+  watch:    { label: "Watch",    icon: AlertTriangle,   color: "text-red-700",     bg: "bg-red-50",     border: "border-red-200" },
+  update:   { label: "Update",   icon: Sparkles,        color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200" },
+  reminder: { label: "Reminder", icon: Bell,            color: "text-indigo-700",  bg: "bg-indigo-50",  border: "border-indigo-200" },
 };
 
 function formatTime(date: Date): string {
@@ -47,9 +50,9 @@ export default function NotesPage() {
   const { entries, resolveEntry, removeEntry, updateEntry, loading, error } = useParkingLot();
   const { addTask } = useSchedule();
   const [filter, setFilter] = useState<FilterKey>("all");
-  // Track which entry's category picker is open so we can show a dropdown
-  // on demand without cluttering the default layout.
+  // Track which entry's category/task-category picker is open.
   const [catPickerId, setCatPickerId] = useState<string | null>(null);
+  const [taskCatPickerId, setTaskCatPickerId] = useState<string | null>(null);
 
   const unresolved = entries.filter((e) => !e.resolved);
   const resolved = entries.filter((e) => e.resolved);
@@ -57,8 +60,9 @@ export default function NotesPage() {
   const filteredUnresolved =
     filter === "all" ? unresolved : unresolved.filter((e) => e.type === filter);
 
-  // Promote a note → schedule task. Resolves the note once the task is created.
-  const promoteToTask = (id: string) => {
+  // Promote a note → schedule task, routing into the chosen care category.
+  // `category` defaults to "routine" for a generic note → task promotion.
+  const promoteToTask = (id: string, category: TaskCategory = "routine") => {
     const entry = entries.find((e) => e.id === id);
     if (!entry) return;
     addTask({
@@ -66,8 +70,10 @@ export default function NotesPage() {
       blockName: entry.data?.timeBlock ?? currentTimeBlock(),
       assignedTo: entry.data?.assignee,
       animalSpecific: entry.data?.animal,
+      category,
     });
     resolveEntry(id);
+    setTaskCatPickerId(null);
   };
 
   const counts: Record<FilterKey, number> = {
@@ -78,6 +84,7 @@ export default function NotesPage() {
     feed: unresolved.filter((e) => e.type === "feed").length,
     watch: unresolved.filter((e) => e.type === "watch").length,
     update: unresolved.filter((e) => e.type === "update").length,
+    reminder: unresolved.filter((e) => e.type === "reminder").length,
   };
 
   const filterTabs: { key: FilterKey; label: string; icon?: typeof StickyNote }[] = [
@@ -106,6 +113,9 @@ export default function NotesPage() {
           Quick captures from Joshy and the field. Promote a note to a task, or dismiss it.
         </p>
       </div>
+
+      {/* Quick capture — type a note and pick a category */}
+      <QuickCapture />
 
       {/* Filter tabs */}
       <div className="flex flex-wrap gap-2 border-b border-card-border pb-3">
@@ -221,14 +231,37 @@ export default function NotesPage() {
 
                   {/* Actions — promote to a task, re-category, or dismiss. */}
                   <div className="flex flex-wrap items-center gap-2 mt-3">
-                    <button
-                      onClick={() => promoteToTask(entry.id)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-sky hover:bg-sky-dark rounded-lg transition-colors"
-                      title="Add this to today's schedule"
-                    >
-                      <ArrowRight className="w-3.5 h-3.5" />
-                      Make a task
-                    </button>
+                    <div className="relative">
+                      <button
+                        onClick={() =>
+                          setTaskCatPickerId((cur) => (cur === entry.id ? null : entry.id))
+                        }
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-sky hover:bg-sky-dark rounded-lg transition-colors"
+                        title="Add this to today's schedule in a specific care category"
+                      >
+                        <ArrowRight className="w-3.5 h-3.5" />
+                        Make a task
+                      </button>
+                      {taskCatPickerId === entry.id && (
+                        <div className="absolute left-0 top-full mt-1 z-20 bg-white rounded-lg border border-card-border shadow-lg p-1 min-w-[180px]">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60 px-2 py-1">
+                            Route into
+                          </p>
+                          {(Object.keys(categoryMeta) as TaskCategory[]).map((c) => (
+                            <button
+                              key={c}
+                              onClick={() => promoteToTask(entry.id, c)}
+                              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-sm text-charcoal hover:bg-cream/60 transition-colors"
+                            >
+                              <span
+                                className={`w-2 h-2 rounded-full ${categoryMeta[c].color.replace("text-", "bg-")}`}
+                              />
+                              {categoryMeta[c].label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <div className="relative">
                       <button
                         onClick={() =>
@@ -313,6 +346,74 @@ export default function NotesPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Quick Capture ──
+// Type a note and choose a category; saves directly via parking-lot context.
+// Lets users add a note without going through Joshy or a floating modal.
+
+function QuickCapture() {
+  const { addEntry } = useParkingLot();
+  const [draft, setDraft] = useState("");
+  const [category, setCategory] = useState<EntryType>("note");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    const text = draft.trim();
+    if (!text) return;
+    setSaving(true);
+    try {
+      await addEntry(category, text);
+      setDraft("");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-card-border p-4 space-y-3">
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            void handleSave();
+          }
+        }}
+        rows={2}
+        placeholder="Jot a note... (Ctrl/Cmd+Enter to save)"
+        className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal placeholder:text-warm-gray/50 focus:outline-none focus:ring-2 focus:ring-sand/50 resize-none"
+      />
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60">
+            Category:
+          </label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value as EntryType)}
+            className="px-2 py-1 text-xs border border-card-border rounded-md bg-white text-charcoal"
+          >
+            <option value="note">Note</option>
+            <option value="task">Task</option>
+            <option value="watch">Watch</option>
+            <option value="medical">Medical</option>
+            <option value="feed">Feed</option>
+            <option value="reminder">Reminder</option>
+            <option value="update">Update</option>
+          </select>
+        </div>
+        <button
+          onClick={() => void handleSave()}
+          disabled={!draft.trim() || saving}
+          className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-sidebar text-white rounded-lg text-xs font-semibold hover:bg-sidebar-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          {saving ? "Saving..." : "Save"}
+        </button>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -153,9 +153,49 @@ const flagOrder: Record<WeighInFlag, number> = {
 
 // ── Page ──
 
+interface ApiWeighIn {
+  id: string;
+  animal: string;
+  date: string;
+  weight: number | null;
+  bcs: number | null;
+  notes: string;
+  recordedBy: string;
+}
+
 export default function WeightTrackingPage() {
-  const [localWeighIns, setLocalWeighIns] = useState<WeighIn[]>([]);
-  const allWeighIns = useMemo(() => [...weighInHistory, ...localWeighIns], [localWeighIns]);
+  const [dbWeighIns, setDbWeighIns] = useState<WeighIn[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Load DB weigh-ins. Seed `weighInHistory` (CSV-derived anchor weights)
+  // stays as a fallback so animals with no live data still render.
+  const reloadWeighIns = useCallback(async () => {
+    try {
+      const res = await fetch("/api/weight", { cache: "no-store" });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to load");
+      const body = (await res.json()) as { entries: ApiWeighIn[] };
+      setDbWeighIns(
+        body.entries.map((e) => ({
+          id: e.id,
+          animal: e.animal,
+          date: e.date,
+          weight: e.weight,
+          bcs: (e.bcs as BCSScore | null) ?? null,
+          notes: e.notes,
+          recordedBy: e.recordedBy || "Staff",
+        }))
+      );
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Failed to load weigh-ins");
+    }
+  }, []);
+
+  useEffect(() => {
+    void reloadWeighIns();
+  }, [reloadWeighIns]);
+
+  const allWeighIns = useMemo(() => [...weighInHistory, ...dbWeighIns], [dbWeighIns]);
 
   const statuses = useMemo(() => computeWeightStatuses(allWeighIns), [allWeighIns]);
   const stats = useMemo(() => getWeightStats(allWeighIns), [allWeighIns]);
@@ -325,28 +365,40 @@ export default function WeightTrackingPage() {
     }
   }
 
-  function submitBatch() {
+  async function submitBatch() {
     const today = new Date().toISOString().split("T")[0];
-    const newEntries: WeighIn[] = [];
-
-    batchEntries.forEach((entry) => {
-      const weight = entry.weight ? parseFloat(entry.weight) : null;
-      const bcs = entry.bcs ? (parseInt(entry.bcs) as BCSScore) : null;
-      if (weight === null && bcs === null) return; // skip empty rows
-
-      newEntries.push({
-        id: `batch-${Date.now()}-${entry.animal}`,
+    const payloads = batchEntries
+      .map((entry) => ({
         animal: entry.animal,
-        date: today,
-        weight,
-        bcs,
+        weight: entry.weight ? parseFloat(entry.weight) : null,
+        bcs: entry.bcs ? parseInt(entry.bcs) : null,
         notes: entry.notes,
-        recordedBy: batchRecordedBy,
-      });
-    });
+      }))
+      .filter((p) => p.weight !== null || p.bcs !== null);
 
-    if (newEntries.length === 0) return;
-    setLocalWeighIns((prev) => [...prev, ...newEntries]);
+    if (payloads.length === 0) return;
+
+    // Fire requests in parallel. Any failures surface as a load error banner
+    // on next reload — batch entry is forgiving, one bad row shouldn't abort.
+    try {
+      await Promise.all(
+        payloads.map((p) =>
+          fetch("/api/weight", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...p,
+              date: today,
+              recordedBy: batchRecordedBy,
+            }),
+          })
+        )
+      );
+    } catch {
+      // fallthrough to reload; partial successes still persist
+    }
+
+    await reloadWeighIns();
     setBatchMode(false);
     setBatchEntries([]);
   }
@@ -361,28 +413,34 @@ export default function WeightTrackingPage() {
   const [formNotes, setFormNotes] = useState("");
   const [formRecordedBy, setFormRecordedBy] = useState("Staff");
 
-  function handleAddSingle() {
+  async function handleAddSingle() {
     const weight = formWeight ? parseFloat(formWeight) : null;
-    const bcs = formBcs ? (parseInt(formBcs) as BCSScore) : null;
+    const bcs = formBcs ? parseInt(formBcs) : null;
     if (weight === null && bcs === null) return;
 
     const today = new Date().toISOString().split("T")[0];
-    setLocalWeighIns((prev) => [
-      ...prev,
-      {
-        id: `single-${Date.now()}`,
-        animal: formAnimal,
-        date: today,
-        weight,
-        bcs,
-        notes: formNotes,
-        recordedBy: formRecordedBy,
-      },
-    ]);
-    setFormWeight("");
-    setFormBcs("");
-    setFormNotes("");
-    setShowAddForm(false);
+    try {
+      const res = await fetch("/api/weight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          animal: formAnimal,
+          date: today,
+          weight,
+          bcs,
+          notes: formNotes,
+          recordedBy: formRecordedBy,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to save");
+      await reloadWeighIns();
+      setFormWeight("");
+      setFormBcs("");
+      setFormNotes("");
+      setShowAddForm(false);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Failed to save weigh-in");
+    }
   }
 
   // ── Render ──
@@ -435,6 +493,12 @@ export default function WeightTrackingPage() {
           )}
         </div>
       </div>
+
+      {loadError && (
+        <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+          {loadError}
+        </div>
+      )}
 
       {/* ══════ BATCH WEIGH-IN MODE ══════ */}
       {batchMode && (

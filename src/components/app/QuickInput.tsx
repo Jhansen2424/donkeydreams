@@ -43,6 +43,9 @@ const actionLabels: Record<string, { label: string; icon: typeof ClipboardCheck;
   query: { label: "Answer", icon: Sparkles, color: "text-sidebar" },
   edit_task: { label: "Edit Task", icon: Pencil, color: "text-sky-700" },
   delete_task: { label: "Delete Task", icon: Trash2, color: "text-red-700" },
+  set_hoof_date: { label: "Next Hoof Trim", icon: Stethoscope, color: "text-amber-700" },
+  set_dental_date: { label: "Next Dental Visit", icon: Stethoscope, color: "text-amber-700" },
+  weight_bcs: { label: "Weight / BCS", icon: Stethoscope, color: "text-slate-700" },
 };
 
 function getCurrentTimeBlock(): string {
@@ -106,6 +109,9 @@ interface JoshyResult {
     severity?: string | null;
     title?: string | null;
     date?: string | null;
+    provider?: string | null;
+    weight?: number | null;
+    bcs?: number | null;
     blockIdx?: number | null;
     taskIdx?: number | null;
   };
@@ -394,8 +400,56 @@ export default function QuickInput({
           date: result.data.date ?? todayISO(),
           description: body,
           urgent: false,
+          provider: result.data.provider ?? undefined,
         });
         return;
+      }
+
+      // Joshy-driven schedule changes for hoof/dental dates. These hit the
+      // visit APIs in "set next-due" mode (animal + date, no visit record).
+      if (action === "set_hoof_date" && result.data.animal && result.data.date) {
+        void fetch("/api/hoof-visits", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            animal: result.data.animal,
+            nextHoofDue: result.data.date,
+          }),
+        });
+        return;
+      }
+      if (action === "set_dental_date" && result.data.animal && result.data.date) {
+        void fetch("/api/dental-visits", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            animal: result.data.animal,
+            nextDentalDue: result.data.date,
+          }),
+        });
+        return;
+      }
+
+      // Weight + BCS recording.
+      if (action === "weight_bcs" && result.data.animal) {
+        const weight = typeof result.data.weight === "number" ? result.data.weight : null;
+        const bcs = typeof result.data.bcs === "number" ? result.data.bcs : null;
+        if (weight === null && bcs === null) {
+          // No usable data → fall through to parking lot as a note.
+        } else {
+          void fetch("/api/weight", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              animal: result.data.animal,
+              date: result.data.date ?? todayISO(),
+              weight,
+              bcs,
+              notes: body,
+            }),
+          });
+          return;
+        }
       }
 
       const entryType = (["watch", "medical", "feed", "note"].includes(action)
@@ -859,6 +913,21 @@ export default function QuickInput({
                   {aiResult.data.date && (
                     <span className="text-[11px] font-medium text-warm-gray bg-cream px-2 py-1 rounded-lg">
                       {aiResult.data.date}
+                    </span>
+                  )}
+                  {typeof aiResult.data.weight === "number" && (
+                    <span className="text-[11px] font-medium text-slate-700 bg-slate-100 px-2 py-1 rounded-lg">
+                      {aiResult.data.weight} lbs
+                    </span>
+                  )}
+                  {typeof aiResult.data.bcs === "number" && (
+                    <span className="text-[11px] font-medium text-slate-700 bg-slate-100 px-2 py-1 rounded-lg">
+                      BCS {aiResult.data.bcs}
+                    </span>
+                  )}
+                  {aiResult.data.provider && (
+                    <span className="text-[11px] font-medium text-indigo-700 bg-indigo-50 px-2 py-1 rounded-lg">
+                      {aiResult.data.provider}
                     </span>
                   )}
                 </div>

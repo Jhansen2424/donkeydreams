@@ -13,6 +13,9 @@ import {
   AlertCircle,
   ChevronDown,
   Stethoscope,
+  Pencil,
+  Trash2,
+  Check,
 } from "lucide-react";
 import {
   allMedicalEntries as baseRecords,
@@ -23,6 +26,7 @@ import {
 } from "@/lib/medical-data";
 import { useMedical } from "@/lib/medical-context";
 import { animals } from "@/lib/animals";
+import { providers } from "@/lib/hoof-dental-data";
 
 type Tab = "upcoming" | "overdue" | "recent" | "all";
 
@@ -63,10 +67,20 @@ function TypeBadge({ type }: { type: MedicalRecordType }) {
   );
 }
 
-function RecordCard({ record }: { record: MedicalRecord }) {
+function RecordCard({
+  record,
+  onEdit,
+  onDelete,
+  canEdit,
+}: {
+  record: MedicalRecord;
+  onEdit: (record: MedicalRecord) => void;
+  onDelete: (record: MedicalRecord) => void;
+  canEdit: boolean;
+}) {
   return (
     <div
-      className={`bg-white rounded-xl border p-4 flex items-start gap-4 ${
+      className={`group bg-white rounded-xl border p-4 flex items-start gap-4 ${
         record.urgent ? "border-red-200 bg-red-50/30" : "border-card-border"
       }`}
     >
@@ -76,7 +90,7 @@ function RecordCard({ record }: { record: MedicalRecord }) {
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2 mb-1">
           <Link
-            href={`/app/animals/${slugify(record.animal)}`}
+            href={`/app/animals/${slugify(record.animal)}?tab=medical`}
             className="font-semibold text-charcoal text-sm hover:text-sky-700 transition-colors"
           >
             {record.animal}
@@ -89,33 +103,232 @@ function RecordCard({ record }: { record: MedicalRecord }) {
           )}
         </div>
         <p className="font-medium text-charcoal text-sm">{record.title}</p>
-        <p className="text-xs text-warm-gray mt-0.5">{formatDate(record.date)}</p>
+        <p className="text-xs text-warm-gray mt-0.5">
+          {formatDate(record.date)}
+          {record.provider && (
+            <>
+              <span className="mx-1.5">·</span>
+              <span className="font-medium text-sky-dark">{record.provider}</span>
+            </>
+          )}
+        </p>
         {record.description && (
-          <p className="text-sm text-warm-gray mt-2 leading-relaxed">
+          <p className="text-sm text-warm-gray mt-2 leading-relaxed whitespace-pre-line">
             {record.description}
           </p>
         )}
+      </div>
+      {canEdit && (
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          <button
+            onClick={() => onEdit(record)}
+            title="Edit entry"
+            className="p-1.5 rounded-md text-warm-gray hover:text-sidebar hover:bg-sidebar/10 transition-colors"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => onDelete(record)}
+            title="Delete entry"
+            className="p-1.5 rounded-md text-warm-gray hover:text-red-600 hover:bg-red-50 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EditRecordModal({
+  record,
+  onClose,
+  onSave,
+}: {
+  record: MedicalRecord;
+  onClose: () => void;
+  onSave: (updates: {
+    animal: string;
+    type: MedicalRecordType;
+    title: string;
+    date: string;
+    description: string;
+    urgent: boolean;
+    provider: string;
+  }) => Promise<void>;
+}) {
+  const [animal, setAnimal] = useState(record.animal);
+  const [type, setType] = useState<MedicalRecordType>(record.type);
+  const [title, setTitle] = useState(record.title);
+  const [date, setDate] = useState(record.date);
+  const [description, setDescription] = useState(record.description);
+  const [urgent, setUrgent] = useState(record.urgent);
+  const [provider, setProvider] = useState(record.provider ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    if (!title.trim()) return;
+    setSaving(true);
+    try {
+      await onSave({ animal, type, title: title.trim(), date, description, urgent, provider });
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white w-full max-w-2xl rounded-2xl shadow-xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-sidebar px-5 py-4 flex items-center justify-between">
+          <h3 className="font-bold text-white">Edit medical entry</h3>
+          <button onClick={onClose} className="text-cream/60 hover:text-white p-1">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
+                Animal
+              </label>
+              <select
+                value={animal}
+                onChange={(e) => setAnimal(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal bg-white focus:outline-none focus:ring-2 focus:ring-sand/50"
+              >
+                {[...animals].sort((a, b) => a.name.localeCompare(b.name)).map((a) => (
+                  <option key={a.slug} value={a.name}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
+                Type
+              </label>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value as MedicalRecordType)}
+                className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal bg-white focus:outline-none focus:ring-2 focus:ring-sand/50"
+              >
+                {recordTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
+                Date
+              </label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+              />
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={urgent}
+                  onChange={(e) => setUrgent(e.target.checked)}
+                  className="w-4 h-4 rounded border-card-border text-red-500 focus:ring-red-500"
+                />
+                <span className="text-sm font-medium text-charcoal">Urgent</span>
+              </label>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
+              Title
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
+              Provider
+            </label>
+            <input
+              list="medical-provider-list"
+              value={provider}
+              onChange={(e) => setProvider(e.target.value)}
+              placeholder="Vet, farrier, or dentist name..."
+              className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
+              Description
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={4}
+              className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+            />
+          </div>
+        </div>
+        <div className="px-5 py-4 border-t border-card-border flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-charcoal bg-white border border-card-border rounded-lg hover:bg-cream transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!title.trim() || saving}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-sidebar rounded-lg hover:bg-sidebar-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <Check className="w-4 h-4" />
+            {saving ? "Saving..." : "Save changes"}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
 export default function MedicalDashboardPage() {
-  const today = useMemo(() => new Date("2026-03-31"), []);
+  // Real "today" at 00:00 local time — used for upcoming/overdue cutoffs.
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+  const todayIso = useMemo(() => today.toISOString().split("T")[0], [today]);
   const [tab, setTab] = useState<Tab>("upcoming");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<MedicalRecordType | "all">("all");
   const [showAddForm, setShowAddForm] = useState(false);
-  const { entries: dbEntries, addEntry: addMedicalEntry } = useMedical();
+  const { entries: dbEntries, addEntry: addMedicalEntry, updateEntry: updateMedicalEntry, removeEntry: removeMedicalEntry } = useMedical();
+  const [editing, setEditing] = useState<MedicalRecord | null>(null);
 
   // Add form state
   const [formAnimal, setFormAnimal] = useState(animals[0]?.name || "");
   const [formType, setFormType] = useState<MedicalRecordType>("Vet Visit");
   const [formTitle, setFormTitle] = useState("");
-  const [formDate, setFormDate] = useState("2026-03-31");
+  const [formDate, setFormDate] = useState(todayIso);
   const [formDesc, setFormDesc] = useState("");
   const [formUrgent, setFormUrgent] = useState(false);
   const [formNextDate, setFormNextDate] = useState("");
+  const [formProvider, setFormProvider] = useState("");
 
   // Types that should prompt the user for a follow-up ("next treatment")
   // date alongside the main entry.
@@ -140,24 +353,27 @@ export default function MedicalDashboardPage() {
     return merged;
   }, [dbEntries]);
 
+  // Parse a record's ISO date string at local midnight so comparisons are
+  // apples-to-apples with `today` (also local midnight).
+  const toLocalDate = (iso: string) => new Date(iso + "T00:00:00");
+
   // Stats
   const stats = useMemo(() => {
     const overdueCount = allRecords.filter((r) => {
-      const d = new Date(r.date);
-      return d < today && r.urgent;
+      return toLocalDate(r.date) < today && r.urgent;
     }).length;
 
     const weekFromNow = new Date(today);
     weekFromNow.setDate(weekFromNow.getDate() + 7);
     const dueThisWeek = allRecords.filter((r) => {
-      const d = new Date(r.date);
+      const d = toLocalDate(r.date);
       return d >= today && d <= weekFromNow;
     }).length;
 
     const monthAgo = new Date(today);
     monthAgo.setDate(monthAgo.getDate() - 30);
     const completedThisMonth = allRecords.filter((r) => {
-      const d = new Date(r.date);
+      const d = toLocalDate(r.date);
       return d >= monthAgo && d <= today && !r.urgent;
     }).length;
 
@@ -174,27 +390,25 @@ export default function MedicalDashboardPage() {
     switch (tab) {
       case "upcoming":
         return allRecords
-          .filter((r) => new Date(r.date) >= today)
-          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+          .filter((r) => toLocalDate(r.date) >= today)
+          .sort((a, b) => a.date.localeCompare(b.date));
       case "overdue":
         return allRecords
-          .filter((r) => new Date(r.date) < today && r.urgent)
-          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+          .filter((r) => toLocalDate(r.date) < today && r.urgent)
+          .sort((a, b) => a.date.localeCompare(b.date));
       case "recent": {
         const cutoff = new Date(today);
         cutoff.setDate(cutoff.getDate() - 30);
         return allRecords
           .filter((r) => {
-            const d = new Date(r.date);
+            const d = toLocalDate(r.date);
             return d >= cutoff && d <= today;
           })
-          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          .sort((a, b) => b.date.localeCompare(a.date));
       }
       case "all":
       default:
-        return [...allRecords].sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
+        return [...allRecords].sort((a, b) => b.date.localeCompare(a.date));
     }
   }, [allRecords, tab, today]);
 
@@ -256,6 +470,7 @@ export default function MedicalDashboardPage() {
       date: formDate,
       description: combinedDesc,
       urgent: formUrgent,
+      provider: formProvider,
     });
 
     // If the user supplied a next-treatment date, also persist a follow-up
@@ -275,6 +490,7 @@ export default function MedicalDashboardPage() {
     setFormDesc("");
     setFormUrgent(false);
     setFormNextDate("");
+    setFormProvider("");
     setShowAddForm(false);
   }
 
@@ -391,6 +607,23 @@ export default function MedicalDashboardPage() {
               placeholder="e.g., Hoof trim — routine"
               className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
             />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
+              Provider
+            </label>
+            <input
+              list="medical-provider-list"
+              value={formProvider}
+              onChange={(e) => setFormProvider(e.target.value)}
+              placeholder="Vet, farrier, or dentist name..."
+              className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+            />
+            <datalist id="medical-provider-list">
+              {providers.map((p) => (
+                <option key={p.name} value={p.name}>{p.type}</option>
+              ))}
+            </datalist>
           </div>
           {needsNextDate && (
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
@@ -599,13 +832,39 @@ export default function MedicalDashboardPage() {
                 {formatDateGroup(group.date)}
               </h4>
               <div className="space-y-3">
-                {group.records.map((record) => (
-                  <RecordCard key={record.id} record={record} />
-                ))}
+                {group.records.map((record) => {
+                  // Records whose id starts with a DB-ish cuid prefix are
+                  // server-backed and safe to edit/delete. Seed records from
+                  // medical-data.ts (sequential numeric ids) are read-only.
+                  const isDbRecord = dbEntries.some((e) => e.id === record.id);
+                  return (
+                    <RecordCard
+                      key={record.id}
+                      record={record}
+                      canEdit={isDbRecord}
+                      onEdit={(r) => setEditing(r)}
+                      onDelete={async (r) => {
+                        if (confirm(`Delete medical entry for ${r.animal}: "${r.title}"?`)) {
+                          await removeMedicalEntry(r.id);
+                        }
+                      }}
+                    />
+                  );
+                })}
               </div>
             </div>
           ))}
         </div>
+      )}
+
+      {editing && (
+        <EditRecordModal
+          record={editing}
+          onClose={() => setEditing(null)}
+          onSave={async (updates) => {
+            await updateMedicalEntry(editing.id, updates);
+          }}
+        />
       )}
     </div>
   );

@@ -11,6 +11,7 @@ interface ApiEntry {
   date: string;
   description: string;
   urgent: boolean;
+  provider: string;
 }
 
 function toApi(row: {
@@ -21,6 +22,7 @@ function toApi(row: {
   date: string;
   description: string;
   urgent: boolean;
+  provider?: string | null;
 }): ApiEntry {
   return {
     id: row.id,
@@ -30,6 +32,7 @@ function toApi(row: {
     date: row.date,
     description: row.description,
     urgent: row.urgent,
+    provider: row.provider ?? "",
   };
 }
 
@@ -63,7 +66,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { animal, type, title, date, description, urgent } = body ?? {};
+    const { animal, type, title, date, description, urgent, provider } = body ?? {};
 
     if (!animal || typeof animal !== "string") {
       return NextResponse.json({ error: "Missing 'animal'" }, { status: 400 });
@@ -92,6 +95,7 @@ export async function POST(req: NextRequest) {
         date,
         description: typeof description === "string" ? description : "",
         urgent: Boolean(urgent),
+        provider: typeof provider === "string" ? provider : "",
       },
     });
     return NextResponse.json({ entry: toApi(row) }, { status: 201 });
@@ -104,7 +108,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, type, title, date, description, urgent, animal } = body ?? {};
+    const { id, type, title, date, description, urgent, animal, provider } = body ?? {};
 
     if (!id || typeof id !== "string") {
       return NextResponse.json({ error: "Missing 'id'" }, { status: 400 });
@@ -116,6 +120,7 @@ export async function PATCH(req: NextRequest) {
     if (typeof date === "string" && date.length > 0) update.date = date;
     if (typeof description === "string") update.description = description;
     if (typeof urgent === "boolean") update.urgent = urgent;
+    if (typeof provider === "string") update.provider = provider;
     if (typeof animal === "string" && animal.length > 0) {
       const animalRow = await resolveAnimalByName(animal);
       if (!animalRow) {

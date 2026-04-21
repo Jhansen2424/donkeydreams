@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { ArrowLeft, Calculator, Calendar, Pill, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, Calculator, Calendar, Pill, ChevronDown, ChevronRight, Plus, X, Check, Loader2 } from "lucide-react";
 import { animals } from "@/lib/animals";
 import { allMedicalEntries } from "@/lib/medical-data";
 import { useMedical } from "@/lib/medical-context";
@@ -72,7 +72,8 @@ type HerdRow = {
 };
 
 export default function DewormingSchedulePage() {
-  const { entries: dbEntries } = useMedical();
+  const { entries: dbEntries, addEntry: addMedicalEntry } = useMedical();
+  const [logHerd, setLogHerd] = useState<{ herdName: string; nextDose?: { drug: string; date: string; rotIdx: number } | null } | null>(null);
 
   // ── Per-herd last dose + next dose ──
   const herds = useMemo<HerdRow[]>(() => {
@@ -241,12 +242,24 @@ export default function DewormingSchedulePage() {
                   </div>
                 </button>
                 {isOpen && herdAnimals.length > 0 && (
-                  <div className="bg-cream/30 border-t border-card-border px-4 py-3">
+                  <div className="bg-cream/30 border-t border-card-border px-4 py-3 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <p className="text-xs font-semibold text-warm-gray">
+                        {herdAnimals.length} donkeys in this herd
+                      </p>
+                      <button
+                        onClick={() => setLogHerd({ herdName: h.name, nextDose: h.nextDose })}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sidebar text-white rounded-lg text-xs font-semibold hover:bg-sidebar-light transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Log dose for whole herd
+                      </button>
+                    </div>
                     <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                       {herdAnimals.map((a) => (
                         <li key={a.slug}>
                           <Link
-                            href={`/app/animals/${a.slug}`}
+                            href={`/app/animals/${a.slug}?tab=medical`}
                             className="block px-3 py-2 bg-white rounded-lg border border-card-border text-sm text-charcoal hover:bg-sidebar hover:text-white hover:border-sidebar transition-colors"
                           >
                             {a.name}
@@ -261,6 +274,31 @@ export default function DewormingSchedulePage() {
           })}
         </div>
       </section>
+
+      {logHerd && (
+        <LogHerdDoseModal
+          herdName={logHerd.herdName}
+          suggestedDrug={logHerd.nextDose?.drug}
+          suggestedDate={logHerd.nextDose?.date}
+          onClose={() => setLogHerd(null)}
+          onSave={async ({ drug, date, notes }) => {
+            const herd = animals.filter((a) => a.herd === logHerd.herdName);
+            await Promise.all(
+              herd.map((a) =>
+                addMedicalEntry({
+                  animal: a.name,
+                  type: "Deworming",
+                  title: drug,
+                  date,
+                  description: notes || `Herd-wide ${drug} dose.`,
+                  urgent: false,
+                })
+              )
+            );
+            setLogHerd(null);
+          }}
+        />
+      )}
 
       {/* Dosage calculator */}
       <section className="bg-white rounded-xl border border-card-border p-5">
@@ -317,6 +355,115 @@ export default function DewormingSchedulePage() {
           calculator, not medical advice.
         </p>
       </section>
+    </div>
+  );
+}
+
+function LogHerdDoseModal({
+  herdName,
+  suggestedDrug,
+  suggestedDate,
+  onClose,
+  onSave,
+}: {
+  herdName: string;
+  suggestedDrug?: string;
+  suggestedDate?: string;
+  onClose: () => void;
+  onSave: (input: { drug: string; date: string; notes: string }) => Promise<void>;
+}) {
+  const todayIso = new Date().toISOString().split("T")[0];
+  const [drug, setDrug] = useState<string>(suggestedDrug ?? ROTATION[0].drug);
+  const [date, setDate] = useState<string>(suggestedDate && suggestedDate <= todayIso ? suggestedDate : todayIso);
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await onSave({ drug, date, notes });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-sidebar px-5 py-4 flex items-center justify-between">
+          <h3 className="font-bold text-white">Log deworming for {herdName}</h3>
+          <button onClick={onClose} className="text-cream/60 hover:text-white p-1">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <p className="text-sm text-warm-gray">
+            Creates a Deworming medical entry for every donkey in the{" "}
+            <strong>{herdName}</strong> herd.
+          </p>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
+              Drug
+            </label>
+            <select
+              value={drug}
+              onChange={(e) => setDrug(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal bg-white focus:outline-none focus:ring-2 focus:ring-sand/50"
+            >
+              {ROTATION.map((r) => (
+                <option key={r.drug} value={r.drug}>
+                  {r.drug} — {r.dose}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
+              Date dosed
+            </label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
+              Notes
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              placeholder="Any notes about this dose..."
+              className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+            />
+          </div>
+        </div>
+        <div className="px-5 py-4 border-t border-card-border flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-charcoal bg-white border border-card-border rounded-lg hover:bg-cream transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !drug || !date}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-sidebar rounded-lg hover:bg-sidebar-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            {saving ? "Logging..." : "Log dose for herd"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

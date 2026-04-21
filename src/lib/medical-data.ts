@@ -19,6 +19,8 @@ export interface MedicalEntry {
   date: string; // ISO date string YYYY-MM-DD
   description: string;
   urgent: boolean;
+  /** Vet, farrier, or other provider who performed the service. */
+  provider?: string;
 }
 
 // Backwards-compatible aliases

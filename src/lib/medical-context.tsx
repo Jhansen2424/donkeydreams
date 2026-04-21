@@ -18,6 +18,7 @@ export type NewMedicalEntry = {
   date: string;
   description?: string;
   urgent?: boolean;
+  provider?: string;
 };
 
 // Fields a caller can patch. `id` identifies the target.
@@ -43,6 +44,7 @@ interface ApiEntry {
   date: string;
   description: string;
   urgent: boolean;
+  provider?: string;
 }
 
 function fromApi(e: ApiEntry): MedicalEntry {
@@ -54,6 +56,7 @@ function fromApi(e: ApiEntry): MedicalEntry {
     date: e.date,
     description: e.description,
     urgent: e.urgent,
+    provider: e.provider ?? "",
   };
 }
 
@@ -93,6 +96,7 @@ export function MedicalProvider({ children }: { children: ReactNode }) {
         date: input.date,
         description: input.description ?? "",
         urgent: Boolean(input.urgent),
+        provider: input.provider ?? "",
       };
       setEntries((prev) => [optimistic, ...prev]);
 
@@ -130,6 +134,7 @@ export function MedicalProvider({ children }: { children: ReactNode }) {
                 date: patch.date ?? e.date,
                 description: patch.description ?? e.description,
                 urgent: patch.urgent ?? e.urgent,
+                provider: patch.provider ?? e.provider,
               }
             : e
         )

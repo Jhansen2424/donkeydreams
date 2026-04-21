@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Pencil,
@@ -24,6 +24,7 @@ import {
   type MedicalRecordType,
 } from "@/lib/medical-data";
 import { useMedical } from "@/lib/medical-context";
+import { useParkingLot } from "@/lib/parking-lot-context";
 import { visitHistory } from "@/lib/hoof-dental-data";
 import { getTrimProfile } from "@/lib/trimming-data";
 import { getDewormingDosage } from "@/lib/power-pack-data";
@@ -47,11 +48,27 @@ const tabs = [
 export default function AnimalProfilePage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const slug = params.name as string;
   const animal = getAnimalBySlug(slug);
 
-  const [activeTab, setActiveTab] = useState("overview");
+  // Open on the tab requested via `?tab=...` when the link targets a section
+  // (e.g. Medical Entries page → profile Medical tab).
+  const initialTab = (() => {
+    const t = searchParams?.get("tab");
+    return t && tabs.some((x) => x.id === t) ? t : "overview";
+  })();
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [editing, setEditing] = useState(false);
+
+  // Keep `activeTab` in sync with URL changes (e.g. back/forward navigation).
+  useEffect(() => {
+    const t = searchParams?.get("tab");
+    if (t && tabs.some((x) => x.id === t) && t !== activeTab) {
+      setActiveTab(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   if (!animal) {
     return (
@@ -1048,6 +1065,34 @@ function TasksTab({ animal }: { animal: Animal }) {
 
 /* ── Relationships Tab ── */
 function RelationshipsTab({ animal }: { animal: Animal }) {
+  // Relationship notes and per-animal field notes both live as parking-lot
+  // entries (type "note") tagged with the animal name. The app filters on
+  // data.animal to surface them here; they also show up on the main Notes
+  // page for central triage.
+  const { entries, addEntry, removeEntry } = useParkingLot();
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const relationshipNotes = entries.filter(
+    (e) =>
+      e.type === "note" &&
+      !e.resolved &&
+      e.data?.animal === animal.name &&
+      e.data?.title === "relationship"
+  );
+
+  async function handleSave() {
+    const text = draft.trim();
+    if (!text) return;
+    setSaving(true);
+    try {
+      await addEntry("note", text, { animal: animal.name, title: "relationship" });
+      setDraft("");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <h3 className="font-bold text-charcoal">Bonds & Relationships</h3>
@@ -1078,18 +1123,45 @@ function RelationshipsTab({ animal }: { animal: Animal }) {
         </div>
       )}
 
-      {/* Note input for AI extraction later */}
+      {/* Existing relationship notes */}
+      {relationshipNotes.length > 0 && (
+        <div className="space-y-2">
+          {relationshipNotes.map((n) => (
+            <div
+              key={n.id}
+              className="bg-white rounded-xl border border-card-border p-4 flex items-start gap-3 group"
+            >
+              <p className="text-sm text-charcoal flex-1 whitespace-pre-line">{n.text}</p>
+              <button
+                onClick={() => removeEntry(n.id)}
+                title="Delete note"
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-warm-gray/50 hover:text-red-500"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add new relationship note */}
       <div className="bg-white rounded-xl border border-card-border p-5">
         <h4 className="font-semibold text-charcoal text-sm mb-3">
           Add Relationship Note
         </h4>
         <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
           placeholder="e.g., Pink and Eli are inseparable — born one day apart, nursed by each other's moms..."
           rows={3}
           className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal leading-relaxed focus:outline-none focus:ring-2 focus:ring-sand/50 mb-3"
         />
-        <button className="px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors">
-          Save Note
+        <button
+          onClick={handleSave}
+          disabled={!draft.trim() || saving}
+          className="px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          {saving ? "Saving..." : "Save Note"}
         </button>
       </div>
     </div>
@@ -1098,27 +1170,127 @@ function RelationshipsTab({ animal }: { animal: Animal }) {
 
 /* ── Photos Tab ── */
 function PhotosTab({ animal }: { animal: Animal }) {
+  // Photos are stored as URLs in `galleryImages` on the Animal record. No
+  // file upload yet — users paste an image URL (from Google Drive share, S3,
+  // etc.). The local optimistic list keeps the UI responsive while the API
+  // PATCH round-trips.
+  const [gallery, setGallery] = useState<string[]>(animal.galleryImages ?? []);
+  const [urlDraft, setUrlDraft] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function persist(next: string[]) {
+    setError(null);
+    const res = await fetch("/api/animals", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: animal.name, galleryImages: next }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || "Failed to save photos");
+    }
+  }
+
+  async function handleAdd() {
+    const url = urlDraft.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) {
+      setError("Photo URL must start with http:// or https://");
+      return;
+    }
+    const next = [...gallery, url];
+    const prev = gallery;
+    setGallery(next); // optimistic
+    setUrlDraft("");
+    setAdding(false);
+    try {
+      await persist(next);
+    } catch (err) {
+      setGallery(prev);
+      setError(err instanceof Error ? err.message : "Failed to save photo");
+    }
+  }
+
+  async function handleDelete(idx: number) {
+    const next = gallery.filter((_, i) => i !== idx);
+    const prev = gallery;
+    setGallery(next);
+    try {
+      await persist(next);
+    } catch (err) {
+      setGallery(prev);
+      setError(err instanceof Error ? err.message : "Failed to delete photo");
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="font-bold text-charcoal">Photos</h3>
-        <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors">
-          + Upload Photo
+        <button
+          onClick={() => setAdding((v) => !v)}
+          className="inline-flex items-center gap-1.5 px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors"
+        >
+          {adding ? "Cancel" : "+ Add Photo"}
         </button>
       </div>
 
-      {animal.galleryImages && animal.galleryImages.length > 0 ? (
+      {adding && (
+        <div className="bg-white rounded-xl border border-card-border p-5 space-y-3">
+          <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60">
+            Photo URL
+          </label>
+          <input
+            type="url"
+            value={urlDraft}
+            onChange={(e) => setUrlDraft(e.target.value)}
+            placeholder="https://..."
+            className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+            autoFocus
+          />
+          <p className="text-[11px] text-warm-gray/70">
+            Paste a URL from Google Drive (right-click a photo &rarr; Get link
+            &rarr; change to &ldquo;Anyone with the link&rdquo;), Dropbox, or
+            any public image host.
+          </p>
+          <div className="flex justify-end">
+            <button
+              onClick={handleAdd}
+              disabled={!urlDraft.trim()}
+              className="px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {gallery.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {animal.galleryImages.map((img, i) => (
+          {gallery.map((img, i) => (
             <div
-              key={i}
-              className="aspect-square rounded-xl overflow-hidden bg-cream border border-card-border"
+              key={`${img}-${i}`}
+              className="relative group aspect-square rounded-xl overflow-hidden bg-cream border border-card-border"
             >
               <img
                 src={img}
                 alt={`${animal.name} photo ${i + 1}`}
                 className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
               />
+              <button
+                onClick={() => handleDelete(i)}
+                title="Delete photo"
+                className="absolute top-1.5 right-1.5 p-1.5 bg-black/60 hover:bg-red-600 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           ))}
         </div>
@@ -1134,6 +1306,32 @@ function PhotosTab({ animal }: { animal: Animal }) {
 
 /* ── Notes Tab ── */
 function NotesTab({ animal }: { animal: Animal }) {
+  // Per-animal field notes live in the parking-lot (type "note"). Filtering
+  // by data.animal keeps them keyed to this profile.
+  const { entries, addEntry, removeEntry } = useParkingLot();
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const fieldNotes = entries.filter(
+    (e) =>
+      e.type === "note" &&
+      !e.resolved &&
+      e.data?.animal === animal.name &&
+      e.data?.title !== "relationship"
+  );
+
+  async function handleSave() {
+    const text = draft.trim();
+    if (!text) return;
+    setSaving(true);
+    try {
+      await addEntry("note", text, { animal: animal.name });
+      setDraft("");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -1143,23 +1341,54 @@ function NotesTab({ animal }: { animal: Animal }) {
       {/* New note */}
       <div className="bg-white rounded-xl border border-card-border p-5">
         <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
           placeholder={`Add a note about ${animal.name}...`}
           rows={3}
           className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal leading-relaxed focus:outline-none focus:ring-2 focus:ring-sand/50 mb-3"
         />
-        <button className="px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors">
-          Save Note
+        <button
+          onClick={handleSave}
+          disabled={!draft.trim() || saving}
+          className="px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          {saving ? "Saving..." : "Save Note"}
         </button>
       </div>
 
-      {/* Placeholder notes */}
-      <div className="bg-white rounded-xl border border-card-border p-8 text-center">
-        <StickyNote className="w-8 h-8 text-warm-gray/30 mx-auto mb-3" />
-        <p className="text-warm-gray font-medium">No notes yet</p>
-        <p className="text-sm text-warm-gray/60 mt-1">
-          Staff notes, observations, and updates will appear here
-        </p>
-      </div>
+      {/* Existing notes */}
+      {fieldNotes.length === 0 ? (
+        <div className="bg-white rounded-xl border border-card-border p-8 text-center">
+          <StickyNote className="w-8 h-8 text-warm-gray/30 mx-auto mb-3" />
+          <p className="text-warm-gray font-medium">No notes yet</p>
+          <p className="text-sm text-warm-gray/60 mt-1">
+            Staff notes, observations, and updates will appear here
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {fieldNotes.map((n) => (
+            <div
+              key={n.id}
+              className="bg-white rounded-xl border border-card-border p-4 flex items-start gap-3 group"
+            >
+              <div className="flex-1">
+                <p className="text-sm text-charcoal whitespace-pre-line">{n.text}</p>
+                <p className="text-[11px] text-warm-gray/60 mt-1">
+                  {n.timestamp.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </p>
+              </div>
+              <button
+                onClick={() => removeEntry(n.id)}
+                title="Delete note"
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-warm-gray/50 hover:text-red-500"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
