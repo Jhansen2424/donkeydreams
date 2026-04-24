@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Search,
   AlertTriangle,
@@ -26,7 +27,10 @@ import {
 } from "@/lib/medical-data";
 import { useMedical } from "@/lib/medical-context";
 import { animals } from "@/lib/animals";
-import { providers } from "@/lib/hoof-dental-data";
+import { yardWideDewormings } from "@/lib/deworming-vaccination-data";
+import ProviderPanel, { type ProviderType } from "@/components/app/ProviderPanel";
+import { useProviders } from "@/lib/providers-context";
+import { Phone } from "lucide-react";
 
 type Tab = "upcoming" | "overdue" | "recent" | "all";
 
@@ -305,7 +309,16 @@ function EditRecordModal({
   );
 }
 
-export default function MedicalDashboardPage() {
+export default function MedicalDashboardPageWrapper() {
+  // useSearchParams must be inside <Suspense> per the Next.js 15 contract.
+  return (
+    <Suspense>
+      <MedicalDashboardPage />
+    </Suspense>
+  );
+}
+
+function MedicalDashboardPage() {
   // Real "today" at 00:00 local time — used for upcoming/overdue cutoffs.
   const today = useMemo(() => {
     const d = new Date();
@@ -317,6 +330,9 @@ export default function MedicalDashboardPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<MedicalRecordType | "all">("all");
   const [showAddForm, setShowAddForm] = useState(false);
+  const { providers, add: addProviderToDb, remove: removeProviderFromDb } =
+    useProviders();
+  const [showProviderPanel, setShowProviderPanel] = useState(false);
   const { entries: dbEntries, addEntry: addMedicalEntry, updateEntry: updateMedicalEntry, removeEntry: removeMedicalEntry } = useMedical();
   const [editing, setEditing] = useState<MedicalRecord | null>(null);
 
@@ -329,6 +345,25 @@ export default function MedicalDashboardPage() {
   const [formUrgent, setFormUrgent] = useState(false);
   const [formNextDate, setFormNextDate] = useState("");
   const [formProvider, setFormProvider] = useState("");
+
+  // Honor `?animal=X&type=Y&open=1` from the animal-profile +Add Entry link
+  // so the form opens prefilled instead of defaulting to the first donkey.
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const animalParam = searchParams.get("animal");
+    const typeParam = searchParams.get("type");
+    const openParam = searchParams.get("open");
+    if (animalParam && animals.find((a) => a.name === animalParam)) {
+      setFormAnimal(animalParam);
+    }
+    if (typeParam && (recordTypes as readonly string[]).includes(typeParam)) {
+      setFormType(typeParam as MedicalRecordType);
+    }
+    if (openParam) setShowAddForm(true);
+    // Run once on mount — we don't want subsequent state changes (e.g. user
+    // clearing the form) to re-trigger the prefill.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Types that should prompt the user for a follow-up ("next treatment")
   // date alongside the main entry.
@@ -388,10 +423,20 @@ export default function MedicalDashboardPage() {
   // Filtered records based on tab
   const tabRecords = useMemo(() => {
     switch (tab) {
-      case "upcoming":
+      case "upcoming": {
+        // Match the "Due This Week" stat card: only records in the next 7
+        // days (inclusive). Previously this showed all future records, which
+        // leaked "no-record-yet" items (scheduled far in the future) into
+        // the list even though the stat card only counted the next week.
+        const weekFromNow = new Date(today);
+        weekFromNow.setDate(weekFromNow.getDate() + 7);
         return allRecords
-          .filter((r) => toLocalDate(r.date) >= today)
+          .filter((r) => {
+            const d = toLocalDate(r.date);
+            return d >= today && d <= weekFromNow;
+          })
           .sort((a, b) => a.date.localeCompare(b.date));
+      }
       case "overdue":
         return allRecords
           .filter((r) => toLocalDate(r.date) < today && r.urgent)
@@ -519,6 +564,13 @@ export default function MedicalDashboardPage() {
             Deworming Schedule
           </Link>
           <button
+            onClick={() => setShowProviderPanel((v) => !v)}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white border border-card-border text-charcoal rounded-lg text-sm font-medium hover:bg-cream transition-colors"
+          >
+            <Phone className="w-4 h-4" />
+            Providers
+          </button>
+          <button
             onClick={() => setShowAddForm(!showAddForm)}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors"
           >
@@ -527,6 +579,20 @@ export default function MedicalDashboardPage() {
           </button>
         </div>
       </div>
+
+      {showProviderPanel && (
+        <ProviderPanel
+          providers={providers}
+          onAdd={(p: { name: string; type: ProviderType; phone: string }) => {
+            void addProviderToDb(p);
+          }}
+          onRemove={(name) => {
+            const target = providers.find((p) => p.name === name);
+            if (target) void removeProviderFromDb(target.id);
+          }}
+          onClose={() => setShowProviderPanel(false)}
+        />
+      )}
 
       {/* Add Record Form */}
       {showAddForm && (
@@ -667,6 +733,41 @@ export default function MedicalDashboardPage() {
               <Plus className="w-4 h-4" />
               Save Entry
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Yard-wide deworming events — sourced from PREV-HERD rows in the
+          deworming/vaccination CSV. These represent sanctuary-wide protocol
+          dates (every donkey received that drug on that date). */}
+      {yardWideDewormings.length > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-charcoal text-sm flex items-center gap-2">
+              <Stethoscope className="w-4 h-4 text-orange-600" />
+              Yard-Wide Deworming Schedule
+            </h3>
+            <span className="text-[11px] text-orange-700/80 font-medium">
+              Whole sanctuary
+            </span>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            {yardWideDewormings.map((event) => (
+              <div
+                key={event.id}
+                className="bg-white border border-orange-200/60 rounded-lg px-3 py-2.5"
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-orange-700/70">
+                  {formatDate(event.date)}
+                </p>
+                <p className="text-sm font-bold text-charcoal mt-0.5 capitalize">
+                  {event.drug.toLowerCase()}
+                </p>
+                <p className="text-[11px] text-warm-gray mt-0.5 leading-snug">
+                  {event.dose}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       )}

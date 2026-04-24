@@ -261,3 +261,16 @@ model KnowledgeArticle {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// ── Providers (Farriers, Equine Dentists, Vets) ──
+
+model Provider {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  type      String   // "Farrier" | "Equine Dentist" | "Vet"
+  phone     String   @default("")
+  notes     String   @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

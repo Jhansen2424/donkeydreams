@@ -45,6 +45,12 @@ export interface Animal {
   bondedWith?: string[];
   // Additional medical
   lastAnnualExam?: string | null;
+  // Scheduled care dates (set by Joshy's set_hoof_date / set_dental_date,
+  // or via the Hoof/Dental dashboard). Optional because the in-memory seed
+  // data doesn't include these — they're fetched live from /api/hoof-visits
+  // and /api/dental-visits and surfaced where needed.
+  nextHoofDue?: string | null;
+  nextDentalDue?: string | null;
 }
 
 function slug(name: string) {
@@ -288,6 +294,28 @@ export const upcomingMedical = [
   { date: "MAY 1", name: "Winky", description: "Hoof Trim", urgent: false },
 ];
 
+// Fields owned by the adoption CSV. If a makeDonkey() call passes any of these
+// in `overrides`, they are silently dropped — the CSV is the source of truth.
+const CSV_OWNED_KEYS = new Set<keyof Animal>([
+  "age",
+  "sex",
+  "origin",
+  "intakeDate",
+  "birthDate",
+  "color",
+  "size",
+  "microchip",
+  "needsChip",
+  "momBabyCount",
+  "isBondedPair",
+  "isSpecialNeedsFlag",
+  "isOver20",
+  "parents",
+  "children",
+  "bondedWith",
+  "lastAnnualExam",
+]);
+
 function makeDonkey(
   name: string,
   herd: string,
@@ -298,9 +326,15 @@ function makeDonkey(
   // Look up real adoption-CSV data for this donkey (if present)
   const profile = donkeyProfiles.get(name);
 
-  // Real CSV data takes precedence over rotating placeholder pools.
-  // Explicit overrides passed to makeDonkey still win over both
-  // (preserves curated entries for Pink, Eli, Gabriel, etc.).
+  // Strip CSV-owned fields from overrides — they cannot be hand-overridden.
+  // Curated fields (traits, tagline, story, tags, profileImage, etc.) still win.
+  const safeOverrides: Partial<Animal> = {};
+  for (const k of Object.keys(overrides) as Array<keyof Animal>) {
+    if (!CSV_OWNED_KEYS.has(k)) {
+      (safeOverrides as Record<string, unknown>)[k] = overrides[k];
+    }
+  }
+
   return {
     name,
     slug: slug(name),
@@ -336,7 +370,7 @@ function makeDonkey(
     children: profile?.children ?? [],
     bondedWith: profile?.bondedWith ?? [],
     lastAnnualExam: profile?.lastAnnualExam ?? null,
-    ...overrides,
+    ...safeOverrides,
   };
 }
 

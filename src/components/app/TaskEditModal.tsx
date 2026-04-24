@@ -17,6 +17,9 @@ const CATEGORIES: TaskCategory[] = [
   "weight",
   "sponsor",
   "projects",
+  "admin",
+  "care",
+  "ranch",
 ];
 
 const activeMembers = volunteers.filter((v) => v.status === "active");

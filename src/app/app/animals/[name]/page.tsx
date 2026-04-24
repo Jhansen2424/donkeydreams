@@ -15,6 +15,7 @@ import {
   X,
   Handshake,
   Mail,
+  Trash2,
 } from "lucide-react";
 import { getAnimalBySlug, type Animal } from "@/lib/animals";
 import {
@@ -25,6 +26,7 @@ import {
 } from "@/lib/medical-data";
 import { useMedical } from "@/lib/medical-context";
 import { useParkingLot } from "@/lib/parking-lot-context";
+import { useToast } from "@/lib/toast-context";
 import { visitHistory } from "@/lib/hoof-dental-data";
 import { getTrimProfile } from "@/lib/trimming-data";
 import { getDewormingDosage } from "@/lib/power-pack-data";
@@ -61,6 +63,21 @@ export default function AnimalProfilePage() {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [editing, setEditing] = useState(false);
 
+  // Draft state for fields editable via the profile's "Edit Profile" toggle.
+  // We seed from the current animal on mount and on each editing→true flip
+  // so cancelled edits don't persist in memory. On Save we PATCH the diff to
+  // /api/animals and toast the result.
+  type ProfileDraft = {
+    tagline: string;
+    behavioralNotes: string;
+    story: string; // newline-joined for the textarea
+    traits: string; // comma-joined
+    bestFriends: string; // comma-joined
+  };
+  const [draft, setDraft] = useState<ProfileDraft | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const { toastSuccess: profileToastSuccess, toastError: profileToastError } = useToast();
+
   // Keep `activeTab` in sync with URL changes (e.g. back/forward navigation).
   useEffect(() => {
     const t = searchParams?.get("tab");
@@ -96,26 +113,106 @@ export default function AnimalProfilePage() {
           <ArrowLeft className="w-4 h-4" />
           All Animals
         </button>
-        <button
-          onClick={() => setEditing(!editing)}
-          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            editing
-              ? "bg-emerald-600 text-white hover:bg-emerald-700"
-              : "bg-white border border-card-border text-charcoal hover:bg-cream"
-          }`}
-        >
-          {editing ? (
-            <>
-              <Save className="w-4 h-4" />
-              Save Changes
-            </>
-          ) : (
-            <>
-              <Pencil className="w-4 h-4" />
-              Edit Profile
-            </>
+        <div className="flex items-center gap-2">
+          {editing && (
+            <button
+              onClick={() => {
+                setEditing(false);
+                setDraft(null);
+              }}
+              disabled={savingProfile}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-white border border-card-border text-charcoal hover:bg-cream transition-colors"
+            >
+              Cancel
+            </button>
           )}
-        </button>
+          <button
+            onClick={async () => {
+              if (!editing) {
+                // Entering edit mode — seed drafts from the current animal.
+                setDraft({
+                  tagline: animal.tagline ?? "",
+                  behavioralNotes: animal.behavioralNotes ?? "",
+                  story: (animal.story ?? []).join("\n\n"),
+                  traits: (animal.traits ?? []).join(", "),
+                  bestFriends: (animal.bestFriends ?? []).join(", "),
+                });
+                setEditing(true);
+                return;
+              }
+              // Save: PATCH only the fields the user edited.
+              if (!draft) {
+                setEditing(false);
+                return;
+              }
+              setSavingProfile(true);
+              try {
+                const splitList = (s: string) =>
+                  s.split(",").map((x) => x.trim()).filter(Boolean);
+                const splitStory = (s: string) =>
+                  s.split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean);
+                const payload: Record<string, unknown> = { name: animal.name };
+                if (draft.tagline !== (animal.tagline ?? ""))
+                  payload.tagline = draft.tagline;
+                if (draft.behavioralNotes !== (animal.behavioralNotes ?? ""))
+                  payload.behavioralNotes = draft.behavioralNotes;
+                const nextTraits = splitList(draft.traits);
+                if (nextTraits.join("|") !== (animal.traits ?? []).join("|"))
+                  payload.traits = nextTraits;
+                const nextFriends = splitList(draft.bestFriends);
+                if (
+                  nextFriends.join("|") !== (animal.bestFriends ?? []).join("|")
+                )
+                  payload.bestFriends = nextFriends;
+                const nextStory = splitStory(draft.story);
+                if (nextStory.join("|") !== (animal.story ?? []).join("|"))
+                  payload.story = nextStory;
+                if (Object.keys(payload).length <= 1) {
+                  // No changes to save — just exit edit mode.
+                  setEditing(false);
+                  setDraft(null);
+                  return;
+                }
+                const res = await fetch("/api/animals", {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(payload),
+                });
+                if (!res.ok) {
+                  const body = await res.json().catch(() => ({}));
+                  profileToastError(body?.error ?? "Failed to save profile.");
+                  return;
+                }
+                profileToastSuccess(`Saved ${animal.name}'s profile.`);
+                setEditing(false);
+                setDraft(null);
+                // NOTE: the in-memory animals list won't pick up these changes
+                // until reload. That's an existing architectural limitation —
+                // animals.ts exports a snapshot at boot.
+              } finally {
+                setSavingProfile(false);
+              }
+            }}
+            disabled={savingProfile}
+            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              editing
+                ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                : "bg-white border border-card-border text-charcoal hover:bg-cream"
+            }`}
+          >
+            {editing ? (
+              <>
+                <Save className="w-4 h-4" />
+                {savingProfile ? "Saving…" : "Save Changes"}
+              </>
+            ) : (
+              <>
+                <Pencil className="w-4 h-4" />
+                Edit Profile
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Profile header */}
@@ -154,7 +251,16 @@ export default function AnimalProfilePage() {
                 {animal.status}
               </span>
             </div>
-            <p className="text-warm-gray mb-4">{animal.tagline}</p>
+            {editing && draft ? (
+              <input
+                value={draft.tagline}
+                onChange={(e) => setDraft({ ...draft, tagline: e.target.value })}
+                placeholder="One-line tagline"
+                className="w-full mb-4 px-3 py-2 text-sm border border-card-border rounded-lg text-warm-gray focus:outline-none focus:ring-2 focus:ring-sand/50"
+              />
+            ) : (
+              <p className="text-warm-gray mb-4">{animal.tagline}</p>
+            )}
 
             {/* Quick info grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
@@ -166,6 +272,9 @@ export default function AnimalProfilePage() {
               <InfoItem label="Intake Date" value={animal.intakeDate} editing={editing} />
               <InfoItem label="Adopted From" value={animal.adoptedFrom} editing={editing} />
             </div>
+
+            {/* Hoof / Dental at-a-glance summary */}
+            <HoofDentalSummary animal={animal} />
 
             {/* Tags + adoption status badges */}
             <div className="flex flex-wrap gap-1.5">
@@ -216,7 +325,14 @@ export default function AnimalProfilePage() {
 
       {/* Tab content */}
       <div>
-        {activeTab === "overview" && <OverviewTab animal={animal} editing={editing} />}
+        {activeTab === "overview" && (
+          <OverviewTab
+            animal={animal}
+            editing={editing}
+            draft={draft}
+            setDraft={setDraft}
+          />
+        )}
         {activeTab === "medical" && <MedicalTab animal={animal} />}
         {activeTab === "tasks" && <TasksTab animal={animal} />}
         {activeTab === "relationships" && <RelationshipsTab animal={animal} />}
@@ -311,16 +427,43 @@ function InfoItem({
 }
 
 /* ── Overview Tab ── */
-function OverviewTab({ animal, editing }: { animal: Animal; editing: boolean }) {
+type ProfileDraftShape = {
+  tagline: string;
+  behavioralNotes: string;
+  story: string;
+  traits: string;
+  bestFriends: string;
+};
+
+function OverviewTab({
+  animal,
+  editing,
+  draft,
+  setDraft,
+}: {
+  animal: Animal;
+  editing: boolean;
+  draft: ProfileDraftShape | null;
+  setDraft: (d: ProfileDraftShape | null) => void;
+}) {
+  // In edit mode, `draft` is guaranteed to be populated by the parent. This
+  // local accessor just simplifies the input `onChange` handlers.
+  const patchDraft = (patch: Partial<ProfileDraftShape>) => {
+    if (!draft) return;
+    setDraft({ ...draft, ...patch });
+  };
+
   return (
     <div className="grid md:grid-cols-2 gap-6">
       {/* Story */}
       <div className="bg-white rounded-xl border border-card-border p-5">
         <h3 className="font-bold text-charcoal mb-3">Origin Story</h3>
-        {editing ? (
+        {editing && draft ? (
           <textarea
-            defaultValue={animal.story.join("\n\n")}
+            value={draft.story}
+            onChange={(e) => patchDraft({ story: e.target.value })}
             rows={8}
+            placeholder="Paragraphs separated by a blank line…"
             className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal leading-relaxed focus:outline-none focus:ring-2 focus:ring-sand/50"
           />
         ) : (
@@ -336,23 +479,33 @@ function OverviewTab({ animal, editing }: { animal: Animal; editing: boolean }) 
       <div className="space-y-6">
         <div className="bg-white rounded-xl border border-card-border p-5">
           <h3 className="font-bold text-charcoal mb-3">Personality Traits</h3>
-          <div className="flex flex-wrap gap-2">
-            {animal.traits.map((trait) => (
-              <span
-                key={trait}
-                className="text-sm bg-cream text-charcoal px-3 py-1.5 rounded-full font-medium"
-              >
-                {trait}
-              </span>
-            ))}
-          </div>
+          {editing && draft ? (
+            <input
+              value={draft.traits}
+              onChange={(e) => patchDraft({ traits: e.target.value })}
+              placeholder="Comma-separated (Calm, Nurturing, Leader…)"
+              className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+            />
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {animal.traits.map((trait) => (
+                <span
+                  key={trait}
+                  className="text-sm bg-cream text-charcoal px-3 py-1.5 rounded-full font-medium"
+                >
+                  {trait}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-xl border border-card-border p-5">
           <h3 className="font-bold text-charcoal mb-3">Behavioral Notes</h3>
-          {editing ? (
+          {editing && draft ? (
             <textarea
-              defaultValue={animal.behavioralNotes}
+              value={draft.behavioralNotes}
+              onChange={(e) => patchDraft({ behavioralNotes: e.target.value })}
               rows={4}
               placeholder="Likes ears scratched, scared of side-by-sides, etc."
               className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal leading-relaxed focus:outline-none focus:ring-2 focus:ring-sand/50"
@@ -366,17 +519,26 @@ function OverviewTab({ animal, editing }: { animal: Animal; editing: boolean }) 
 
         <div className="bg-white rounded-xl border border-card-border p-5">
           <h3 className="font-bold text-charcoal mb-3">Best Friends</h3>
-          <div className="flex flex-wrap gap-2">
-            {animal.bestFriends.map((friend) => (
-              <span
-                key={friend}
-                className="inline-flex items-center gap-1.5 text-sm bg-sky/10 text-sky-dark px-3 py-1.5 rounded-full font-medium"
-              >
-                <Heart className="w-3 h-3 fill-current" />
-                {friend}
-              </span>
-            ))}
-          </div>
+          {editing && draft ? (
+            <input
+              value={draft.bestFriends}
+              onChange={(e) => patchDraft({ bestFriends: e.target.value })}
+              placeholder="Comma-separated donkey names (Pink, Eli…)"
+              className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+            />
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {animal.bestFriends.map((friend) => (
+                <span
+                  key={friend}
+                  className="inline-flex items-center gap-1.5 text-sm bg-sky/10 text-sky-dark px-3 py-1.5 rounded-full font-medium"
+                >
+                  <Heart className="w-3 h-3 fill-current" />
+                  {friend}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         {/* Sponsor info */}
         <SponsorCard animal={animal} />
@@ -644,9 +806,49 @@ const medicalSubTabs: { id: MedicalSubTab; label: string }[] = [
 ];
 
 function MedicalRecordCard({ record }: { record: MedicalRecord }) {
+  const { updateEntry, removeEntry } = useMedical();
+  const [editing, setEditing] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(record.title);
+  const [draftDate, setDraftDate] = useState(record.date);
+  const [draftDesc, setDraftDesc] = useState(record.description ?? "");
+  const [busy, setBusy] = useState(false);
+
+  // CSV-sourced records (annual exams, yard-wide dewormings) can't be edited
+  // — they don't have editable DB rows. Detect by id prefix so the pencil /
+  // trash buttons only appear on real DB entries.
+  const isEditable =
+    !record.id.startsWith("med-exam-") &&
+    !record.id.startsWith("yard-med-") &&
+    !record.id.startsWith("med-import-") &&
+    !record.id.startsWith("scheduled-vacc-");
+
+  async function handleSave() {
+    setBusy(true);
+    try {
+      await updateEntry(record.id, {
+        title: draftTitle.trim() || record.title,
+        date: draftDate || record.date,
+        description: draftDesc,
+      });
+      setEditing(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm(`Delete this ${record.type} entry? This cannot be undone.`)) return;
+    setBusy(true);
+    try {
+      await removeEntry(record.id);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div
-      className={`bg-white rounded-xl border p-4 flex items-start gap-4 ${
+      className={`bg-white rounded-xl border p-4 flex items-start gap-4 group ${
         record.urgent ? "border-red-200 bg-red-50/30" : "border-card-border"
       }`}
     >
@@ -659,16 +861,86 @@ function MedicalRecordCard({ record }: { record: MedicalRecord }) {
             </span>
           )}
         </div>
-        <p className="font-semibold text-charcoal text-sm">{record.title}</p>
-        <p className="text-xs text-warm-gray mt-0.5">
-          {formatRecordDate(record.date)}
-        </p>
-        {record.description && (
-          <p className="text-sm text-warm-gray mt-2 leading-relaxed">
-            {record.description}
-          </p>
+        {editing ? (
+          <div className="space-y-2 mt-1">
+            <input
+              value={draftTitle}
+              onChange={(e) => setDraftTitle(e.target.value)}
+              className="w-full px-2 py-1 text-sm border border-card-border rounded-md focus:outline-none focus:ring-1 focus:ring-sky"
+              placeholder="Title"
+            />
+            <input
+              type="date"
+              value={draftDate}
+              onChange={(e) => setDraftDate(e.target.value)}
+              className="w-full px-2 py-1 text-xs border border-card-border rounded-md focus:outline-none focus:ring-1 focus:ring-sky"
+            />
+            <textarea
+              value={draftDesc}
+              onChange={(e) => setDraftDesc(e.target.value)}
+              rows={2}
+              className="w-full px-2 py-1 text-sm border border-card-border rounded-md focus:outline-none focus:ring-1 focus:ring-sky resize-none"
+              placeholder="Description"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleSave}
+                disabled={busy}
+                className="px-3 py-1 text-xs font-semibold bg-emerald-500 text-white rounded-md hover:bg-emerald-600 disabled:opacity-40"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => {
+                  setDraftTitle(record.title);
+                  setDraftDate(record.date);
+                  setDraftDesc(record.description ?? "");
+                  setEditing(false);
+                }}
+                className="px-3 py-1 text-xs font-semibold bg-white border border-card-border text-charcoal rounded-md hover:bg-cream"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="font-semibold text-charcoal text-sm">{record.title}</p>
+            <p className="text-xs text-warm-gray mt-0.5">
+              {formatRecordDate(record.date)}
+            </p>
+            {record.description && (
+              <p className="text-sm text-warm-gray mt-2 leading-relaxed">
+                {record.description}
+              </p>
+            )}
+            {/* Photos for x-rays, injury pics, etc. The same TrimPhotos
+                component (it's keyed by any string id, not specifically a
+                trim) — we namespace medical entries with `med-` so the
+                photo store doesn't collide with the trim entries. */}
+            <TrimPhotos visitId={`med-${record.id}`} />
+          </>
         )}
       </div>
+      {isEditable && !editing && (
+        <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          <button
+            onClick={() => setEditing(true)}
+            className="p-1.5 text-warm-gray hover:text-sky hover:bg-sky/10 rounded"
+            title="Edit entry"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={busy}
+            className="p-1.5 text-warm-gray hover:text-red-500 hover:bg-red-50 rounded disabled:opacity-40"
+            title="Delete entry"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -691,11 +963,13 @@ function MedicalTab({ animal }: { animal: Animal }) {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   })();
   const [subTab, setSubTab] = useState<MedicalSubTab>("all");
+  const [showAllTrims, setShowAllTrims] = useState(false);
 
   const hoofVisits = visitHistory
     .filter((v) => v.animal === animal.name && v.type === "hoof")
     .sort((a, b) => b.date.localeCompare(a.date));
   const trimProfile = getTrimProfile(animal.name);
+  const visibleTrims = showAllTrims ? hoofVisits : hoofVisits.slice(0, 5);
   const dewormingDosage = getDewormingDosage(animal.name);
   const donkeyWeight = getDonkeyWeight(animal.name);
 
@@ -744,7 +1018,15 @@ function MedicalTab({ animal }: { animal: Animal }) {
           )}
         </h3>
         <a
-          href="/app/medical"
+          href={`/app/medical?animal=${encodeURIComponent(animal.name)}&open=1${
+            subTab === "vaccinations"
+              ? "&type=Vaccination"
+              : subTab === "deworming"
+                ? "&type=Deworming"
+                : subTab === "fecal-tests"
+                  ? "&type=Fecal+Test"
+                  : ""
+          }`}
           className="inline-flex items-center gap-1.5 px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors"
         >
           + Add Entry
@@ -910,6 +1192,25 @@ function MedicalTab({ animal }: { animal: Animal }) {
               </p>
             </div>
           )}
+          {(trimProfile?.trainingDate || trimProfile?.trainingNotes) && (
+            <div className="bg-sky-50 border border-sky-200 rounded-xl p-4">
+              <div className="flex items-baseline justify-between mb-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-700/80">
+                  Training Progress
+                </p>
+                {trimProfile.trainingDate && (
+                  <p className="text-xs text-sky-700/70">
+                    Last session: {formatRecordDate(trimProfile.trainingDate)}
+                  </p>
+                )}
+              </div>
+              {trimProfile.trainingNotes && (
+                <p className="text-sm text-charcoal leading-relaxed">
+                  {trimProfile.trainingNotes}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Trim history */}
           <div className="flex items-center justify-between pt-2">
@@ -933,24 +1234,37 @@ function MedicalTab({ animal }: { animal: Animal }) {
               <p className="text-warm-gray font-medium">No trim history yet</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {hoofVisits.map((visit) => (
-                <div
-                  key={visit.id}
-                  className="bg-white rounded-lg border border-card-border p-3"
-                >
-                  <p className="text-xs font-semibold text-charcoal">
-                    {formatRecordDate(visit.date)}
-                  </p>
-                  {visit.notes && visit.notes !== "Hoof trim." && (
-                    <p className="text-xs text-warm-gray mt-0.5 leading-relaxed">
-                      {visit.notes}
+            <>
+              <div className="space-y-2">
+                {visibleTrims.map((visit) => (
+                  <div
+                    key={visit.id}
+                    className="bg-white rounded-lg border border-card-border p-3"
+                  >
+                    <p className="text-xs font-semibold text-charcoal">
+                      {formatRecordDate(visit.date)}
                     </p>
-                  )}
-                  <TrimPhotos visitId={visit.id} />
-                </div>
-              ))}
-            </div>
+                    {visit.notes && visit.notes !== "Hoof trim." && (
+                      <p className="text-xs text-warm-gray mt-0.5 leading-relaxed">
+                        {visit.notes}
+                      </p>
+                    )}
+                    <TrimPhotos visitId={visit.id} />
+                  </div>
+                ))}
+              </div>
+              {hoofVisits.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllTrims((v) => !v)}
+                  className="mt-2 w-full text-center text-xs font-medium text-sky-600 hover:text-sky-700 hover:underline py-2"
+                >
+                  {showAllTrims
+                    ? "Show fewer"
+                    : `Show all ${hoofVisits.length} trims`}
+                </button>
+              )}
+            </>
           )}
         </div>
       ) : filtered.length === 0 ? (
@@ -1389,6 +1703,159 @@ function NotesTab({ animal }: { animal: Animal }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// ── Hoof & Dental at-a-glance summary (on the profile header)
+// ══════════════════════════════════════════
+function HoofDentalSummary({ animal }: { animal: Animal }) {
+  // Last-visit dates come from the merged visitHistory (CSV seeds + any DB
+  // visits). Next-due dates are live from the API since the in-memory
+  // animals snapshot doesn't carry them.
+  const hoofVisits = visitHistory
+    .filter((v) => v.animal === animal.name && v.type === "hoof")
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const dentalVisits = visitHistory
+    .filter((v) => v.animal === animal.name && v.type === "dental")
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  const lastHoof = hoofVisits[0]?.date ?? null;
+  const lastDental = dentalVisits[0]?.date ?? null;
+
+  const [nextHoof, setNextHoof] = useState<string | null>(
+    animal.nextHoofDue ?? null
+  );
+  const [nextDental, setNextDental] = useState<string | null>(
+    animal.nextDentalDue ?? null
+  );
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchDueDates() {
+      try {
+        const [hoofRes, dentalRes] = await Promise.all([
+          fetch(`/api/hoof-visits?animal=${encodeURIComponent(animal.name)}`, {
+            cache: "no-store",
+          }),
+          fetch(`/api/dental-visits?animal=${encodeURIComponent(animal.name)}`, {
+            cache: "no-store",
+          }),
+        ]);
+        if (hoofRes.ok) {
+          const data = await hoofRes.json();
+          if (!cancelled) setNextHoof(data?.nextDue?.[animal.name] ?? null);
+        }
+        if (dentalRes.ok) {
+          const data = await dentalRes.json();
+          if (!cancelled) setNextDental(data?.nextDue?.[animal.name] ?? null);
+        }
+      } catch {
+        // Stay with the seeded values silently; the summary still renders.
+      }
+    }
+    void fetchDueDates();
+    return () => {
+      cancelled = true;
+    };
+  }, [animal.name]);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const daysUntil = (iso: string | null) => {
+    if (!iso) return null;
+    const d = new Date(iso + "T00:00:00");
+    return Math.round((d.getTime() - today.getTime()) / 86_400_000);
+  };
+  const hoofDays = daysUntil(nextHoof);
+  const dentalDays = daysUntil(nextDental);
+
+  return (
+    <div className="grid grid-cols-2 gap-3 mb-4">
+      <SummaryTile
+        label="Hoof"
+        lastDate={lastHoof}
+        nextDate={nextHoof}
+        daysUntil={hoofDays}
+      />
+      <SummaryTile
+        label="Dental"
+        lastDate={lastDental}
+        nextDate={nextDental}
+        daysUntil={dentalDays}
+      />
+    </div>
+  );
+}
+
+function SummaryTile({
+  label,
+  lastDate,
+  nextDate,
+  daysUntil,
+}: {
+  label: string;
+  lastDate: string | null;
+  nextDate: string | null;
+  daysUntil: number | null;
+}) {
+  const overdue = daysUntil !== null && daysUntil < 0;
+  const dueSoon = daysUntil !== null && daysUntil >= 0 && daysUntil <= 14;
+
+  return (
+    <div
+      className={`rounded-lg border p-3 ${
+        overdue
+          ? "bg-red-50 border-red-200"
+          : dueSoon
+            ? "bg-amber-50 border-amber-200"
+            : "bg-cream/50 border-card-border"
+      }`}
+    >
+      <p
+        className={`text-[10px] font-semibold uppercase tracking-wider mb-1 ${
+          overdue
+            ? "text-red-700"
+            : dueSoon
+              ? "text-amber-700"
+              : "text-warm-gray/70"
+        }`}
+      >
+        {label}
+      </p>
+      <div className="flex flex-col gap-0.5 text-xs">
+        <span className="text-charcoal">
+          <span className="text-warm-gray/70">Last:</span>{" "}
+          {lastDate ? formatRecordDate(lastDate) : "—"}
+        </span>
+        <span className="text-charcoal">
+          <span className="text-warm-gray/70">Next:</span>{" "}
+          {nextDate ? (
+            <>
+              {formatRecordDate(nextDate)}
+              {daysUntil !== null && (
+                <span
+                  className={`ml-1 font-semibold ${
+                    overdue
+                      ? "text-red-700"
+                      : dueSoon
+                        ? "text-amber-700"
+                        : "text-warm-gray"
+                  }`}
+                >
+                  {overdue
+                    ? `(${Math.abs(daysUntil)}d overdue)`
+                    : daysUntil === 0
+                      ? "(today)"
+                      : `(in ${daysUntil}d)`}
+                </span>
+              )}
+            </>
+          ) : (
+            "—"
+          )}
+        </span>
+      </div>
     </div>
   );
 }

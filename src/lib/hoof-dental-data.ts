@@ -41,11 +41,20 @@ export interface AnimalCareStatus {
 }
 
 // ── Providers ──
-export const providers = [
-  { name: "Dr. Martinez", type: "Farrier" as const, phone: "(760) 555-0142" },
-  { name: "Desert Hoof Care", type: "Farrier" as const, phone: "(760) 555-0198" },
-  { name: "Dr. Chen", type: "Equine Dentist" as const, phone: "(760) 555-0267" },
-  { name: "Valley Equine Dental", type: "Equine Dentist" as const, phone: "(760) 555-0311" },
+// `type` is intentionally typed as plain `string` so downstream consumers
+// (ProviderPanel, medical page) can extend the set without TypeScript
+// narrowing the seed data into a strict literal union.
+export interface ProviderSeed {
+  name: string;
+  type: string;
+  phone: string;
+}
+
+export const providers: ProviderSeed[] = [
+  { name: "Dr. Martinez", type: "Farrier", phone: "(760) 555-0142" },
+  { name: "Desert Hoof Care", type: "Farrier", phone: "(760) 555-0198" },
+  { name: "Dr. Chen", type: "Equine Dentist", phone: "(760) 555-0267" },
+  { name: "Valley Equine Dental", type: "Equine Dentist", phone: "(760) 555-0311" },
 ];
 
 // ── Per-animal hoof intervals (special needs animals trim more frequently) ──

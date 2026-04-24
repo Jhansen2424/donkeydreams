@@ -14,6 +14,7 @@ import {
   Plus,
   X,
   UserPlus,
+  ClipboardCheck,
 } from "lucide-react";
 import {
   groupTasksByAnimal,
@@ -785,12 +786,90 @@ export default function TasksPage() {
 // data is consulted. Seed reminders (salts & minerals, teff, supplement drops)
 // still render when no user reminders exist yet.
 
+// Seed reminders used to be rendered always-on. Now they're dismissable —
+// we track dismissed ids in localStorage so the card doesn't refill them on
+// reload. Staff can re-enable any seed reminder by clearing localStorage;
+// in practice they're starter content, meant to be curated away as the
+// team builds their own list.
+const SEED_REMINDERS_KEY = "dd:dismissed-seed-reminders:v1";
+const SEED_REMINDERS = [
+  {
+    id: "seed-salts",
+    render: (
+      <>
+        <p className="text-sm font-medium text-amber-800">Salts &amp; Minerals</p>
+        <p className="text-sm text-amber-700">
+          {saltsAndMinerals.days.join(" & ")}
+        </p>
+      </>
+    ),
+    className: "bg-amber-50 border-amber-200",
+  },
+  {
+    id: "seed-teff",
+    render: (
+      <p className="text-sm text-charcoal">
+        Teff is powdery — make sure buckets are moist when served.
+      </p>
+    ),
+    className: "bg-sky/5 border-sky/20",
+  },
+  {
+    id: "seed-supplements",
+    render: (
+      <p className="text-sm text-red-800">
+        Check the ground when giving supplements — pills can drop.
+        Especially Shelley + Winnie.
+      </p>
+    ),
+    className: "bg-red-50 border-red-200",
+  },
+];
+
+function loadDismissedSeedReminders(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(SEED_REMINDERS_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveDismissedSeedReminders(ids: Set<string>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(SEED_REMINDERS_KEY, JSON.stringify([...ids]));
+  } catch {
+    /* localStorage full / private mode — we just can't persist dismissals. */
+  }
+}
+
 function RemindersCard() {
   const { entries, addEntry, removeEntry } = useParkingLot();
+  const { addTask } = useSchedule();
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [dismissedSeeds, setDismissedSeeds] = useState<Set<string>>(new Set());
+
+  // Hydrate dismissed-seed-reminders from localStorage on mount.
+  useEffect(() => {
+    setDismissedSeeds(loadDismissedSeedReminders());
+  }, []);
 
   const userReminders = entries.filter((e) => e.type === "reminder" && !e.resolved);
+  const visibleSeeds = SEED_REMINDERS.filter((s) => !dismissedSeeds.has(s.id));
+
+  function dismissSeed(id: string) {
+    setDismissedSeeds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      saveDismissedSeedReminders(next);
+      return next;
+    });
+  }
 
   async function handleAdd() {
     const text = draft.trim();
@@ -804,6 +883,23 @@ function RemindersCard() {
     }
   }
 
+  // Promote a reminder to a real task on today's schedule (routine category
+  // by default). The reminder is then resolved so it doesn't linger in both
+  // places.
+  async function promoteReminderToTask(id: string, text: string) {
+    addTask({
+      task: text,
+      blockName: (() => {
+        const h = new Date().getHours();
+        if (h < 10) return "AM";
+        if (h < 16) return "Mid";
+        return "PM";
+      })(),
+      category: "routine",
+    });
+    await removeEntry(id);
+  }
+
   return (
     <div className="bg-white rounded-xl border border-card-border p-5">
       <h3 className="font-bold text-charcoal mb-3 flex items-center gap-2">
@@ -811,39 +907,46 @@ function RemindersCard() {
         Reminders
       </h3>
       <div className="space-y-3">
-        {/* Seed reminders — still useful defaults that don't live in the DB. */}
-        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-          <p className="text-sm font-medium text-amber-800">Salts &amp; Minerals</p>
-          <p className="text-sm text-amber-700">
-            {saltsAndMinerals.days.join(" & ")}
-          </p>
-        </div>
-        <div className="p-3 bg-sky/5 border border-sky/20 rounded-lg">
-          <p className="text-sm text-charcoal">
-            Teff is powdery — make sure buckets are moist when served.
-          </p>
-        </div>
-        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-sm text-red-800">
-            Check the ground when giving supplements — pills can drop.
-            Especially Shelley + Winnie.
-          </p>
-        </div>
+        {/* Seed reminders — useful defaults that don't live in the DB. */}
+        {visibleSeeds.map((seed) => (
+          <div
+            key={seed.id}
+            className={`p-3 border rounded-lg flex items-start gap-2 ${seed.className}`}
+          >
+            <div className="flex-1">{seed.render}</div>
+            <button
+              onClick={() => dismissSeed(seed.id)}
+              className="text-warm-gray/50 hover:text-red-500 transition-colors shrink-0 mt-0.5"
+              title="Dismiss this reminder"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
 
         {/* User-added reminders */}
         {userReminders.map((r) => (
           <div
             key={r.id}
-            className="p-3 bg-cream/60 border border-card-border rounded-lg flex items-start gap-2"
+            className="p-3 bg-cream/60 border border-card-border rounded-lg flex items-start gap-2 group"
           >
             <p className="text-sm text-charcoal flex-1">{r.text}</p>
-            <button
-              onClick={() => removeEntry(r.id)}
-              className="text-warm-gray/50 hover:text-red-500 transition-colors shrink-0 mt-0.5"
-              title="Remove reminder"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => void promoteReminderToTask(r.id, r.text)}
+                className="text-warm-gray/50 hover:text-sky transition-colors opacity-0 group-hover:opacity-100"
+                title="Promote to task on today's schedule"
+              >
+                <ClipboardCheck className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => removeEntry(r.id)}
+                className="text-warm-gray/50 hover:text-red-500 transition-colors"
+                title="Remove reminder"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         ))}
 

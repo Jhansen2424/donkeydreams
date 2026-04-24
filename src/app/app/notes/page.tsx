@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { useParkingLot, type EntryType } from "@/lib/parking-lot-context";
 import { useSchedule } from "@/lib/schedule-context";
+import { useMedical } from "@/lib/medical-context";
+import { useToast } from "@/lib/toast-context";
 import { categoryMeta, type TaskCategory } from "@/lib/sanctuary-data";
 
 const typeConfig: Record<
@@ -49,10 +51,55 @@ type FilterKey = "all" | EntryType;
 export default function NotesPage() {
   const { entries, resolveEntry, removeEntry, updateEntry, loading, error } = useParkingLot();
   const { addTask } = useSchedule();
+  const { addEntry: addMedicalEntry } = useMedical();
+  const { toastSuccess, toastError } = useToast();
   const [filter, setFilter] = useState<FilterKey>("all");
   // Track which entry's category/task-category picker is open.
   const [catPickerId, setCatPickerId] = useState<string | null>(null);
   const [taskCatPickerId, setTaskCatPickerId] = useState<string | null>(null);
+
+  // Promote a parking-lot entry to a real DB record in its new home. For
+  // "medical" the entry becomes a real MedicalEntry (requires animal); for
+  // "task" it's promoted via the existing promoteToTask path. Watch / feed
+  // currently still live in the parking lot — they just get re-tagged via
+  // updateEntry without migration. After a successful promotion the parking
+  // lot entry is resolved so it vanishes from the active notes list.
+  async function recategorize(entryId: string, newType: EntryType) {
+    const entry = entries.find((e) => e.id === entryId);
+    if (!entry) return;
+    setCatPickerId(null);
+    if (newType === entry.type) return;
+
+    if (newType === "medical") {
+      if (!entry.data?.animal) {
+        // Can't create a real medical entry without an animal. Fall back to
+        // just re-tagging so the user still gets the visible category change,
+        // and tell them what's missing.
+        await updateEntry(entryId, { type: "medical" });
+        toastError(
+          "Tagged as medical, but no animal was attached — couldn't promote to a real medical record. Edit the note to add the animal."
+        );
+        return;
+      }
+      await addMedicalEntry({
+        animal: entry.data.animal,
+        type: "Vet Visit",
+        title: entry.data.title?.trim() || entry.text.slice(0, 60),
+        date: entry.data.date ?? new Date().toISOString().split("T")[0],
+        description: entry.text,
+        urgent: false,
+      });
+      await resolveEntry(entryId);
+      toastSuccess(
+        `Moved to ${entry.data.animal}'s medical record.`
+      );
+      return;
+    }
+
+    // Other types stay in the parking lot — just update the tag so the user
+    // sees the color/icon change.
+    await updateEntry(entryId, { type: newType });
+  }
 
   const unresolved = entries.filter((e) => !e.resolved);
   const resolved = entries.filter((e) => e.resolved);
@@ -184,7 +231,13 @@ export default function NotesPage() {
             return (
               <div
                 key={entry.id}
-                className={`flex items-start gap-3 p-4 rounded-xl border ${cfg.bg} ${cfg.border}`}
+                draggable
+                onDragStart={(e) => {
+                  // Sidebar listens for this MIME type to accept the drop.
+                  e.dataTransfer.setData("text/x-note-id", entry.id);
+                  e.dataTransfer.effectAllowed = "move";
+                }}
+                className={`flex items-start gap-3 p-4 rounded-xl border cursor-grab active:cursor-grabbing ${cfg.bg} ${cfg.border}`}
               >
                 <Icon className={`w-5 h-5 shrink-0 mt-0.5 ${cfg.color}`} />
                 <div className="flex-1 min-w-0">
@@ -280,12 +333,7 @@ export default function NotesPage() {
                             return (
                               <button
                                 key={t}
-                                onClick={async () => {
-                                  setCatPickerId(null);
-                                  if (t !== entry.type) {
-                                    await updateEntry(entry.id, { type: t });
-                                  }
-                                }}
+                                onClick={() => recategorize(entry.id, t)}
                                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-sm transition-colors ${
                                   entry.type === t
                                     ? "bg-cream text-charcoal"

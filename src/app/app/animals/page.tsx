@@ -9,11 +9,13 @@ import {
   Plus,
   ChevronDown,
   ChevronRight,
+  X,
 } from "lucide-react";
 import FilterTabs from "@/components/app/FilterTabs";
 import AnimalGridCard from "@/components/app/AnimalGridCard";
 import AnimalTableRow from "@/components/app/AnimalTableRow";
 import { animals, herds, type Animal } from "@/lib/animals";
+import { useToast } from "@/lib/toast-context";
 
 const filterTabs = [
   "All Animals",
@@ -50,6 +52,10 @@ export default function AnimalsPage() {
   // even when a herd filter or search is active. That makes "tap to open"
   // work consistently.
   const groupByHerd = true;
+
+  // +New Animal modal state
+  const [showNewAnimal, setShowNewAnimal] = useState(false);
+  const { toastSuccess, toastError } = useToast();
 
   // Auto-expand the matching herd when the user clicks a herd filter tab.
   useEffect(() => {
@@ -116,11 +122,25 @@ export default function AnimalsPage() {
             {animals.length} donkeys · {filtered.length} shown
           </p>
         </div>
-        <button className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors self-start">
+        <button
+          onClick={() => setShowNewAnimal(true)}
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors self-start"
+        >
           <Plus className="w-4 h-4" />
           New Animal
         </button>
       </div>
+
+      {showNewAnimal && (
+        <NewAnimalModal
+          onClose={() => setShowNewAnimal(false)}
+          onSaved={(name) => {
+            toastSuccess(`Added ${name}. Reload to see on the page.`);
+            setShowNewAnimal(false);
+          }}
+          onError={(msg) => toastError(msg)}
+        />
+      )}
 
       {/* Filters + search + view toggle */}
       <div className="space-y-3">
@@ -282,6 +302,179 @@ export default function AnimalsPage() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// ── New Animal Modal
+// ══════════════════════════════════════════
+
+const SEX_OPTIONS = ["Jenny", "Jack", "Gelding"] as const;
+
+function NewAnimalModal({
+  onClose,
+  onSaved,
+  onError,
+}: {
+  onClose: () => void;
+  onSaved: (name: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [name, setName] = useState("");
+  const [herd, setHerd] = useState<string>(herds[0]);
+  const [sex, setSex] = useState<(typeof SEX_OPTIONS)[number]>("Jenny");
+  const [age, setAge] = useState("");
+  const [origin, setOrigin] = useState("");
+  const [intakeDate, setIntakeDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    if (!name.trim()) {
+      onError("Name is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/animals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          herd,
+          sex,
+          age: age.trim() || "Unknown",
+          origin: origin.trim(),
+          intakeDate,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        onError(body?.error || "Failed to create animal.");
+        return;
+      }
+      onSaved(name.trim());
+    } catch {
+      onError("Network error while creating animal.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-sidebar px-6 py-4 flex items-center justify-between">
+          <h2 className="font-bold text-white">New Animal</h2>
+          <button
+            onClick={onClose}
+            className="text-cream/60 hover:text-white"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wider text-warm-gray">
+              Name *
+            </label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Rosie"
+              className="w-full mt-1 px-3 py-2 border border-card-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky/50"
+              autoFocus
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-warm-gray">
+                Herd *
+              </label>
+              <select
+                value={herd}
+                onChange={(e) => setHerd(e.target.value)}
+                className="w-full mt-1 px-3 py-2 border border-card-border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky/50"
+              >
+                {herds.map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-warm-gray">
+                Sex
+              </label>
+              <select
+                value={sex}
+                onChange={(e) =>
+                  setSex(e.target.value as (typeof SEX_OPTIONS)[number])
+                }
+                className="w-full mt-1 px-3 py-2 border border-card-border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky/50"
+              >
+                {SEX_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-warm-gray">
+                Age
+              </label>
+              <input
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+                placeholder="e.g. 3 yr old"
+                className="w-full mt-1 px-3 py-2 border border-card-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky/50"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-warm-gray">
+                Intake Date
+              </label>
+              <input
+                type="date"
+                value={intakeDate}
+                onChange={(e) => setIntakeDate(e.target.value)}
+                className="w-full mt-1 px-3 py-2 border border-card-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky/50"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wider text-warm-gray">
+              Origin
+            </label>
+            <input
+              value={origin}
+              onChange={(e) => setOrigin(e.target.value)}
+              placeholder="e.g. Owner surrender, Scenic AZ"
+              className="w-full mt-1 px-3 py-2 border border-card-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky/50"
+            />
+          </div>
+          <button
+            onClick={handleSave}
+            disabled={saving || !name.trim()}
+            className="w-full py-3 bg-sky text-white font-bold rounded-lg hover:bg-sky-dark transition-colors disabled:opacity-40"
+          >
+            {saving ? "Saving…" : "Save Animal"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

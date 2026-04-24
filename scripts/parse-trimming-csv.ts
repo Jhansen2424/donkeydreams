@@ -2,9 +2,29 @@
  * Parses src/lib/data/donkey-trimming-notes.csv into:
  *   1. CareVisit[] (hoof trims) — feeds the existing hoof-dental tracking system
  *   2. TrimProfile[] (durable per-donkey trim instructions: protocols, pre-trim
- *      treatment, squish pads, recent notes)
+ *      treatment, squish pads, recent notes, last trim, training date/notes)
  *
  * Writes src/lib/trimming-data.ts.
+ *
+ * CSV columns (0-indexed):
+ *    0  Name
+ *    1  Mom/baby            (ignored — derived from adoption CSV)
+ *    2  Special Needs       (ignored — derived from adoption CSV)
+ *    3  Seniors             (ignored)
+ *    4  Under 3 yrs         (ignored)
+ *    5  Bonded Pair         (ignored)
+ *    6  Current Vaccinations (ignored — vaccines come from a separate CSV)
+ *    7  Vaccination History  (ignored)
+ *    8  Dewormed-Quest Plus  (ignored)
+ *    9  Dewormed-Ivermectin  (ignored)
+ *   10  Last Trim
+ *   11  Training Date
+ *   12  Pre-Trim Treatment
+ *   13  Notes on Trims
+ *   14  Squish pads
+ *   15  Trimming Protocols
+ *   16  Trim History
+ *   17  Training Notes
  *
  * Run: npx tsx scripts/parse-trimming-csv.ts
  */
@@ -16,7 +36,7 @@ import { animals } from "../src/lib/animals";
 const CSV_PATH = join(__dirname, "..", "src", "lib", "data", "donkey-trimming-notes.csv");
 const OUT_PATH = join(__dirname, "..", "src", "lib", "trimming-data.ts");
 
-// CSV name → app name overrides where fuzzy matching fails
+// CSV name → app name overrides where fuzzy matching fails.
 const NAME_OVERRIDES: Record<string, string> = {
   "NELLY BELLE": "Nelley",
   "PRINCESS": "Princes",
@@ -57,34 +77,55 @@ function resolveAnimal(csvName: string): string | null {
   return null;
 }
 
-// CSV row parser (handles quoted fields)
-function parseCSVLine(line: string): string[] {
-  const out: string[] = [];
+// Multi-line aware CSV parser: returns an array of rows, where each row is an
+// array of fields. Handles quoted fields containing literal newlines (e.g. Bob's
+// trim history wraps to a second physical line in the CSV).
+function parseCSV(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
   let cur = "";
   let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (c === '"') {
-      if (inQuotes && line[i + 1] === '"') {
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"' && text[i + 1] === '"') {
         cur += '"';
         i++;
+      } else if (c === '"') {
+        inQuotes = false;
       } else {
-        inQuotes = !inQuotes;
+        cur += c;
       }
-    } else if (c === "," && !inQuotes) {
-      out.push(cur);
-      cur = "";
     } else {
-      cur += c;
+      if (c === '"') {
+        inQuotes = true;
+      } else if (c === ",") {
+        row.push(cur);
+        cur = "";
+      } else if (c === "\n" || c === "\r") {
+        // End of physical line. If the next char is the other half of \r\n, skip it.
+        if (c === "\r" && text[i + 1] === "\n") i++;
+        row.push(cur);
+        cur = "";
+        // Drop blank rows
+        if (row.length > 1 || row[0].trim() !== "") rows.push(row);
+        row = [];
+      } else {
+        cur += c;
+      }
     }
   }
-  out.push(cur);
-  return out;
+  // Flush trailing field/row
+  if (cur.length > 0 || row.length > 0) {
+    row.push(cur);
+    if (row.length > 1 || row[0].trim() !== "") rows.push(row);
+  }
+  return rows;
 }
 
-// Date normalizer: m/d/yy or m/d/yyyy → YYYY-MM-DD. Returns null for year-less dates.
+// Date normalizer: m/d/yy or m/d/yyyy → YYYY-MM-DD. Returns null otherwise.
 function normalizeDate(raw: string): string | null {
-  const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  const m = raw.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if (!m) return null;
   const month = m[1].padStart(2, "0");
   const day = m[2].padStart(2, "0");
@@ -96,15 +137,21 @@ function normalizeDate(raw: string): string | null {
   return `${year}-${month}-${day}`;
 }
 
-// Extract dated trim entries from a free-text history string.
-// Strategy: find every M/D/YY(YY) date, capture the text up to the next date as the note.
+// Pull just a leading date out of strings like "3/9/26 special leg" — Last Trim
+// occasionally has trailing notes attached.
+function extractLeadingDate(raw: string): string | null {
+  const m = raw.trim().match(/^(\d{1,2}\/\d{1,2}\/\d{2,4})/);
+  return m ? normalizeDate(m[1]) : null;
+}
+
+// Extract dated trim entries from a free-text history string. Strategy: find
+// every M/D/YY(YY) date, capture the text up to the next date as the note.
 function extractTrims(
   history: string
 ): Array<{ date: string; note: string }> {
   if (!history?.trim()) return [];
   const trims: Array<{ date: string; note: string }> = [];
 
-  // Find all date positions
   const dateRegex = /(\d{1,2}\/\d{1,2}\/\d{2,4})/g;
   const matches: Array<{ index: number; raw: string; iso: string }> = [];
   let m: RegExpExecArray | null;
@@ -116,37 +163,46 @@ function extractTrims(
   for (let i = 0; i < matches.length; i++) {
     const cur = matches[i];
     const next = matches[i + 1];
-    // Note text = from end of date to start of next date
     const noteStart = cur.index + cur.raw.length;
     const noteEnd = next ? next.index : history.length;
     let note = history.slice(noteStart, noteEnd).trim();
-    // Strip leading punctuation/whitespace
     note = note.replace(/^[\s,;:.\-–—]+/, "").replace(/[\s,;]+$/, "");
     if (note.length > 200) note = note.slice(0, 197) + "...";
     if (!note) note = "Hoof trim.";
     trims.push({ date: cur.iso, note });
   }
 
-  return trims;
+  // Dedupe by date — same date appearing twice keeps the first (most recent in
+  // CSV order, which is reverse-chronological).
+  const seen = new Set<string>();
+  return trims.filter((t) => {
+    if (seen.has(t.date)) return false;
+    seen.add(t.date);
+    return true;
+  });
 }
 
 // ── Main ──
 const csv = readFileSync(CSV_PATH, "utf-8");
-const lines = csv.split(/\r?\n/).filter((l) => l.trim().length > 0);
+const rows = parseCSV(csv);
 
 const visits: string[] = [];
 const profiles: string[] = [];
 const unmatched: string[] = [];
-const skippedYearless: string[] = [];
 
 let visitCount = 0;
 let visitId = 1;
+let profilesWithLastTrim = 0;
+let profilesWithTraining = 0;
 
 // Skip the two header rows
-for (let i = 2; i < lines.length; i++) {
-  const cols = parseCSVLine(lines[i]);
+for (let i = 2; i < rows.length; i++) {
+  const cols = rows[i];
   const csvName = cols[0]?.trim();
   if (!csvName) continue;
+
+  // Skip the totals footer row (e.g. ",42,13,11,25,..." with no name)
+  if (/^\d+$/.test(csvName)) continue;
 
   const animal = resolveAnimal(csvName);
   if (!animal) {
@@ -154,33 +210,24 @@ for (let i = 2; i < lines.length; i++) {
     continue;
   }
 
-  // Column layout (per header row):
-  //  0=Name, 1=Herd, 2=Gender, 3=Size, 4=Color, 5=Adopted, 6=Avid#, 7=Birth Date,
-  //  8=Origin, 9=Notes, 10=Special Needs, 11=Current Vacc, 12=Vacc History,
-  //  13=Dewormed-Quest+, 14=Dewormed-Iver, 15=Last Trim, 16=Training Date,
-  //  17=Pre-Trim Treatment, 18=Notes on Trims, 19=Squish pads,
-  //  20=Trimming Protocols, 21=Trim History, 22=Training Notes
-  const lastTrim = cols[15] || "";
-  const preTrimTreatment = (cols[17] || "").trim();
-  const notesOnTrims = (cols[18] || "").trim();
-  const squishPads = (cols[19] || "").trim();
-  const protocols = (cols[20] || "").trim();
-  const trimHistory = cols[21] || "";
+  const lastTrimRaw = (cols[10] || "").trim();
+  const trainingDateRaw = (cols[11] || "").trim();
+  const preTrimTreatment = (cols[12] || "").trim();
+  const notesOnTrims = (cols[13] || "").trim();
+  const squishPads = (cols[14] || "").trim();
+  const protocols = (cols[15] || "").trim();
+  const trimHistory = (cols[16] || "").trim();
+  const trainingNotes = (cols[17] || "").trim();
 
-  // Detect year-less single dates in lastTrim or trimHistory
-  const yearlessRegex = /(?:^|[\s,;])(\d{1,2}\/\d{1,2})(?![\/\d])/g;
-  const yearlessHits = `${lastTrim} ${trimHistory}`.match(yearlessRegex);
-  if (yearlessHits && yearlessHits.length > 0) {
-    skippedYearless.push(`${animal}: ${yearlessHits.map(s => s.trim()).join(", ")}`);
-  }
+  const lastTrimISO = extractLeadingDate(lastTrimRaw);
+  const trainingDateISO = extractLeadingDate(trainingDateRaw);
 
   // Build CareVisit entries from the trim history
   const trims = extractTrims(trimHistory);
 
-  // If no trim history but Last Trim has a date, use that
-  if (trims.length === 0 && lastTrim) {
-    const iso = normalizeDate(lastTrim.trim());
-    if (iso) trims.push({ date: iso, note: notesOnTrims || "Hoof trim." });
+  // If no parseable history but Last Trim has a date, seed one entry from it
+  if (trims.length === 0 && lastTrimISO) {
+    trims.push({ date: lastTrimISO, note: notesOnTrims || "Hoof trim." });
   }
 
   for (const trim of trims) {
@@ -192,14 +239,28 @@ for (let i = 2; i < lines.length; i++) {
   }
 
   // Build per-donkey trim profile if there's any durable info
-  if (preTrimTreatment || protocols || squishPads || notesOnTrims) {
+  const hasProfileData =
+    preTrimTreatment ||
+    protocols ||
+    squishPads ||
+    notesOnTrims ||
+    trainingNotes ||
+    lastTrimISO ||
+    trainingDateISO;
+
+  if (hasProfileData) {
+    if (lastTrimISO) profilesWithLastTrim++;
+    if (trainingDateISO || trainingNotes) profilesWithTraining++;
     profiles.push(
       `  [${JSON.stringify(animal)}, {\n` +
-      `    preTrimTreatment: ${JSON.stringify(preTrimTreatment)},\n` +
-      `    protocols: ${JSON.stringify(protocols)},\n` +
-      `    squishPads: ${JSON.stringify(squishPads)},\n` +
-      `    recentNotes: ${JSON.stringify(notesOnTrims)},\n` +
-      `  }]`
+        `    lastTrim: ${JSON.stringify(lastTrimISO)},\n` +
+        `    preTrimTreatment: ${JSON.stringify(preTrimTreatment)},\n` +
+        `    protocols: ${JSON.stringify(protocols)},\n` +
+        `    squishPads: ${JSON.stringify(squishPads)},\n` +
+        `    recentNotes: ${JSON.stringify(notesOnTrims)},\n` +
+        `    trainingDate: ${JSON.stringify(trainingDateISO)},\n` +
+        `    trainingNotes: ${JSON.stringify(trainingNotes)},\n` +
+        `  }]`
     );
   }
 }
@@ -211,10 +272,20 @@ const out = `// AUTO-GENERATED by scripts/parse-trimming-csv.ts
 import type { CareVisit } from "./hoof-dental-data";
 
 export interface TrimProfile {
+  /** ISO date of the most recent trim, per the CSV's "Last Trim" column. */
+  lastTrim: string | null;
+  /** Sedation / pre-meds / valerian root protocols. */
   preTrimTreatment: string;
+  /** Per-donkey trimming approach (sling, halter, who's nearby, etc.). */
   protocols: string;
+  /** Squish pad usage notes. */
   squishPads: string;
+  /** Most recent free-text notes from the trim session. */
   recentNotes: string;
+  /** ISO date of the last training/desensitization session. */
+  trainingDate: string | null;
+  /** Free-text notes on training progress (lifting feet, building trust, etc.). */
+  trainingNotes: string;
 }
 
 let nextId = 1;
@@ -245,14 +316,11 @@ export function getTrimProfile(animalName: string): TrimProfile | null {
 writeFileSync(OUT_PATH, out);
 
 console.log(`✓ Wrote ${OUT_PATH}`);
-console.log(`  Hoof visits parsed: ${visitCount}`);
-console.log(`  Trim profiles:      ${profiles.length}`);
+console.log(`  Hoof visits parsed:        ${visitCount}`);
+console.log(`  Trim profiles:             ${profiles.length}`);
+console.log(`  ... with Last Trim date:   ${profilesWithLastTrim}`);
+console.log(`  ... with training info:    ${profilesWithTraining}`);
 if (unmatched.length) {
   console.log(`\n⚠ Unmatched CSV names (skipped):`);
   for (const n of unmatched) console.log(`    - ${n}`);
-}
-if (skippedYearless.length) {
-  console.log(`\n⚠ Year-less dates in history (kept the entries that had years, skipped these):`);
-  for (const n of skippedYearless.slice(0, 20)) console.log(`    - ${n}`);
-  if (skippedYearless.length > 20) console.log(`    ... and ${skippedYearless.length - 20} more`);
 }

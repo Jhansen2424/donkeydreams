@@ -287,7 +287,7 @@ export interface FeedNote {
 export const feedNotes: FeedNote[] = [];
 
 // ── Daily Schedule ──
-export type TaskCategory = "routine" | "feeding" | "treatment" | "special-needs" | "hoof-dental" | "weight" | "sponsor" | "projects";
+export type TaskCategory = "routine" | "feeding" | "treatment" | "special-needs" | "hoof-dental" | "weight" | "sponsor" | "projects" | "admin" | "care" | "ranch";
 export type TaskSource = "base" | "watch-list" | "feed-schedule" | "hoof-dental" | "weight" | "sponsor" | "manual";
 
 export interface ScheduleTask {
@@ -642,6 +642,9 @@ export const categoryMeta: Record<TaskCategory, { label: string; color: string; 
   weight: { label: "Weight", color: "text-sky-700", bg: "bg-sky-50" },
   sponsor: { label: "Sponsor", color: "text-pink-700", bg: "bg-pink-50" },
   projects: { label: "Projects", color: "text-indigo-700", bg: "bg-indigo-50" },
+  admin: { label: "Admin", color: "text-slate-700", bg: "bg-slate-100" },
+  care: { label: "Care", color: "text-emerald-700", bg: "bg-emerald-50" },
+  ranch: { label: "Ranch", color: "text-amber-800", bg: "bg-amber-100" },
 };
 
 // ── Source labels for auto-generated badge ──

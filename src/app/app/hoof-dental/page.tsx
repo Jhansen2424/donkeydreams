@@ -22,13 +22,16 @@ import {
   computeAnimalCareStatuses,
   getHoofDentalStats,
   statusMeta,
-  providers as defaultProviders,
   visitHistory as initialVisitHistory,
   type AnimalCareStatus,
   type CareVisit,
   type VisitStatus,
   type CareType,
 } from "@/lib/hoof-dental-data";
+import { getTrimProfile, type TrimProfile } from "@/lib/trimming-data";
+import TrimPhotos from "@/components/app/TrimPhotos";
+import ProviderPanel from "@/components/app/ProviderPanel";
+import { useProviders } from "@/lib/providers-context";
 
 type CareTab = "both" | "hoof" | "dental";
 type SortField = "animal" | "herd" | "hoofStatus" | "dentalStatus" | "nextHoofDue" | "nextDentalDue";
@@ -120,7 +123,8 @@ function HoofDentalPage() {
     void reloadVisits();
   }, [reloadVisits]);
 
-  const [providers, setProviders] = useState(defaultProviders);
+  const { providers, add: addProviderToDb, remove: removeProviderFromDb } =
+    useProviders();
   const [careTab, setCareTab] = useState<CareTab>(initialTab);
 
   // Sync tab with URL params when navigating from sidebar
@@ -355,26 +359,37 @@ function HoofDentalPage() {
     }
   };
 
-  // ── Add provider ──
-  const addProvider = (p: (typeof providers)[0]) => {
-    setProviders((prev) => [...prev, p]);
+  // ── Add / remove provider (persisted via context → /api/providers) ──
+  const addProvider = (p: { name: string; type: string; phone: string }) => {
+    void addProviderToDb(p);
   };
 
   const removeProvider = (name: string) => {
-    setProviders((prev) => prev.filter((p) => p.name !== name));
+    const target = providers.find((p) => p.name === name);
+    if (target) void removeProviderFromDb(target.id);
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header — title adapts to the tab so "Hoof Care" and "Dental Care"
+          sidebar entries each feel like their own page, even though they
+          share this component. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-charcoal flex items-center gap-2">
             <Footprints className="w-6 h-6 text-sky" />
-            Hoof & Dental Care
+            {careTab === "hoof"
+              ? "Hoof Care"
+              : careTab === "dental"
+                ? "Dental Care"
+                : "Hoof & Dental Care"}
           </h1>
           <p className="text-sm text-warm-gray mt-0.5">
-            Track trims, floats, and provider visits for every donkey
+            {careTab === "hoof"
+              ? "Track trims and farrier visits for every donkey"
+              : careTab === "dental"
+                ? "Track dental floats and equine dentist visits for every donkey"
+                : "Track trims, floats, and provider visits for every donkey"}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -889,6 +904,7 @@ function AnimalRow({
                     {status.hoofNotes}
                   </p>
                 )}
+                <TrimProfileBlock animalName={status.animal} />
                 <VisitList visits={hoofVisits} onEdit={onEditVisit} onDelete={onDeleteVisit} />
               </div>
             )}
@@ -983,6 +999,89 @@ function EditableInterval({
 }
 
 // ══════════════════════════════════════════
+// ── Trim Profile Block — durable per-donkey trim guidance
+// ══════════════════════════════════════════
+function TrimProfileBlock({ animalName }: { animalName: string }) {
+  const profile: TrimProfile | null = getTrimProfile(animalName);
+  if (!profile) return null;
+
+  const {
+    lastTrim,
+    preTrimTreatment,
+    protocols,
+    squishPads,
+    recentNotes,
+    trainingDate,
+    trainingNotes,
+  } = profile;
+
+  const hasTrimInfo =
+    preTrimTreatment || protocols || squishPads || recentNotes || lastTrim;
+  const hasTraining = trainingDate || trainingNotes;
+
+  if (!hasTrimInfo && !hasTraining) return null;
+
+  return (
+    <div className="space-y-2">
+      {lastTrim && (
+        <div className="flex items-center gap-2 text-[11px]">
+          <span className="font-semibold uppercase tracking-wider text-warm-gray/70">
+            Last Trim
+          </span>
+          <span className="text-charcoal font-medium">
+            {formatDate(lastTrim)}
+          </span>
+        </div>
+      )}
+      {protocols && (
+        <TrimProfileField label="Trimming Protocols" value={protocols} />
+      )}
+      {preTrimTreatment && (
+        <TrimProfileField label="Pre-Trim Treatment" value={preTrimTreatment} />
+      )}
+      {squishPads && (
+        <TrimProfileField label="Squish Pads" value={squishPads} />
+      )}
+      {recentNotes && (
+        <TrimProfileField label="Notes from Recent Trim" value={recentNotes} />
+      )}
+      {hasTraining && (
+        <div className="bg-sky-50 border border-sky-200 rounded-lg px-3 py-2">
+          <div className="flex items-baseline justify-between mb-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-700/80">
+              Training Progress
+            </p>
+            {trainingDate && (
+              <p className="text-[10px] text-sky-700/70">
+                Last session: {formatDate(trainingDate)}
+              </p>
+            )}
+          </div>
+          {trainingNotes && (
+            <p className="text-xs text-charcoal leading-relaxed">
+              {trainingNotes}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TrimProfileField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-white border border-card-border rounded-lg px-3 py-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
+        {label}
+      </p>
+      <p className="text-xs text-charcoal leading-relaxed whitespace-pre-wrap">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
 // ── Visit List (with edit/delete)
 // ══════════════════════════════════════════
 function VisitList({
@@ -999,7 +1098,7 @@ function VisitList({
   }
 
   return (
-    <div className="space-y-1.5 max-h-48 overflow-y-auto">
+    <div className="space-y-1.5 max-h-72 overflow-y-auto">
       {visits.slice(0, 5).map((v) => (
         <div
           key={v.id}
@@ -1011,6 +1110,10 @@ function VisitList({
               <span className="text-[10px] text-warm-gray">· {v.provider}</span>
             </div>
             <p className="text-xs text-warm-gray mt-0.5 truncate">{v.notes}</p>
+            {/* Photos: same TrimPhotos component used on the per-animal
+                trim history. Works for both hoof and dental since storage
+                is keyed by any string id. */}
+            <TrimPhotos visitId={v.id} />
           </div>
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
             <button onClick={() => onEdit(v)} className="p-1 text-warm-gray hover:text-sky">
@@ -1229,106 +1332,6 @@ function EditVisitModal({
             Save Changes
           </button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════
-// ── Provider Panel (editable)
-// ══════════════════════════════════════════
-function ProviderPanel({
-  providers,
-  onAdd,
-  onRemove,
-  onClose,
-}: {
-  providers: { name: string; type: string; phone: string }[];
-  onAdd: (p: { name: string; type: "Farrier" | "Equine Dentist"; phone: string }) => void;
-  onRemove: (name: string) => void;
-  onClose: () => void;
-}) {
-  const [adding, setAdding] = useState(false);
-  const [name, setName] = useState("");
-  const [type, setType] = useState<"Farrier" | "Equine Dentist">("Farrier");
-  const [phone, setPhone] = useState("");
-
-  return (
-    <div className="bg-white rounded-xl border border-card-border p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-bold text-charcoal flex items-center gap-2">
-          <Phone className="w-4 h-4 text-sky" />
-          Providers
-        </h3>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setAdding(!adding)}
-            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-sky text-white rounded-lg hover:bg-sky-dark transition-colors"
-          >
-            <Plus className="w-3 h-3" />
-            Add
-          </button>
-          <button onClick={onClose} className="p-1.5 text-warm-gray hover:text-charcoal">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {adding && (
-        <div className="flex flex-wrap gap-2 mb-4 p-3 bg-cream/50 rounded-lg border border-card-border">
-          <input
-            placeholder="Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="flex-1 min-w-[120px] px-3 py-1.5 text-sm border border-card-border rounded-lg focus:outline-none focus:ring-1 focus:ring-sky"
-          />
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value as typeof type)}
-            className="px-3 py-1.5 text-sm border border-card-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-sky"
-          >
-            <option>Farrier</option>
-            <option>Equine Dentist</option>
-          </select>
-          <input
-            placeholder="Phone"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="flex-1 min-w-[120px] px-3 py-1.5 text-sm border border-card-border rounded-lg focus:outline-none focus:ring-1 focus:ring-sky"
-          />
-          <button
-            onClick={() => {
-              if (name.trim()) {
-                onAdd({ name: name.trim(), type, phone: phone.trim() });
-                setName("");
-                setPhone("");
-                setAdding(false);
-              }
-            }}
-            className="px-3 py-1.5 text-sm font-semibold bg-emerald-500 text-white rounded-lg hover:bg-emerald-600"
-          >
-            Save
-          </button>
-        </div>
-      )}
-
-      <div className="grid sm:grid-cols-2 gap-2">
-        {providers.map((p) => (
-          <div key={p.name} className="flex items-center gap-3 p-3 bg-cream/30 rounded-lg border border-card-border group">
-            <div className="flex-1">
-              <p className="text-sm font-medium text-charcoal">{p.name}</p>
-              <p className="text-xs text-warm-gray">
-                {p.type} · {p.phone}
-              </p>
-            </div>
-            <button
-              onClick={() => onRemove(p.name)}
-              className="p-1 text-warm-gray hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ))}
       </div>
     </div>
   );
