@@ -9,7 +9,15 @@ import {
   type ReactNode,
 } from "react";
 
-export type EntryType = "task" | "medical" | "feed" | "watch" | "note" | "update" | "reminder";
+export type EntryType =
+  | "task"
+  | "medical"
+  | "feed"
+  | "watch"
+  | "note"
+  | "update"
+  | "reminder"
+  | "developer"; // bug reports / feature requests / questions for the dev team
 
 export interface ParkingLotEntry {
   id: string;

@@ -17,6 +17,7 @@ import {
   Check,
   Pencil,
   Trash2,
+  Code2,
 } from "lucide-react";
 import { useParkingLot, type EntryType } from "@/lib/parking-lot-context";
 import { useSchedule } from "@/lib/schedule-context";
@@ -41,6 +42,7 @@ const actionLabels: Record<string, { label: string; icon: typeof ClipboardCheck;
   medical: { label: "Medical Entry", icon: Stethoscope, color: "text-purple-700" },
   feed: { label: "Feed Note", icon: UtensilsCrossed, color: "text-amber-700" },
   note: { label: "Note", icon: StickyNote, color: "text-warm-gray" },
+  developer: { label: "Developer Note", icon: Code2, color: "text-slate-700" },
   query: { label: "Answer", icon: Sparkles, color: "text-sidebar" },
   edit_task: { label: "Edit Task", icon: Pencil, color: "text-sky-700" },
   delete_task: { label: "Delete Task", icon: Trash2, color: "text-red-700" },
@@ -1416,7 +1418,13 @@ export default function QuickInput({
       // there failed its validation (missing animal, missing field, etc.)
       // — landing it in the parking lot silently would hide the failure
       // from the user, so we warn and bail instead.
-      const FALL_THROUGH_ACTIONS = new Set(["watch", "medical", "feed", "note"]);
+      const FALL_THROUGH_ACTIONS = new Set([
+        "watch",
+        "medical",
+        "feed",
+        "note",
+        "developer",
+      ]);
       if (!FALL_THROUGH_ACTIONS.has(action)) {
         console.warn(
           `Joshy action '${action}' reached fall-through — likely missing required data (animal/field/etc.). Skipping.`

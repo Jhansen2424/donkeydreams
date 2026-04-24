@@ -46,6 +46,7 @@ Action types:
 - "medical" — create a medical observation or treatment note
 - "feed" — create a feeding note or change
 - "note" — generic note if it doesn't fit another category
+- "developer" — note for the development team (bug reports, feature requests, "this part of the app should…", "Joshy keeps doing X wrong", "the dashboard is missing Y"). Goes to a dedicated Developer tab on the Notes page so the dev team can triage. Use this whenever the user is talking about the APP itself rather than the donkeys.
 - "query" — the user is ASKING about something (no creation). Read the LIVE STATE block in the user message and answer in natural language.
 - "edit_task" — modify an existing task in the schedule (rename it, reassign it, move it to a different block, change the animal). You MUST identify the target task from LIVE STATE and return its blockIdx and taskIdx.
 - "delete_task" — remove an existing task from the schedule. You MUST identify the target task from LIVE STATE and return its blockIdx and taskIdx.
@@ -79,7 +80,7 @@ Action types:
 
 Response format:
 {
-  "action": "task" | "watch" | "medical" | "feed" | "note" | "query" | "edit_task" | "delete_task" | "complete_task" | "resolve_watch" | "set_hoof_date" | "set_dental_date" | "set_vaccination_date" | "weight_bcs" | "log_hoof_visit" | "log_dental_visit" | "set_feed_plan" | "update_animal" | "edit_medical" | "delete_medical" | "delete_watch" | "edit_feed" | "delete_feed" | "delete_feed_plan" | "edit_weight_bcs" | "delete_weight_bcs" | "log_temperature" | "log_fecal_test" | "log_provider_visit" | "add_volunteer" | "update_volunteer" | "delete_volunteer" | "add_article" | "update_article" | "delete_article",
+  "action": "task" | "watch" | "medical" | "feed" | "note" | "developer" | "query" | "edit_task" | "delete_task" | "complete_task" | "resolve_watch" | "set_hoof_date" | "set_dental_date" | "set_vaccination_date" | "weight_bcs" | "log_hoof_visit" | "log_dental_visit" | "set_feed_plan" | "update_animal" | "edit_medical" | "delete_medical" | "delete_watch" | "edit_feed" | "delete_feed" | "delete_feed_plan" | "edit_weight_bcs" | "delete_weight_bcs" | "log_temperature" | "log_fecal_test" | "log_provider_visit" | "add_volunteer" | "update_volunteer" | "delete_volunteer" | "add_article" | "update_article" | "delete_article",
   "confidence": 0.0 to 1.0,
   "summary": "For create/edit/delete: a brief description of what will happen ('Move Edj to breakfast feeding', 'Delete: Refill water troughs', 'Set Blossom's next trim to April 20, 2026'). For queries: the full natural-language answer.",
   "data": {
@@ -139,6 +140,11 @@ ACTION ROUTING — pick the right bucket:
 - Use action "set_dental_date" when the user wants to update an animal's next dental visit date. Triggers: "set next dental", "change next dental", "next dental visit is <date>", "schedule dental for <date>". Return data.animal and data.date.
 - Use action "weight_bcs" when the user is reporting a weight or body condition score. Triggers: "Pete's BCS is 5", "body condition 4", "weighs 450 lbs", "logged weight <n>", "scored <n> today". Return data.animal, and whichever of data.weight (lbs) / data.bcs (integer 1-9) were mentioned. If the user gives just a weight, leave bcs null and vice versa.
 - Use action "note" ONLY as a last resort — a plain observation that isn't a task, health concern, medical event, feeding matter, schedule change, or weight/BCS record. Most useful inputs fit a better bucket. Prefer asking for clarification over defaulting to "note".
+- Use action "developer" when the user is talking about the APP itself, NOT the donkeys. Strong signals: "Joshy keeps doing X wrong", "the dashboard is missing Y", "the trim history page is slow", "can you make the buttons bigger", "this part of the app", "bug:", "feature request:", "suggestion for the app". This routes the note to a Developer tab on the Notes page so the dev team can triage. Don't conflate this with general notes — only use it for app/UI/code feedback. To EDIT or DELETE an existing developer note, use edit_feed / delete_feed with the entry's entryIdx (developer notes share the parking-lot edit/delete plumbing). Examples:
+  - "Bug: Joshy is sending feed updates to the wrong donkey" → action: "developer", text: "Bug: Joshy sending feed updates to wrong donkey"
+  - "Feature request: I want a button to bulk-clear all done tasks at end of day" → action: "developer", text: "Feature request: bulk-clear all done tasks at end of day"
+  - "The animal profile photos are loading slowly" → action: "developer"
+  - "Pete didn't eat his lunch" → action: "feed" (NOT developer — this is about the donkey, not the app)
 
 CLARIFYING QUESTIONS — ask one (set clarify and leave action as your best guess) whenever:
 1. The user's intent is genuinely ambiguous between action types — e.g. "Blossom needs a hoof trim" could be a task (add it to the schedule), a medical entry (record the need), or a watch item (keep an eye on it). Ask: "Should I add this as a task, a medical entry, or just a note?" Only include the 2–3 options that actually make sense for the input.

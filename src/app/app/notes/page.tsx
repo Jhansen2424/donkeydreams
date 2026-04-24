@@ -15,6 +15,7 @@ import {
   Loader2,
   Tag,
   Bell,
+  Code2,
 } from "lucide-react";
 import { useParkingLot, type EntryType } from "@/lib/parking-lot-context";
 import { useSchedule } from "@/lib/schedule-context";
@@ -33,6 +34,7 @@ const typeConfig: Record<
   watch:    { label: "Watch",    icon: AlertTriangle,   color: "text-red-700",     bg: "bg-red-50",     border: "border-red-200" },
   update:   { label: "Update",   icon: Sparkles,        color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200" },
   reminder: { label: "Reminder", icon: Bell,            color: "text-indigo-700",  bg: "bg-indigo-50",  border: "border-indigo-200" },
+  developer:{ label: "Developer",icon: Code2,           color: "text-slate-700",   bg: "bg-slate-100",  border: "border-slate-300" },
 };
 
 function formatTime(date: Date): string {
@@ -132,15 +134,17 @@ export default function NotesPage() {
     watch: unresolved.filter((e) => e.type === "watch").length,
     update: unresolved.filter((e) => e.type === "update").length,
     reminder: unresolved.filter((e) => e.type === "reminder").length,
+    developer: unresolved.filter((e) => e.type === "developer").length,
   };
 
   const filterTabs: { key: FilterKey; label: string; icon?: typeof StickyNote }[] = [
-    { key: "all",     label: "All",     icon: Inbox },
-    { key: "note",    label: "Notes",   icon: StickyNote },
-    { key: "task",    label: "Tasks",   icon: ClipboardCheck },
-    { key: "watch",   label: "Watch",   icon: AlertTriangle },
-    { key: "medical", label: "Medical", icon: Stethoscope },
-    { key: "feed",    label: "Feed",    icon: UtensilsCrossed },
+    { key: "all",       label: "All",       icon: Inbox },
+    { key: "note",      label: "Notes",     icon: StickyNote },
+    { key: "task",      label: "Tasks",     icon: ClipboardCheck },
+    { key: "watch",     label: "Watch",     icon: AlertTriangle },
+    { key: "medical",   label: "Medical",   icon: Stethoscope },
+    { key: "feed",      label: "Feed",      icon: UtensilsCrossed },
+    { key: "developer", label: "Developer", icon: Code2 },
   ];
 
   return (
@@ -452,6 +456,7 @@ function QuickCapture() {
             <option value="feed">Feed</option>
             <option value="reminder">Reminder</option>
             <option value="update">Update</option>
+            <option value="developer">Developer</option>
           </select>
         </div>
         <button
