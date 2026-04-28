@@ -14,6 +14,7 @@ import { watchList, type WatchListEntry } from "@/lib/sanctuary-data";
 import { useParkingLot } from "@/lib/parking-lot-context";
 import { animals } from "@/lib/animals";
 import { volunteers } from "@/lib/volunteer-data";
+import { formatDate as sharedFormatDate } from "@/lib/format-date";
 
 const severityStyles = {
   high: { dot: "bg-red-500", bg: "bg-red-50 border-red-200", label: "High" },
@@ -47,7 +48,7 @@ export default function WatchListPage() {
     .filter((e) => e.type === "watch" && !e.resolved)
     .map((e) => ({
       editableId: e.id,
-      date: e.timestamp.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      date: sharedFormatDate(e.timestamp),
       animal: e.data?.animal || "—",
       issue: e.text,
       treatment: e.data?.title || "",

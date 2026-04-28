@@ -764,20 +764,29 @@ export function getNextVaccinationDue(animalName: string): string | null {
 
 // Emit the next-vaccination dates as scheduled MedicalEntry records so they
 // flow through the dashboard's existing Upcoming / Overdue / Recent tabs.
-// Marked urgent = true so they count toward the "overdue" stat once the date
-// has passed without an actual vaccination being logged.
+//
+// Urgency is computed at evaluation time relative to today:
+//   - past due (date < today) → urgent: true (truly overdue)
+//   - today / future → urgent: false, title prefixed "Upcoming:" so the
+//     entry shows on the Upcoming tab without crying wolf in the Overdue
+//     stat. The dev team specifically asked us to stop flagging not-yet-due
+//     vaccinations as Urgent.
 export const scheduledVaccinationEntries: MedicalEntry[] = (() => {
   const out: MedicalEntry[] = [];
   let idx = 200000;
+  const todayIso = new Date().toISOString().split("T")[0];
   for (const [animal, date] of nextVaccinationByAnimal) {
+    const isOverdue = date < todayIso;
     out.push({
       id: `scheduled-vacc-${idx++}`,
       animal,
       type: "Vaccination",
-      title: "Next Vaccination Due",
+      title: isOverdue ? "Vaccination Overdue" : "Upcoming Vaccination",
       date,
-      description: "Vaccination booster due per the deworming/vaccination schedule.",
-      urgent: true,
+      description: isOverdue
+        ? "Vaccination booster is past due — schedule as soon as possible."
+        : "Vaccination booster scheduled per the deworming/vaccination CSV.",
+      urgent: isOverdue,
     });
   }
   return out;

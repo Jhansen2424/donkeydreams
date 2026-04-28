@@ -1219,13 +1219,15 @@ function UpcomingTasksCard() {
   const sortedDates = Object.keys(grouped).sort();
   const visibleDates = expanded ? sortedDates : sortedDates.slice(0, 3);
 
+  // Weekday + MM-DD-YYYY (no year suffix), e.g. "Monday, 04-28-2026".
   const formatLabel = (iso: string) => {
     const d = new Date(iso + "T00:00:00");
-    return d.toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "short",
-      day: "numeric",
-    });
+    if (isNaN(d.getTime())) return iso;
+    const weekday = d.toLocaleDateString("en-US", { weekday: "long" });
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    return `${weekday}, ${mm}-${dd}-${yyyy}`;
   };
 
   return (

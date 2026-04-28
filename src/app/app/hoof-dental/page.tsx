@@ -32,6 +32,7 @@ import { getTrimProfile, type TrimProfile } from "@/lib/trimming-data";
 import TrimPhotos from "@/components/app/TrimPhotos";
 import ProviderPanel from "@/components/app/ProviderPanel";
 import { useProviders } from "@/lib/providers-context";
+import { formatDate as sharedFormatDate } from "@/lib/format-date";
 
 type CareTab = "both" | "hoof" | "dental";
 type SortField = "animal" | "herd" | "hoofStatus" | "dentalStatus" | "nextHoofDue" | "nextDentalDue";
@@ -1342,9 +1343,9 @@ function EditVisitModal({
 }
 
 // ── Helpers ──
+// Switched to MM-DD-YYYY per the dev team's "consistent date format" request.
 function formatDate(iso: string): string {
-  const d = new Date(iso + "T12:00:00");
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return sharedFormatDate(iso);
 }
 
 function daysDiff(from: string, to: string): number {

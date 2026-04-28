@@ -731,26 +731,41 @@ export default function QuickInput({
       // way it flows into the "Upcoming" tab of the medical dashboard
       // automatically.
       if (action === "set_vaccination_date" && result.data.animal && result.data.date) {
-        // Upsert semantics: if there's already a "Next Vaccination Due"
-        // entry for this animal (created by a prior set_vaccination_date),
-        // update its date in place so we don't accumulate stale records.
+        // Match the CSV-derived scheduled entries: urgent ONLY if the date
+        // is already in the past. Future dates are upcoming, not urgent.
+        const todayIso = new Date().toISOString().split("T")[0];
+        const isOverdue = result.data.date < todayIso;
+        const title = isOverdue ? "Vaccination Overdue" : "Upcoming Vaccination";
+        // Upsert semantics: if there's already an upcoming/overdue
+        // vaccination entry for this animal (created by a prior
+        // set_vaccination_date), update its date in place so we don't
+        // accumulate stale records. Match by either of the new titles AND
+        // the legacy "Next Vaccination Due" title so existing rows still
+        // get upserted instead of duplicated.
         const existing = medicalEntries.find(
           (m) =>
             m.animal === result.data.animal &&
             m.type === "Vaccination" &&
-            m.title === "Next Vaccination Due"
+            (m.title === "Next Vaccination Due" ||
+              m.title === "Upcoming Vaccination" ||
+              m.title === "Vaccination Overdue")
         );
         if (existing) {
-          void updateMedicalEntry(existing.id, { date: result.data.date });
+          void updateMedicalEntry(existing.id, {
+            date: result.data.date,
+            title,
+            urgent: isOverdue,
+          });
         } else {
           void addMedicalEntry({
             animal: result.data.animal,
             type: "Vaccination",
-            title: "Next Vaccination Due",
+            title,
             date: result.data.date,
-            description:
-              "Vaccination booster scheduled via Joshy. Replace with actual vaccination record when administered.",
-            urgent: true,
+            description: isOverdue
+              ? "Vaccination booster is past due — schedule as soon as possible."
+              : "Vaccination booster scheduled via Joshy. Replace with actual vaccination record when administered.",
+            urgent: isOverdue,
           });
         }
         return;

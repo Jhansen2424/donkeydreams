@@ -316,16 +316,18 @@ function makeDonkey(
   };
 }
 
+// Alphabetized per the dev team's request. This array drives the herd
+// filter tabs on the Animals page and the herd grouping on the dashboard.
 export const herds = [
-  "Elsie's Herd",
-  "Brave",
-  "Unicorns",
-  "Pegasus",
-  "Seniors",
-  "Pinky's Herd",
-  "Dragons",
   "Angels",
+  "Brave",
+  "Dragons",
+  "Elsie's Herd",
   "Legacy",
+  "Pegasus",
+  "Pinky's Herd",
+  "Seniors",
+  "Unicorns",
 ] as const;
 
 export type HerdName = (typeof herds)[number];

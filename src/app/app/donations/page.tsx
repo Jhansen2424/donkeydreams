@@ -29,6 +29,7 @@ import {
   type DonationType,
   type StripeTransaction,
 } from "@/lib/donation-data";
+import { formatDate as sharedFormatDate } from "@/lib/format-date";
 
 // ── Helpers ──
 
@@ -37,11 +38,11 @@ function formatCurrency(n: number) {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return sharedFormatDate(iso);
 }
 
 function formatDateFull(iso: string) {
-  return new Date(iso + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return sharedFormatDate(iso);
 }
 
 // ── Source bar (proportional) ──

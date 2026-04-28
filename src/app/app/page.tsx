@@ -10,6 +10,7 @@ import UnassignedTasks from "@/components/app/dashboard/UnassignedTasks";
 import ParkingLot from "@/components/app/dashboard/ParkingLot";
 import TaskEditModal, { type TaskEditModalMode } from "@/components/app/TaskEditModal";
 import { useSchedule } from "@/lib/schedule-context";
+import { formatDate as sharedFormatDate } from "@/lib/format-date";
 import { useParkingLot } from "@/lib/parking-lot-context";
 import { useMedical } from "@/lib/medical-context";
 import { watchList, type WatchListEntry } from "@/lib/sanctuary-data";
@@ -27,7 +28,7 @@ export default function AppDashboard() {
     const fromParking: WatchListEntry[] = parkingEntries
       .filter((e) => e.type === "watch" && !e.resolved)
       .map((e) => ({
-        date: e.timestamp.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        date: sharedFormatDate(e.timestamp),
         animal: e.data?.animal || "—",
         issue: e.text,
         treatment: e.data?.title || "",
@@ -45,16 +46,12 @@ export default function AppDashboard() {
     const live = medicalEntries
       .filter((e) => e.date >= todayIso)
       .sort((a, b) => a.date.localeCompare(b.date))
-      .map((e) => {
-        const d = new Date(e.date + "T00:00:00");
-        const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-        return {
-          date: label,
-          name: e.animal,
-          description: e.title,
-          urgent: e.urgent,
-        };
-      });
+      .map((e) => ({
+        date: sharedFormatDate(e.date),
+        name: e.animal,
+        description: e.title,
+        urgent: e.urgent,
+      }));
     return live.length > 0 ? live : upcomingMedical;
   }, [medicalEntries]);
 

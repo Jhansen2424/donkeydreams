@@ -34,6 +34,7 @@ import {
   type WeightTrend,
 } from "@/lib/weight-data";
 import { animals } from "@/lib/animals";
+import { formatDate as sharedFormatDate } from "@/lib/format-date";
 
 // ── Helpers ──
 
@@ -41,14 +42,13 @@ function slugify(name: string) {
   return name.toLowerCase().replace(/[\s-]+/g, "-").replace(/[^a-z0-9-]/g, "");
 }
 
+// Routed through the centralized MM-DD-YYYY helper.
 function formatDate(iso: string) {
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return sharedFormatDate(iso);
 }
 
 function formatDateFull(iso: string) {
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return sharedFormatDate(iso);
 }
 
 // ── Mini Sparkline (pure CSS) ──

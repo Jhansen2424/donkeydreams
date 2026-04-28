@@ -274,3 +274,25 @@ model Provider {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// ── Trim Profile Overrides ──
+//
+// The base trim profile (protocols, pre-trim treatment, squish pads,
+// recent notes, training notes) comes from the donkey-trimming-notes CSV
+// and is regenerated on every parser run. When staff edit a donkey's
+// trim or training protocol via the Hoof Care UI, the override is stored
+// here so it survives across CSV regenerations. The animal profile page
+// merges: override fields take precedence over the CSV when present.
+
+model TrimProfileOverride {
+  id                String   @id @default(cuid())
+  animalName        String   @unique
+  preTrimTreatment  String?
+  protocols         String?
+  squishPads        String?
+  recentNotes       String?
+  trainingNotes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

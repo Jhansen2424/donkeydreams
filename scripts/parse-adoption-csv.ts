@@ -278,8 +278,20 @@ for (let i = 1; i < lines.length; i++) {
 
   // Microchip: anything that looks like a number/dashed number is a real chip;
   // blank or non-numeric → needs chip
+  // Normalize Avid # / microchip formatting. The source CSV is inconsistent —
+  // some entries use 977-200-101-226-644, others 985141001452635 (no dashes).
+  // We strip ALL non-digits, then re-insert dashes every 3 digits so the
+  // displayed value is always uniform.
   const looksLikeChip = /^[0-9\- ]{6,}$/.test(chipRaw);
-  const microchip = looksLikeChip ? chipRaw.replace(/\s+/g, "") : null;
+  let microchip: string | null = null;
+  if (looksLikeChip) {
+    const digits = chipRaw.replace(/\D/g, "");
+    if (digits.length >= 9) {
+      microchip = digits.replace(/(\d{3})(?=\d)/g, "$1-");
+    } else {
+      microchip = digits;
+    }
+  }
   const needsChip = !looksLikeChip;
 
   const family = extractFamily(notes);

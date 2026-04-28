@@ -33,6 +33,7 @@ import {
   type DayOfWeek,
   type UserRole,
 } from "@/lib/volunteer-data";
+import { formatDate } from "@/lib/format-date";
 
 // ── Admin gate ──
 // Simple client-side role check — not security, just UI visibility.
@@ -106,14 +107,7 @@ function AdminGate({
 }
 
 // ── Helpers ──
-
-function formatDate(iso: string) {
-  return new Date(iso + "T00:00:00").toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
+// (formatDate is imported from @/lib/format-date at the top of the file.)
 
 const allDays: DayOfWeek[] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 

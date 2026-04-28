@@ -6,6 +6,7 @@ import { ArrowLeft, Calculator, Calendar, Pill, ChevronDown, ChevronRight, Plus,
 import { animals } from "@/lib/animals";
 import { allMedicalEntries } from "@/lib/medical-data";
 import { useMedical } from "@/lib/medical-context";
+import { formatDate as sharedFormatDate } from "@/lib/format-date";
 
 // ── Rotation schedule (from PREV-HERD-1..6 template in CSV) ──
 // Every ~60 days, drugs rotate in this order
@@ -42,11 +43,7 @@ const ROTATION_INTERVAL_DAYS = 60;
 const LB_TO_KG = 0.453592;
 
 function formatDate(iso: string) {
-  return new Date(iso + "T00:00:00").toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return sharedFormatDate(iso);
 }
 
 function addDays(iso: string, days: number): string {

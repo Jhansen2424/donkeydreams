@@ -30,6 +30,8 @@ import { animals } from "@/lib/animals";
 import { yardWideDewormings } from "@/lib/deworming-vaccination-data";
 import ProviderPanel, { type ProviderType } from "@/components/app/ProviderPanel";
 import { useProviders } from "@/lib/providers-context";
+import { volunteers } from "@/lib/volunteer-data";
+import { formatDate as sharedFormatDate } from "@/lib/format-date";
 import { Phone } from "lucide-react";
 
 type Tab = "upcoming" | "overdue" | "recent" | "all";
@@ -41,23 +43,18 @@ function slugify(name: string) {
     .replace(/[^a-z0-9-]/g, "");
 }
 
+// Both formatters now route through the centralized MM-DD-YYYY helper.
+// formatDateGroup keeps the weekday prefix (used for the day-bucket headers
+// in the medical entry list) but the date itself is MM-DD-YYYY.
 function formatDate(iso: string) {
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return sharedFormatDate(iso);
 }
 
 function formatDateGroup(iso: string) {
   const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
+  if (isNaN(d.getTime())) return sharedFormatDate(iso);
+  const weekday = d.toLocaleDateString("en-US", { weekday: "long" });
+  return `${weekday}, ${sharedFormatDate(iso)}`;
 }
 
 function TypeBadge({ type }: { type: MedicalRecordType }) {
@@ -676,19 +673,33 @@ function MedicalDashboardPage() {
           </div>
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
-              Provider
+              Performed by
             </label>
             <input
               list="medical-provider-list"
               value={formProvider}
               onChange={(e) => setFormProvider(e.target.value)}
-              placeholder="Vet, farrier, or dentist name..."
+              placeholder="Staff name, vet, farrier, or dentist..."
               className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
             />
+            {/* Combined list of providers (vets/farriers/dentists from the */}
+            {/* providers DB) and active staff (volunteers with status      */}
+            {/* "active") so users can pick whoever actually performed the  */}
+            {/* treatment. The dev team specifically asked for staff to be  */}
+            {/* selectable here since most annual exams are done in-house.  */}
             <datalist id="medical-provider-list">
               {providers.map((p) => (
-                <option key={p.name} value={p.name}>{p.type}</option>
+                <option key={`prov-${p.name}`} value={p.name}>
+                  {p.type}
+                </option>
               ))}
+              {volunteers
+                .filter((v) => v.status === "active")
+                .map((v) => (
+                  <option key={`staff-${v.name}`} value={v.name}>
+                    Staff
+                  </option>
+                ))}
             </datalist>
           </div>
           {needsNextDate && (

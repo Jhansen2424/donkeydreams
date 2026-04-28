@@ -27,8 +27,9 @@ import {
 import { useMedical } from "@/lib/medical-context";
 import { useParkingLot } from "@/lib/parking-lot-context";
 import { useToast } from "@/lib/toast-context";
+import { formatDate as sharedFormatDate } from "@/lib/format-date";
 import { visitHistory } from "@/lib/hoof-dental-data";
-import { getTrimProfile } from "@/lib/trimming-data";
+import { getTrimProfile, type TrimProfile } from "@/lib/trimming-data";
 import { getDewormingDosage } from "@/lib/power-pack-data";
 import { getDonkeyWeight } from "@/lib/scheduled-and-events-data";
 import TrimPhotos from "@/components/app/TrimPhotos";
@@ -454,10 +455,16 @@ function OverviewTab({
   };
 
   return (
-    <div className="grid md:grid-cols-2 gap-6">
-      {/* Story */}
-      <div className="bg-white rounded-xl border border-card-border p-5">
-        <h3 className="font-bold text-charcoal mb-3">Origin Story</h3>
+    <div className="space-y-6">
+      {/* Adoption & Identity rendered FIRST per the dev team's request — */}
+      {/* it's the most-referenced reference data and used to be tucked at  */}
+      {/* the bottom of the right column. Now full-width above the story.  */}
+      <AdoptionInfoCard animal={animal} />
+
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Story */}
+        <div className="bg-white rounded-xl border border-card-border p-5">
+          <h3 className="font-bold text-charcoal mb-3">Origin Story</h3>
         {editing && draft ? (
           <textarea
             value={draft.story}
@@ -517,33 +524,73 @@ function OverviewTab({
           )}
         </div>
 
-        <div className="bg-white rounded-xl border border-card-border p-5">
-          <h3 className="font-bold text-charcoal mb-3">Best Friends</h3>
-          {editing && draft ? (
-            <input
-              value={draft.bestFriends}
-              onChange={(e) => patchDraft({ bestFriends: e.target.value })}
-              placeholder="Comma-separated donkey names (Pink, Eli…)"
-              className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
-            />
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {animal.bestFriends.map((friend) => (
-                <span
-                  key={friend}
-                  className="inline-flex items-center gap-1.5 text-sm bg-sky/10 text-sky-dark px-3 py-1.5 rounded-full font-medium"
-                >
-                  <Heart className="w-3 h-3 fill-current" />
-                  {friend}
-                </span>
-              ))}
+        {/* Relationships — three groups: Parents, Children, Friends. Replaces */}
+        {/* the old "Best Friends" card. Parents and Children come from the    */}
+        {/* adoption CSV's parsed Notes (read-only here — they reflect family  */}
+        {/* tree from the source data). Friends is the editable list (was the  */}
+        {/* `bestFriends` field) and uses the comma-separated input on edit.  */}
+        <div className="bg-white rounded-xl border border-card-border p-5 space-y-3">
+          <h3 className="font-bold text-charcoal">Relationships</h3>
+
+          {animal.parents && animal.parents.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1.5">
+                Parent{animal.parents.length > 1 ? "s" : ""}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {animal.parents.map((p) => (
+                  <FamilyChip key={p} name={p} />
+                ))}
+              </div>
             </div>
           )}
+
+          {animal.children && animal.children.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1.5">
+                {animal.children.length === 1 ? "Child" : "Children"}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {animal.children.map((c) => (
+                  <FamilyChip key={c} name={c} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1.5">
+              Friends
+            </p>
+            {editing && draft ? (
+              <input
+                value={draft.bestFriends}
+                onChange={(e) => patchDraft({ bestFriends: e.target.value })}
+                placeholder="Comma-separated donkey names (Pink, Eli…)"
+                className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+              />
+            ) : animal.bestFriends.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {animal.bestFriends.map((friend) => (
+                  <span
+                    key={friend}
+                    className="inline-flex items-center gap-1.5 text-sm bg-sky/10 text-sky-dark px-3 py-1.5 rounded-full font-medium"
+                  >
+                    <Heart className="w-3 h-3 fill-current" />
+                    {friend}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-warm-gray/60 italic">No friends recorded yet.</p>
+            )}
+          </div>
         </div>
-        {/* Sponsor info */}
-        <SponsorCard animal={animal} />
-        {/* Adoption / identity info */}
-        <AdoptionInfoCard animal={animal} />
+          {/* Sponsor info */}
+          <SponsorCard animal={animal} />
+          {/* AdoptionInfoCard is now rendered at the top of OverviewTab */}
+          {/* (full-width, above the two-column story+traits layout). */}
+        </div>
       </div>
     </div>
   );
@@ -557,105 +604,54 @@ function AdoptionInfoCard({ animal }: { animal: Animal }) {
     animal.size ||
     animal.microchip ||
     animal.needsChip;
-  const hasFamily =
-    (animal.parents && animal.parents.length > 0) ||
-    (animal.children && animal.children.length > 0) ||
-    (animal.bondedWith && animal.bondedWith.length > 0);
-
-  if (!hasIdentity && !hasFamily) return null;
+  // Family members (parents/children/bondedWith) used to render here too,
+  // but per the dev team's "Bonds & Relationships" restructure they live in
+  // the Relationships card on the right column instead.
+  if (!hasIdentity) return null;
 
   return (
     <div className="bg-white rounded-xl border border-card-border p-5 space-y-4">
       <h3 className="font-bold text-charcoal">Adoption & Identity</h3>
-
-      {hasIdentity && (
-        <div className="grid grid-cols-2 gap-3">
-          {animal.birthDate && (
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">
-                Birth Date
-              </p>
-              <p className="text-sm font-medium text-charcoal">
-                {new Date(animal.birthDate + "T00:00:00").toLocaleDateString(
-                  "en-US",
-                  { month: "short", day: "numeric", year: "numeric" }
-                )}
-              </p>
-            </div>
-          )}
-          {animal.color && (
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">
-                Color
-              </p>
-              <p className="text-sm font-medium text-charcoal">{animal.color}</p>
-            </div>
-          )}
-          {animal.size && (
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">
-                Size
-              </p>
-              <p className="text-sm font-medium text-charcoal">{animal.size}</p>
-            </div>
-          )}
+      <div className="grid grid-cols-2 gap-3">
+        {animal.birthDate && (
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">
-              Microchip
+            <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">
+              Birth Date
             </p>
-            {animal.microchip ? (
-              <p className="text-xs font-mono text-charcoal break-all">
-                {animal.microchip}
-              </p>
-            ) : (
-              <p className="text-xs font-medium text-orange-600">
-                Needs chip
-              </p>
-            )}
+            <p className="text-base font-medium text-charcoal">
+              {sharedFormatDate(animal.birthDate)}
+            </p>
           </div>
-        </div>
-      )}
-
-      {hasFamily && (
-        <div className="space-y-3 pt-2 border-t border-card-border">
-          {animal.parents && animal.parents.length > 0 && (
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
-                Parent{animal.parents.length > 1 ? "s" : ""}
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {animal.parents.map((p) => (
-                  <FamilyChip key={p} name={p} />
-                ))}
-              </div>
-            </div>
-          )}
-          {animal.children && animal.children.length > 0 && (
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
-                {animal.children.length === 1 ? "Child" : "Children"}
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {animal.children.map((c) => (
-                  <FamilyChip key={c} name={c} />
-                ))}
-              </div>
-            </div>
-          )}
-          {animal.bondedWith && animal.bondedWith.length > 0 && (
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
-                Bonded With
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {animal.bondedWith.map((b) => (
-                  <FamilyChip key={b} name={b} bonded />
-                ))}
-              </div>
-            </div>
+        )}
+        {animal.color && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">
+              Color
+            </p>
+            <p className="text-base font-medium text-charcoal">{animal.color}</p>
+          </div>
+        )}
+        {animal.size && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">
+              Size
+            </p>
+            <p className="text-base font-medium text-charcoal">{animal.size}</p>
+          </div>
+        )}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">
+            Microchip
+          </p>
+          {animal.microchip ? (
+            <p className="text-sm font-mono text-charcoal break-all">
+              {animal.microchip}
+            </p>
+          ) : (
+            <p className="text-sm font-medium text-orange-600">Needs chip</p>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -703,13 +699,8 @@ function SponsorCard({ animal }: { animal: Animal }) {
     );
   }
 
-  function formatDate(iso: string) {
-    return new Date(iso + "T00:00:00").toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  }
+  // Local alias for readability — re-uses the centralized MM-DD-YYYY helper.
+  const formatDate = (iso: string) => sharedFormatDate(iso);
 
   return (
     <div className="bg-white rounded-xl border border-card-border p-5">
@@ -785,14 +776,8 @@ function MedicalTypeBadge({ type }: { type: MedicalRecordType }) {
   );
 }
 
-function formatRecordDate(iso: string) {
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
+// Re-export so JSX call sites don't need to change.
+const formatRecordDate = sharedFormatDate;
 
 type MedicalSubTab = "all" | "deworming" | "vaccinations" | "hoof-trims" | "fecal-tests" | "other";
 
@@ -1151,66 +1136,12 @@ function MedicalTab({ animal }: { animal: Animal }) {
             </div>
           )}
 
-          {/* Trim profile cards (durable instructions) */}
-          {trimProfile?.protocols && (
-            <div className="bg-white rounded-xl border border-card-border p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-2">
-                Trimming Protocols
-              </p>
-              <p className="text-sm text-charcoal leading-relaxed whitespace-pre-wrap">
-                {trimProfile.protocols}
-              </p>
-            </div>
-          )}
-          {trimProfile?.preTrimTreatment && (
-            <div className="bg-white rounded-xl border border-card-border p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-2">
-                Pre-Trim Treatment
-              </p>
-              <p className="text-sm text-charcoal leading-relaxed">
-                {trimProfile.preTrimTreatment}
-              </p>
-            </div>
-          )}
-          {trimProfile?.squishPads && (
-            <div className="bg-white rounded-xl border border-card-border p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-2">
-                Squish Pads
-              </p>
-              <p className="text-sm text-charcoal leading-relaxed">
-                {trimProfile.squishPads}
-              </p>
-            </div>
-          )}
-          {trimProfile?.recentNotes && (
-            <div className="bg-white rounded-xl border border-card-border p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-2">
-                Notes from Recent Trim
-              </p>
-              <p className="text-sm text-charcoal leading-relaxed">
-                {trimProfile.recentNotes}
-              </p>
-            </div>
-          )}
-          {(trimProfile?.trainingDate || trimProfile?.trainingNotes) && (
-            <div className="bg-sky-50 border border-sky-200 rounded-xl p-4">
-              <div className="flex items-baseline justify-between mb-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-700/80">
-                  Training Progress
-                </p>
-                {trimProfile.trainingDate && (
-                  <p className="text-xs text-sky-700/70">
-                    Last session: {formatRecordDate(trimProfile.trainingDate)}
-                  </p>
-                )}
-              </div>
-              {trimProfile.trainingNotes && (
-                <p className="text-sm text-charcoal leading-relaxed">
-                  {trimProfile.trainingNotes}
-                </p>
-              )}
-            </div>
-          )}
+          {/* Editable trim profile cards. CSV defaults can be overridden
+              per donkey via /api/trim-profiles. */}
+          <TrimProfileEditor
+            animalName={animal.name}
+            csvProfile={trimProfile}
+          />
 
           {/* Trim history */}
           <div className="flex items-center justify-between pt-2">
@@ -1689,7 +1620,7 @@ function NotesTab({ animal }: { animal: Animal }) {
               <div className="flex-1">
                 <p className="text-sm text-charcoal whitespace-pre-line">{n.text}</p>
                 <p className="text-[11px] text-warm-gray/60 mt-1">
-                  {n.timestamp.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  {sharedFormatDate(n.timestamp)}
                 </p>
               </div>
               <button
@@ -1856,6 +1787,265 @@ function SummaryTile({
           )}
         </span>
       </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// ── Trim Profile Editor
+// ══════════════════════════════════════════
+//
+// Renders the four trim-protocol cards plus the training-progress card with
+// inline edit + save. CSV defaults (from /lib/trimming-data) are the seed
+// values; the user can override any field, which persists to the
+// TrimProfileOverride DB table via /api/trim-profiles. Empty edits clear
+// the override and fall back to the CSV.
+function TrimProfileEditor({
+  animalName,
+  csvProfile,
+}: {
+  animalName: string;
+  csvProfile: TrimProfile | null;
+}) {
+  const [override, setOverride] = useState<{
+    preTrimTreatment: string | null;
+    protocols: string | null;
+    squishPads: string | null;
+    recentNotes: string | null;
+    trainingNotes: string | null;
+  } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({
+    protocols: "",
+    preTrimTreatment: "",
+    squishPads: "",
+    recentNotes: "",
+    trainingNotes: "",
+  });
+  const { toastSuccess, toastError } = useToast();
+
+  // Hydrate the override on mount (and when the animal changes).
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/trim-profiles?animal=${encodeURIComponent(animalName)}`,
+          { cache: "no-store" }
+        );
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setOverride(data?.override ?? null);
+      } catch {
+        // Silent — the read-only display still works from the CSV.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [animalName]);
+
+  // Effective values: override field wins if set (non-null AND non-empty),
+  // otherwise fall back to the CSV.
+  const eff = {
+    protocols: override?.protocols ?? csvProfile?.protocols ?? "",
+    preTrimTreatment:
+      override?.preTrimTreatment ?? csvProfile?.preTrimTreatment ?? "",
+    squishPads: override?.squishPads ?? csvProfile?.squishPads ?? "",
+    recentNotes: override?.recentNotes ?? csvProfile?.recentNotes ?? "",
+    trainingNotes: override?.trainingNotes ?? csvProfile?.trainingNotes ?? "",
+  };
+
+  const startEditing = () => {
+    setDraft({ ...eff });
+    setEditing(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/trim-profiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          animal: animalName,
+          ...draft,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toastError(body?.error ?? "Failed to save trim profile.");
+        return;
+      }
+      const data = await res.json();
+      setOverride(data?.override ?? null);
+      setEditing(false);
+      toastSuccess(`Saved ${animalName}'s trim protocols.`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const trainingDate = csvProfile?.trainingDate ?? null;
+
+  // Nothing to show? Render an empty-state with an Edit button so staff can
+  // start a fresh override even when no CSV row exists.
+  const hasAnyContent =
+    eff.protocols ||
+    eff.preTrimTreatment ||
+    eff.squishPads ||
+    eff.recentNotes ||
+    eff.trainingNotes ||
+    trainingDate;
+
+  if (!editing && !hasAnyContent) {
+    return (
+      <button
+        onClick={startEditing}
+        className="w-full bg-white rounded-xl border border-dashed border-card-border p-4 text-sm text-warm-gray/70 hover:border-sand hover:text-charcoal transition-colors"
+      >
+        + Add trim and training protocols
+      </button>
+    );
+  }
+
+  if (editing) {
+    return (
+      <div className="bg-white rounded-xl border border-card-border p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="font-bold text-sm text-charcoal">Edit Trim &amp; Training</p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setEditing(false)}
+              className="text-xs text-warm-gray hover:text-charcoal"
+              disabled={saving}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => void handleSave()}
+              disabled={saving}
+              className="px-3 py-1 text-xs font-semibold bg-emerald-500 text-white rounded-md hover:bg-emerald-600 disabled:opacity-40"
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </div>
+        <EditField
+          label="Trimming Protocols"
+          value={draft.protocols}
+          onChange={(v) => setDraft((d) => ({ ...d, protocols: v }))}
+          rows={3}
+        />
+        <EditField
+          label="Pre-Trim Treatment"
+          value={draft.preTrimTreatment}
+          onChange={(v) => setDraft((d) => ({ ...d, preTrimTreatment: v }))}
+          rows={2}
+        />
+        <EditField
+          label="Squish Pads"
+          value={draft.squishPads}
+          onChange={(v) => setDraft((d) => ({ ...d, squishPads: v }))}
+          rows={2}
+        />
+        <EditField
+          label="Notes from Recent Trim"
+          value={draft.recentNotes}
+          onChange={(v) => setDraft((d) => ({ ...d, recentNotes: v }))}
+          rows={2}
+        />
+        <EditField
+          label="Training Progress"
+          value={draft.trainingNotes}
+          onChange={(v) => setDraft((d) => ({ ...d, trainingNotes: v }))}
+          rows={3}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-end">
+        <button
+          onClick={startEditing}
+          className="inline-flex items-center gap-1 text-xs font-medium text-sky-600 hover:text-sky-700"
+        >
+          <Pencil className="w-3 h-3" />
+          Edit protocols
+        </button>
+      </div>
+      {eff.protocols && (
+        <ProtocolCard label="Trimming Protocols" value={eff.protocols} />
+      )}
+      {eff.preTrimTreatment && (
+        <ProtocolCard label="Pre-Trim Treatment" value={eff.preTrimTreatment} />
+      )}
+      {eff.squishPads && <ProtocolCard label="Squish Pads" value={eff.squishPads} />}
+      {eff.recentNotes && (
+        <ProtocolCard label="Notes from Recent Trim" value={eff.recentNotes} />
+      )}
+      {(trainingDate || eff.trainingNotes) && (
+        <div className="bg-sky-50 border border-sky-200 rounded-xl p-4">
+          <div className="flex items-baseline justify-between mb-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-700/80">
+              Training Progress
+            </p>
+            {trainingDate && (
+              <p className="text-xs text-sky-700/70">
+                Last session: {sharedFormatDate(trainingDate)}
+              </p>
+            )}
+          </div>
+          {eff.trainingNotes && (
+            <p className="text-sm text-charcoal leading-relaxed whitespace-pre-wrap">
+              {eff.trainingNotes}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProtocolCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-white rounded-xl border border-card-border p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-2">
+        {label}
+      </p>
+      <p className="text-sm text-charcoal leading-relaxed whitespace-pre-wrap">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function EditField({
+  label,
+  value,
+  onChange,
+  rows,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  rows: number;
+}) {
+  return (
+    <div>
+      <label className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 block mb-1">
+        {label}
+      </label>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={rows}
+        className="w-full px-2 py-1.5 text-sm border border-card-border rounded-md focus:outline-none focus:ring-1 focus:ring-sky resize-none"
+        placeholder={`Add ${label.toLowerCase()} for this donkey…`}
+      />
     </div>
   );
 }

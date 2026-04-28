@@ -3,15 +3,15 @@
 import { useState } from "react";
 import { Sparkles, Plus, Trash2, Loader2, Check, X } from "lucide-react";
 import { useParkingLot } from "@/lib/parking-lot-context";
+import { formatDate as sharedFormatDate } from "@/lib/format-date";
 
+// MM-DD-YYYY h:mm AM/PM, e.g. "04-28-2026 3:14 PM"
 function formatTimestamp(d: Date): string {
-  return d.toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
+  const time = d.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
   });
+  return `${sharedFormatDate(d)} ${time}`;
 }
 
 export default function SanctuaryUpdatesPage() {
