@@ -9,7 +9,8 @@ export type MedicalEntryType =
   | "Weight"
   | "Vaccination"
   | "Deworming"
-  | "Fecal Test";
+  | "Fecal Test"
+  | "Other";
 
 export interface MedicalEntry {
   id: string;
@@ -37,6 +38,7 @@ export const entryTypes: MedicalEntryType[] = [
   "Vaccination",
   "Deworming",
   "Fecal Test",
+  "Other",
 ];
 
 export const recordTypes = entryTypes;
@@ -54,6 +56,7 @@ export const typeBadgeColors: Record<
   Vaccination: { bg: "bg-green-100", text: "text-green-700" },
   Deworming: { bg: "bg-orange-100", text: "text-orange-700" },
   "Fecal Test": { bg: "bg-teal-100", text: "text-teal-700" },
+  Other: { bg: "bg-gray-100", text: "text-gray-700" },
 };
 
 let nextId = 1;

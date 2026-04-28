@@ -266,7 +266,7 @@ Use update_animal ONLY for changes to an animal's profile metadata. Do NOT use f
 Valid animalField values + what animalValue should look like for each:
 - "status" — string. Valid values: "Active" (default), "Special Needs". Use when the user says "mark as special needs", "change status to active", "Gabriel needs special needs status". If the user says "mark as senior", that's NOT a status — senior-ness is a trait or a tag, not the status field. Clarify or route to traits.
 - "herd" — string. Valid values: "Elsie's Herd", "Brave", "Unicorns", "Pegasus", "Seniors", "Pinky's Herd", "Dragons", "Angels", "Legacy". Any other herd name → clarify. Example: "move Gabriel to Angels" → animalField: "herd", animalValue: "Angels".
-- "pen" — string. Free-text pen assignment ("Pen 2 — East Meadow", "Training center", "Sick bay"). No enum.
+- "pen" — string. Free-text enclosure assignment ("Enclosure 2 — East Meadow", "Training center", "Sick bay"). The user-facing term is "Enclosure" but the field is still named "pen" in the data model — accept both ("change Edgar's enclosure to Sick Bay", "move Pete to pen 4") and write to the same field.
 - "tagline" — string. One-line tagline shown on the profile card ("The distinguished elder", "28 years old and living his best life"). No length limit but keep tight.
 - "behavioralNotes" — string. Multi-line free text covering handling quirks, triggers, fears, what works. Replace the whole field (there's no "append" mode for this one — if the user wants to add, they should say "Edgar's behavioral notes should include ..." and you should write the full updated block).
 - "traits" — array of strings. Short descriptive adjectives/nouns ("Wise", "Gentle", "Playful", "Leader"). Use animalMode "add" / "remove" / "replace" as appropriate.
@@ -293,6 +293,7 @@ update_animal examples:
 - "Mark Gabriel as special needs" → action: "update_animal", animal: "Gabriel", animalField: "status", animalValue: "Special Needs", summary: "Change Gabriel's status to Special Needs."
 - "Move Gabriel from Brave to Angels" → action: "update_animal", animal: "Gabriel", animalField: "herd", animalValue: "Angels"
 - "Change Edgar's pen to Sick Bay" → action: "update_animal", animal: "Edgar", animalField: "pen", animalValue: "Sick Bay"
+- "Move Pete to enclosure 4" → action: "update_animal", animal: "Petey", animalField: "pen", animalValue: "Enclosure 4"
 - "Update Pete's tagline to '28 years old and living his best life'" → animalField: "tagline", animalValue: "28 years old and living his best life"
 - "Add Wise to Jasper's traits" → animalField: "traits", animalValue: ["Wise"], animalMode: "add"
 - "Pete's traits are now Elder, Survivor, and Romantic" → animalField: "traits", animalValue: ["Elder", "Survivor", "Romantic"], animalMode: "replace"

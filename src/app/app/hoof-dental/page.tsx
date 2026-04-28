@@ -693,11 +693,15 @@ function NextDueCell({
   days: number | null;
   onSave: (v: string | null) => void;
 }) {
+  const todayIso = new Date().toISOString().split("T")[0];
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value ?? "");
+  // When the cell has no saved date yet, prefill the editor with today's
+  // date so staff aren't typing a date from scratch — the common case is
+  // "schedule the next trim about now."
+  const [draft, setDraft] = useState(value ?? todayIso);
   useEffect(() => {
-    setDraft(value ?? "");
-  }, [value]);
+    setDraft(value ?? todayIso);
+  }, [value, todayIso]);
 
   if (editing) {
     return (

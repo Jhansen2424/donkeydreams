@@ -44,6 +44,7 @@ interface ScheduleContextValue {
   editTask: (blockIdx: number, taskIdx: number, updates: EditTaskInput) => Promise<void>;
   deleteTask: (blockIdx: number, taskIdx: number) => Promise<void>;
   resetSchedule: () => Promise<void>;
+  refresh: () => Promise<void>;
   loading: boolean;
   error: string | null;
 }
@@ -394,6 +395,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         editTask,
         deleteTask,
         resetSchedule,
+        refresh,
         loading,
         error,
       }}

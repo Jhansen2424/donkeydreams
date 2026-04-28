@@ -53,9 +53,12 @@ export default function WakeWordListener({
         const match = WAKE_REGEX.exec(transcript);
         if (!match) continue;
 
-        // Debounce: ignore repeated wake hits within 2s.
+        // Debounce: ignore repeated wake hits within 800ms. (Was 2s, but
+        // staff hitting Joshy with rapid back-to-back commands were having
+        // the second one dropped. 800ms still suppresses recognition echoes
+        // while letting an intentional second wake through.)
         const now = Date.now();
-        if (now - lastWakeRef.current < 2000) return;
+        if (now - lastWakeRef.current < 800) return;
         lastWakeRef.current = now;
 
         // Slice off the wake phrase and any leading punctuation/whitespace.
@@ -107,17 +110,30 @@ export default function WakeWordListener({
   }, [onError, onWake]);
 
   // ── Start/stop based on enabled + paused ──
+  // When transitioning from paused → unpaused (i.e. the modal just closed),
+  // Chrome's speech recognition may still be in a pending "stopping" state
+  // from the previous start(). Calling start() in that window throws an
+  // InvalidStateError. We retry with a short backoff so the wake listener
+  // reliably comes back online after a Joshy command — without this, two
+  // back-to-back "Hey Joshy" utterances often saw the second one dropped.
   useEffect(() => {
     const rec = recognitionRef.current;
     if (!rec) return;
     const shouldRun = enabled && !paused;
     shouldListenRef.current = shouldRun;
     if (shouldRun) {
-      try {
-        rec.start();
-      } catch {
-        /* already running */
-      }
+      const tryStart = (attempts = 0) => {
+        try {
+          rec.start();
+        } catch {
+          // "InvalidStateError: recognition is already started/stopping" —
+          // back off briefly and retry, up to ~2 seconds total.
+          if (attempts < 8 && shouldListenRef.current) {
+            setTimeout(() => tryStart(attempts + 1), 250);
+          }
+        }
+      };
+      tryStart();
     } else {
       try {
         rec.stop();

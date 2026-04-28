@@ -31,7 +31,7 @@ const tableHeaders = [
   "Sex",
   "Origin",
   "Herd",
-  "Pen",
+  "Enclosure",
   "Status",
   "Tags",
   "",

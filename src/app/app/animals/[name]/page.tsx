@@ -268,7 +268,7 @@ export default function AnimalProfilePage() {
               <InfoItem label="Sex" value={animal.sex} editing={editing} />
               <InfoItem label="Origin" value={animal.origin} editing={editing} />
               <InfoItem label="Herd" value={animal.herd} editing={editing} />
-              <InfoItem label="Pen" value={animal.pen} editing={editing} />
+              <InfoItem label="Enclosure" value={animal.pen} editing={editing} />
               <InfoItem label="Intake Date" value={animal.intakeDate} editing={editing} />
               <InfoItem label="Adopted From" value={animal.adoptedFrom} editing={editing} />
             </div>

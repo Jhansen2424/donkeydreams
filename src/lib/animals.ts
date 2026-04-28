@@ -62,15 +62,15 @@ function slug(name: string) {
 
 // Pen assignments by herd
 const herdPens: Record<string, string> = {
-  "Elsie's Herd": "Pen 1 — North Pasture",
-  Brave: "Pen 2 — East Meadow",
-  Unicorns: "Pen 3 — West Field",
-  Pegasus: "Pen 4 — South Pasture",
-  Seniors: "Pen 5 — Shady Oaks",
-  "Pinky's Herd": "Pen 6 — Founder's Pasture",
-  Dragons: "Pen 7 — Canyon View",
-  Angels: "Pen 8 — Hilltop",
-  Legacy: "Pen 9 — Homestead",
+  "Elsie's Herd": "Enclosure 1 — North Pasture",
+  Brave: "Enclosure 2 — East Meadow",
+  Unicorns: "Enclosure 3 — West Field",
+  Pegasus: "Enclosure 4 — South Pasture",
+  Seniors: "Enclosure 5 — Shady Oaks",
+  "Pinky's Herd": "Enclosure 6 — Founder's Pasture",
+  Dragons: "Enclosure 7 — Canyon View",
+  Angels: "Enclosure 8 — Hilltop",
+  Legacy: "Enclosure 9 — Homestead",
 };
 
 // Rotating dummy sexes
@@ -202,80 +202,22 @@ function tasksForAnimal(
 }
 
 // Medical record templates
+// Real medical records come from three places:
+//   - DB-backed MedicalEntry rows (useMedical().entries)
+//   - CSV-imported entries (annual exams, yard-wide dewormings)
+//   - Joshy log_* actions (temperatures, fecal tests, provider visits, etc.)
+//
+// Per a request from the dev team, the synthetic placeholder stubs that used
+// to live here (Hoof Trim Feb 15, Deworming Jan 20, Wellness Exam Dec 10,
+// Dental Float Nov 5, and a Temperature Check that fired for every 7th donkey)
+// were removed. They were appearing on every donkey's profile with the same
+// dates and were misleading staff. We now return an empty seed list.
 function medicalForAnimal(
-  name: string,
-  status: string,
-  i: number
+  _name: string,
+  _status: string,
+  _i: number
 ): Animal["medicalRecords"] {
-  const records: Animal["medicalRecords"] = [];
-
-  records.push({
-    title: "Hoof Trim",
-    type: "Hoof & Dental",
-    date: "Feb 15, 2026",
-    description: "Routine hoof trim. All four hooves in good condition.",
-    urgent: false,
-  });
-
-  if (i % 3 === 0) {
-    records.push({
-      title: "Deworming",
-      type: "Medication",
-      date: "Jan 20, 2026",
-      description: "Routine deworming administered. No adverse reaction.",
-      urgent: false,
-    });
-  }
-
-  if (i % 4 === 0) {
-    records.push({
-      title: "Annual Wellness Exam",
-      type: "Vet Visit",
-      date: "Dec 10, 2025",
-      description:
-        "Full physical exam. Weight stable. Teeth in good shape. Vaccines updated.",
-      urgent: false,
-    });
-  }
-
-  if (status === "Special Needs") {
-    records.push({
-      title: "Leg Assessment",
-      type: "Vet Visit",
-      date: "Mar 1, 2026",
-      description: "Ongoing leg condition monitored. Bandage protocol continues.",
-      urgent: true,
-    });
-    records.push({
-      title: "Pain Management Review",
-      type: "Medication",
-      date: "Mar 10, 2026",
-      description: "Adjusted anti-inflammatory dosage. Recheck in 2 weeks.",
-      urgent: true,
-    });
-  }
-
-  if (i % 5 === 0) {
-    records.push({
-      title: "Dental Float",
-      type: "Hoof & Dental",
-      date: "Nov 5, 2025",
-      description: "Routine dental float. Minor sharp points filed.",
-      urgent: false,
-    });
-  }
-
-  if (i % 7 === 0) {
-    records.push({
-      title: "Temperature Check (elevated)",
-      type: "Vet Visit",
-      date: "Mar 20, 2026",
-      description: "Temp slightly elevated at 101.2°F. Monitoring — recheck tomorrow.",
-      urgent: true,
-    });
-  }
-
-  return records;
+  return [];
 }
 
 // Upcoming medical events (for dashboard)

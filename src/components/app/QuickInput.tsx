@@ -332,6 +332,7 @@ export default function QuickInput({
     resolveEntry,
     updateEntry: updateParkingLotEntry,
     removeEntry: removeParkingLotEntry,
+    refresh: refreshParkingLot,
   } = useParkingLot();
   const { toastError, toastSuccess } = useToast();
   const {
@@ -339,8 +340,16 @@ export default function QuickInput({
     updateEntry: updateMedicalEntry,
     removeEntry: removeMedicalEntry,
     entries: medicalEntries,
+    refresh: refreshMedical,
   } = useMedical();
-  const { addTask, editTask, deleteTask, toggleTask, schedule } = useSchedule();
+  const {
+    addTask,
+    editTask,
+    deleteTask,
+    toggleTask,
+    schedule,
+    refresh: refreshSchedule,
+  } = useSchedule();
   const [activeTab, setActiveTab] = useState<EntryType | "joshy">("joshy");
   const [text, setText] = useState("");
 
@@ -536,6 +545,18 @@ export default function QuickInput({
       const action = result.action;
       const body = result.data.text || originalText.trim();
 
+      // After any direct API fetch (the cases that bypass our React contexts
+      // because they hit endpoints with no matching context — hoof-visits,
+      // dental-visits, weight, feed, animals), kick a refresh of every
+      // context so the live UI reflects the change immediately. Without this,
+      // the change persists on the server but the user has to navigate away
+      // and back to see it (the lag the dev team flagged).
+      const refreshEverything = () => {
+        void refreshParkingLot();
+        void refreshMedical();
+        void refreshSchedule();
+      };
+
       if (action === "task") {
         // Validate the category against the TaskCategory whitelist so a
         // hallucinated value doesn't leak into storage. Fall back to undefined
@@ -643,7 +664,7 @@ export default function QuickInput({
             animal: result.data.animal,
             nextHoofDue: result.data.date,
           }),
-        });
+        }).then(refreshEverything);
         return;
       }
       if (action === "set_dental_date" && result.data.animal && result.data.date) {
@@ -654,7 +675,7 @@ export default function QuickInput({
             animal: result.data.animal,
             nextDentalDue: result.data.date,
           }),
-        });
+        }).then(refreshEverything);
         return;
       }
 
@@ -666,8 +687,8 @@ export default function QuickInput({
       if (action === "log_hoof_visit") {
         const targets = resolveAnimalTargets(result.data, animals);
         if (targets.length === 0) return;
-        for (const animalName of targets) {
-          void fetch("/api/hoof-visits", {
+        const requests = targets.map((animalName) =>
+          fetch("/api/hoof-visits", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -677,16 +698,17 @@ export default function QuickInput({
               notes: result.data.notes ?? body,
               nextHoofDue: result.data.nextDate ?? undefined,
             }),
-          });
-        }
+          })
+        );
+        void Promise.all(requests).then(refreshEverything);
         return;
       }
 
       if (action === "log_dental_visit") {
         const targets = resolveAnimalTargets(result.data, animals);
         if (targets.length === 0) return;
-        for (const animalName of targets) {
-          void fetch("/api/dental-visits", {
+        const requests = targets.map((animalName) =>
+          fetch("/api/dental-visits", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -696,8 +718,9 @@ export default function QuickInput({
               notes: result.data.notes ?? body,
               nextDentalDue: result.data.nextDate ?? undefined,
             }),
-          });
-        }
+          })
+        );
+        void Promise.all(requests).then(refreshEverything);
         return;
       }
 
@@ -806,6 +829,7 @@ export default function QuickInput({
                 notes: feedNotes ?? currentNotes,
               }),
             });
+            refreshEverything();
           } catch (err) {
             console.error("set_feed_plan dispatch failed:", err);
           }
@@ -941,7 +965,7 @@ export default function QuickInput({
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
-        });
+        }).then(refreshEverything);
         return;
       }
 
@@ -1037,6 +1061,7 @@ export default function QuickInput({
             await fetch(`/api/feed?id=${encodeURIComponent(row.id)}`, {
               method: "DELETE",
             });
+            refreshEverything();
           } catch (err) {
             console.error("delete_feed_plan dispatch failed:", err);
           }
@@ -1101,6 +1126,7 @@ export default function QuickInput({
               if (res.ok) toastSuccess(`Updated ${animalName}'s weight log.`);
               else toastError(`Failed to update ${animalName}'s weight log.`);
             }
+            refreshEverything();
           } catch (err) {
             console.error(`${action} dispatch failed:`, err);
           }
@@ -1401,7 +1427,7 @@ export default function QuickInput({
               bcs,
               notes: body,
             }),
-          });
+          }).then(refreshEverything);
           return;
         }
       }
