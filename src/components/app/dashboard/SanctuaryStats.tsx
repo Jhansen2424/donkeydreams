@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, Users, Sparkles, Sun, IdCard } from "lucide-react";
+import { Heart, Users, Sparkles, Sun } from "lucide-react";
 import { sanctuaryStats } from "@/lib/donkey-profiles-data";
 
 // Each tile carries a `derivation` string — when the user hovers, they see
@@ -46,14 +46,6 @@ const items = [
     derivation:
       "Count of donkeys whose Birth Date makes them 20 or older (computed against today).",
   },
-  {
-    label: "Need Microchip",
-    value: sanctuaryStats.needsChip,
-    icon: IdCard,
-    cls: "text-orange-600 bg-orange-50",
-    derivation:
-      "Count of donkeys whose Avid # column in the adoption CSV is blank or non-numeric.",
-  },
 ];
 
 export default function SanctuaryStats() {
@@ -63,7 +55,7 @@ export default function SanctuaryStats() {
         <h3 className="text-sm font-bold text-charcoal">Sanctuary At a Glance</h3>
         <span className="text-[11px] text-warm-gray/60">From adoption records</span>
       </div>
-      <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {items.map((item) => {
           const Icon = item.icon;
           return (

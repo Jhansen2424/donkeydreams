@@ -104,20 +104,6 @@ const origins = [
   "BLM Roundup",
 ];
 
-// Behavioral notes pool
-const behaviorPool = [
-  "Loves ears scratched. Approaches humans willingly. Calm during hoof care.",
-  "Scared of side-by-sides and loud engines. Needs slow introductions to new people.",
-  "Very food-motivated — will follow anyone with treats. Gentle with children.",
-  "Shy at first but warms up quickly. Enjoys brushing sessions. Dislikes being separated from herd.",
-  "Confident and curious. Will investigate anything new. Good with halter work.",
-  "Nervous around sudden movements. Responds well to soft voice. Loves chin scratches.",
-  "Very social — greets visitors at the fence. Occasionally pushes boundaries with other donkeys.",
-  "Independent spirit. Prefers to approach on own terms. Excellent with vet visits.",
-  "Playful and energetic. Loves toys and enrichment items. Can be mouthy — redirect with treats.",
-  "Calm and steady. Good influence on nervous new arrivals. Enjoys massage sessions.",
-];
-
 // Intake dates pool
 const intakeDates = [
   "Sep 2021",
@@ -133,20 +119,6 @@ const intakeDates = [
   "Oct 2024",
   "Dec 2024",
   "Feb 2025",
-];
-
-// Adopted from pool
-const adoptedFromPool = [
-  "BLM Holding Facility, Ridgecrest CA",
-  "Private owner surrender, Flagstaff AZ",
-  "County animal control, Kingman AZ",
-  "Wild — captured by rancher",
-  "Rescue partner organization",
-  "Humane society transfer",
-  "Hoarding situation, Phoenix AZ",
-  "Abandoned property, Sedona AZ",
-  "Death Valley rescue operation",
-  "Nevada wild horse & burro program",
 ];
 
 // Task templates
@@ -293,9 +265,10 @@ function makeDonkey(
     story: [],
     sponsorable: false,
     intakeDate: profile?.intakeDate ?? intakeDates[i % intakeDates.length],
-    adoptedFrom: adoptedFromPool[i % adoptedFromPool.length],
-    behavioralNotes:
-      profile?.specialNeedsDetail || profile?.notes || behaviorPool[i % behaviorPool.length],
+    adoptedFrom: profile?.adoptedFrom ?? "",
+    // Behavioral notes are intentionally empty until staff fills them in via
+    // the app — no dummy data, no auto-fill from medical/special-needs columns.
+    behavioralNotes: "",
     medicalRecords: medicalForAnimal(name, status, i),
     tasks: tasksForAnimal(name, herd, status, i),
     // ── Adoption / identity fields ──
@@ -414,7 +387,6 @@ export const animals: Animal[] = [
       "Gabriel is the most recent donkey to join our Donkey Dreams family. As a baby in the wild, Gabriel survived alone with part of his back leg missing.",
       "After over 75 daily bandage changes and a major growth spurt, Gabriel's first test run with his prosthetic was nothing short of miraculous.",
     ],
-    behavioralNotes: "Prosthetic leg — requires daily bandage checks. Extremely social, loves connecting with other donkeys. High energy, playful. Adapting well to prosthetic.",
   }),
   makeDonkey("Merida", "Brave", idx++, { sex: "Jenny", age: "5 yr old", traits: ["Fierce", "Independent"] }),
   makeDonkey("Danny Boy", "Brave", idx++, { sex: "Gelding", age: "9 yr old", traits: ["Gentle", "Steady"] }),
@@ -452,27 +424,24 @@ export const animals: Animal[] = [
     traits: ["Wise", "Gentle", "Dignified"],
     tags: [{ label: "Healthy", color: "green" }, { label: "Sponsor Available", color: "blue" }, { label: "Senior Care", color: "amber" }],
     sponsorable: true, tagline: "The distinguished elder",
-    behavioralNotes: "Senior — needs softer feed (mash). Good with vet visits. Enjoys quiet company. Slow to rise in mornings.",
   }),
   makeDonkey("Winky", "Seniors", idx++, {
     age: "12 yr old", sex: "Jack", origin: "Wild",
     traits: ["Resilient", "Trusting", "Calm"],
     tags: [{ label: "Healthy", color: "green" }, { label: "Sponsor Available", color: "blue" }, { label: "Senior Care", color: "amber" }],
     sponsorable: true, tagline: "One-eyed wonder",
-    behavioralNotes: "Blind in one eye — always approach from his good side (left). Ground-level trough only. Loves mesquite pod treats.",
   }),
-  makeDonkey("Swayze", "Seniors", idx++, { age: "20 yr old", sex: "Gelding", traits: ["Smooth", "Social"], tags: [{ label: "Senior Care", color: "amber" }], behavioralNotes: "Arthritis in hind legs. Needs joint supplement daily. Good temperament." }),
-  makeDonkey("Tenzel", "Seniors", idx++, { age: "22 yr old", sex: "Gelding", traits: ["Stoic", "Reliable"], tags: [{ label: "Senior Care", color: "amber" }], behavioralNotes: "Slow eater — separate from food-aggressive donkeys. Very gentle." }),
-  makeDonkey("Blossom", "Seniors", idx++, { age: "18 yr old", sex: "Jenny", traits: ["Sweet", "Calm"], tags: [{ label: "Senior Care", color: "amber" }], behavioralNotes: "Dental issues — soft food only. Loves being groomed." }),
-  makeDonkey("Churro", "Seniors", idx++, { age: "19 yr old", sex: "Gelding", traits: ["Friendly", "Warm"], tags: [{ label: "Senior Care", color: "amber" }], behavioralNotes: "Weight management — monitor portions. Very treat-motivated." }),
-  makeDonkey("Jasper", "Seniors", idx++, { age: "21 yr old", sex: "Jack", traits: ["Wise", "Observant"], tags: [{ label: "Senior Care", color: "amber" }], behavioralNotes: "Mild hearing loss. Use visual cues. Excellent with volunteers." }),
-  makeDonkey("Rodney", "Seniors", idx++, { age: "17 yr old", sex: "Gelding", traits: ["Laid-back", "Gentle"], tags: [{ label: "Senior Care", color: "amber" }], behavioralNotes: "History of colic — monitor eating habits. Prefers shade in summer." }),
+  makeDonkey("Swayze", "Seniors", idx++, { age: "20 yr old", sex: "Gelding", traits: ["Smooth", "Social"], tags: [{ label: "Senior Care", color: "amber" }] }),
+  makeDonkey("Tenzel", "Seniors", idx++, { age: "22 yr old", sex: "Gelding", traits: ["Stoic", "Reliable"], tags: [{ label: "Senior Care", color: "amber" }] }),
+  makeDonkey("Blossom", "Seniors", idx++, { age: "18 yr old", sex: "Jenny", traits: ["Sweet", "Calm"], tags: [{ label: "Senior Care", color: "amber" }] }),
+  makeDonkey("Churro", "Seniors", idx++, { age: "19 yr old", sex: "Gelding", traits: ["Friendly", "Warm"], tags: [{ label: "Senior Care", color: "amber" }] }),
+  makeDonkey("Jasper", "Seniors", idx++, { age: "21 yr old", sex: "Jack", traits: ["Wise", "Observant"], tags: [{ label: "Senior Care", color: "amber" }] }),
+  makeDonkey("Rodney", "Seniors", idx++, { age: "17 yr old", sex: "Gelding", traits: ["Laid-back", "Gentle"], tags: [{ label: "Senior Care", color: "amber" }] }),
   makeDonkey("Mrs. Truman", "Seniors", idx++, {
     age: "Senior", sex: "Jenny",
     traits: ["Calm", "Gentle"],
     tags: [{ label: "Senior Care", color: "amber" }],
     tagline: "Surrendered to PVDR with Nelly Belle",
-    behavioralNotes: "Surrendered by owner to PVDR on 12/20/20 alongside Nelly Belle and Blossom.",
   }),
 
   // ── Pinky's Herd (12) ──
@@ -489,7 +458,6 @@ export const animals: Animal[] = [
       "Despite Pink's early health challenges, she is now incredibly healthy. She lives with her best friend Eli, her two four legged moms and her two legged mom, Amber.",
     ],
     intakeDate: "Sep 2021",
-    behavioralNotes: "The ambassador — greets every visitor. Extremely social and confident. Bonded deeply with Amber (co-founder). Loves adventures.",
   }),
   makeDonkey("Sandy", "Pinky's Herd", idx++, {
     sex: "Jenny", age: "Adult", origin: "Wild — Death Valley, CA",
@@ -498,7 +466,6 @@ export const animals: Animal[] = [
     traits: ["Wild heart", "Fun mom", "Trusting", "Playful"],
     bestFriends: ["Pink", "Rizzo"],
     intakeDate: "Sep 2021",
-    behavioralNotes: "Wild Jenny — still warming to humans. Follows organic training approach. The 'fun mom' — plays with Pink and Eli regularly.",
   }),
   makeDonkey("Eli", "Pinky's Herd", idx++, {
     age: "4 yr old", sex: "Jack", origin: "Wild — Death Valley, CA",
@@ -508,7 +475,6 @@ export const animals: Animal[] = [
     traits: ["Regal", "Protective", "Reserved", "OG"],
     bestFriends: ["Pink"],
     intakeDate: "Sep 2021",
-    behavioralNotes: "Quiet confidence. Protective of Pink and his moms. Possible half-brother to Pink. Alpha Jack tendencies.",
   }),
   makeDonkey("Rizzo", "Pinky's Herd", idx++, {
     sex: "Jenny", age: "Adult", origin: "Wild — Death Valley, CA",
@@ -517,7 +483,6 @@ export const animals: Animal[] = [
     traits: ["Devoted mom", "Independent", "Peaceful", "Wild heart"],
     bestFriends: ["Eli", "Sandy"],
     intakeDate: "Sep 2021",
-    behavioralNotes: "Content being a mom. Doesn't crave human interaction — prefers grazing. Growing more comfortable with people over time. Smiles when she eats.",
   }),
   makeDonkey("Petey", "Pinky's Herd", idx++, {
     age: "28 yr old", sex: "Gelding", origin: "Domestic",
@@ -528,7 +493,6 @@ export const animals: Animal[] = [
     bestFriends: ["Lila"],
     tags: [{ label: "Sponsor Available", color: "blue" }, { label: "Senior Care", color: "amber" }],
     sponsorable: true,
-    behavioralNotes: "Senior — 28 years old. Lost previous bonded companion and nearly starved from grief. Now bonded with Lila. Loves guitar music (Edj plays for him). Needs senior mash + joint supplements.",
   }),
   makeDonkey("Lila", "Pinky's Herd", idx++, {
     age: "3 yr old", sex: "Jenny", origin: "Wild — Death Valley, CA",
@@ -538,7 +502,6 @@ export const animals: Animal[] = [
     bestFriends: ["Petey", "Pink"],
     tags: [{ label: "Healthy", color: "green" }, { label: "Sponsor Available", color: "blue" }],
     sponsorable: true,
-    behavioralNotes: "Recovered from difficult birth at young age. Rejected her foal initially. Now bonded with Pete. Big sister role to younger donkeys. Very photogenic.",
   }),
   makeDonkey("Lava", "Pinky's Herd", idx++, { sex: "Jenny", age: "5 yr old", traits: ["Warm", "Bold"] }),
   makeDonkey("Obsidian", "Pinky's Herd", idx++, { sex: "Jack", age: "6 yr old", traits: ["Dark", "Mysterious", "Gentle"] }),
@@ -552,13 +515,11 @@ export const animals: Animal[] = [
     traits: ["Determined", "Gentle", "Patient"],
     tags: [{ label: "Special Needs", color: "red" }, { label: "Sponsor Available", color: "blue" }],
     sponsorable: true,
-    behavioralNotes: "Hoarding rescue — corrective hoof care ongoing. Needs daily hoof therapy walk (15 min) and afternoon hoof soak. Very patient during treatment.",
   }),
   makeDonkey("Cora", "Pinky's Herd", idx++, {
     sex: "Jenny", age: "10 yr old", origin: "Saline Valley, CA",
     traits: ["Trusting", "Patient"],
     tagline: "Returned from previous adoption",
-    behavioralNotes: "Previously trained by Amy. Returned by SAC. Separated from her son, Vader, when he got adopted and she did not.",
   }),
 
   // ── Dragons (8) ──
@@ -592,7 +553,6 @@ export const animals: Animal[] = [
     bestFriends: ["Shelley", "Jema"],
     tags: [{ label: "Special Needs", color: "red" }, { label: "Sponsor Available", color: "blue" }],
     sponsorable: true,
-    behavioralNotes: "Birth defect — twisted front legs, crooked back. Slow, deliberate walk. Extraordinary trust in humans. Nudges for attention. Two babies in the wild (Reno, Jema). Needs frequent hoof care.",
   }),
   makeDonkey("Shelley", "Legacy", idx++, {
     age: "18 yr old", sex: "Jenny", origin: "Wild",
@@ -604,7 +564,6 @@ export const animals: Animal[] = [
     bestFriends: ["Jethro", "Amber"],
     tags: [{ label: "Special Needs", color: "red" }, { label: "Sponsor Available", color: "blue" }],
     sponsorable: true,
-    behavioralNotes: "Deformed front leg + crooked back since birth. Affected leg growing longer — now stands with it folded. Frequent leg bandaging and hoof care. Never refuses treatment. Loves kisses sessions after care.",
   }),
   makeDonkey("Fernie", "Legacy", idx++, {
     sex: "Jenny", age: "Adult", origin: "Wild — Antelope Preserve",
@@ -615,7 +574,6 @@ export const animals: Animal[] = [
     bestFriends: ["Elsie", "Buster"],
     tags: [{ label: "Healthy", color: "green" }, { label: "Sponsor Available", color: "blue" }],
     sponsorable: true,
-    behavioralNotes: "History of multiple rehomings — can be wary initially. Now fully warmed up. First to approach for attention. Roams freely between herds. Finally home.",
   }),
 ];
 

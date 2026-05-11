@@ -564,6 +564,10 @@ function HoofDentalPage() {
               onQuickLog={() => setLogModalAnimal(animal.animal)}
               onEditVisit={setEditingVisit}
               onDeleteVisit={deleteVisit}
+              isVisitEditable={(id) =>
+                dbHoofVisits.some((v) => v.id === id) ||
+                dbDentalVisits.some((v) => v.id === id)
+              }
               onEditInterval={(field, value) => updateInterval(animal.animal, field, value)}
               editingInterval={editingInterval}
               setEditingInterval={setEditingInterval}
@@ -784,6 +788,7 @@ function AnimalRow({
   onQuickLog,
   onEditVisit,
   onDeleteVisit,
+  isVisitEditable,
   onEditInterval,
   editingInterval,
   setEditingInterval,
@@ -798,6 +803,7 @@ function AnimalRow({
   onQuickLog: () => void;
   onEditVisit: (v: CareVisit) => void;
   onDeleteVisit: (id: string) => void;
+  isVisitEditable: (id: string) => boolean;
   onEditInterval: (field: "hoofWeeks" | "dentalMonths", value: number) => void;
   editingInterval: string | null;
   setEditingInterval: (v: string | null) => void;
@@ -910,7 +916,7 @@ function AnimalRow({
                   </p>
                 )}
                 <TrimProfileBlock animalName={status.animal} />
-                <VisitList visits={hoofVisits} onEdit={onEditVisit} onDelete={onDeleteVisit} />
+                <VisitList visits={hoofVisits} onEdit={onEditVisit} onDelete={onDeleteVisit} isEditable={isVisitEditable} />
               </div>
             )}
 
@@ -939,7 +945,7 @@ function AnimalRow({
                     {status.dentalNotes}
                   </p>
                 )}
-                <VisitList visits={dentalVisits} onEdit={onEditVisit} onDelete={onDeleteVisit} />
+                <VisitList visits={dentalVisits} onEdit={onEditVisit} onDelete={onDeleteVisit} isEditable={isVisitEditable} />
               </div>
             )}
           </div>
@@ -1093,10 +1099,12 @@ function VisitList({
   visits,
   onEdit,
   onDelete,
+  isEditable,
 }: {
   visits: CareVisit[];
   onEdit: (v: CareVisit) => void;
   onDelete: (id: string) => void;
+  isEditable: (id: string) => boolean;
 }) {
   if (visits.length === 0) {
     return <p className="text-xs text-warm-gray/50 italic">No visits recorded</p>;
@@ -1104,32 +1112,45 @@ function VisitList({
 
   return (
     <div className="space-y-1.5 max-h-72 overflow-y-auto">
-      {visits.slice(0, 5).map((v) => (
-        <div
-          key={v.id}
-          className="flex items-start gap-2 p-2.5 bg-white rounded-lg border border-card-border group"
-        >
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-charcoal">{formatDate(v.date)}</span>
-              <span className="text-[10px] text-warm-gray">· {v.provider}</span>
+      {visits.slice(0, 5).map((v) => {
+        const editable = isEditable(v.id);
+        return (
+          <div
+            key={v.id}
+            className="flex items-start gap-2 p-2.5 bg-white rounded-lg border border-card-border group"
+          >
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-semibold text-charcoal">{formatDate(v.date)}</span>
+                <span className="text-[10px] text-warm-gray">· {v.provider}</span>
+                {!editable && (
+                  <span
+                    title="This visit was imported from historical records and is read-only. Log a new visit to record changes going forward."
+                    className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-cream text-warm-gray border border-card-border cursor-help"
+                  >
+                    Imported
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-warm-gray mt-0.5 truncate">{v.notes}</p>
+              {/* Photos: same TrimPhotos component used on the per-animal
+                  trim history. Works for both hoof and dental since storage
+                  is keyed by any string id. */}
+              <TrimPhotos visitId={v.id} />
             </div>
-            <p className="text-xs text-warm-gray mt-0.5 truncate">{v.notes}</p>
-            {/* Photos: same TrimPhotos component used on the per-animal
-                trim history. Works for both hoof and dental since storage
-                is keyed by any string id. */}
-            <TrimPhotos visitId={v.id} />
+            {editable && (
+              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                <button onClick={() => onEdit(v)} className="p-1 text-warm-gray hover:text-sky" title="Edit visit">
+                  <Pencil className="w-3 h-3" />
+                </button>
+                <button onClick={() => onDelete(v.id)} className="p-1 text-warm-gray hover:text-red-500" title="Delete visit">
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            <button onClick={() => onEdit(v)} className="p-1 text-warm-gray hover:text-sky">
-              <Pencil className="w-3 h-3" />
-            </button>
-            <button onClick={() => onDelete(v.id)} className="p-1 text-warm-gray hover:text-red-500">
-              <Trash2 className="w-3 h-3" />
-            </button>
-          </div>
-        </div>
-      ))}
+        );
+      })}
       {visits.length > 5 && (
         <p className="text-[10px] text-warm-gray/50 text-center">+ {visits.length - 5} older visits</p>
       )}
@@ -1165,9 +1186,27 @@ function QuickLogModal({
   const today = new Date().toISOString().split("T")[0];
   const [type, setType] = useState<CareType>("hoof");
   const [date, setDate] = useState(today);
-  const [provider, setProvider] = useState(providers[0]?.name ?? "");
+  const pickDefaultProvider = (t: CareType) => {
+    if (t === "hoof") {
+      const edj = providers.find((p) => p.name.toLowerCase().startsWith("edj"));
+      if (edj) return edj.name;
+      const farrier = providers.find((p) => p.type === "Farrier");
+      if (farrier) return farrier.name;
+    } else {
+      const dentist = providers.find((p) => p.type === "Equine Dentist");
+      if (dentist) return dentist.name;
+    }
+    return providers[0]?.name ?? "";
+  };
+  const [provider, setProvider] = useState(pickDefaultProvider("hoof"));
+  const [providerTouched, setProviderTouched] = useState(false);
   const [notes, setNotes] = useState("");
   const [nextDue, setNextDue] = useState("");
+
+  const handleTypeChange = (t: CareType) => {
+    setType(t);
+    if (!providerTouched) setProvider(pickDefaultProvider(t));
+  };
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-4" onClick={onClose}>
@@ -1184,7 +1223,7 @@ function QuickLogModal({
             {(["hoof", "dental"] as CareType[]).map((t) => (
               <button
                 key={t}
-                onClick={() => setType(t)}
+                onClick={() => handleTypeChange(t)}
                 className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
                   type === t
                     ? "bg-sky text-white"
@@ -1212,7 +1251,10 @@ function QuickLogModal({
             <label className="text-xs font-semibold text-warm-gray uppercase tracking-wider">Provider</label>
             <select
               value={provider}
-              onChange={(e) => setProvider(e.target.value)}
+              onChange={(e) => {
+                setProvider(e.target.value);
+                setProviderTouched(true);
+              }}
               className="w-full mt-1 px-3 py-2 border border-card-border rounded-lg text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-sky/50 bg-white"
             >
               {providers.map((p) => (

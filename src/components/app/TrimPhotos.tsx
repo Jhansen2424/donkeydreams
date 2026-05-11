@@ -83,9 +83,6 @@ export default function TrimPhotos({ visitId }: TrimPhotosProps) {
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          // capture="environment" — opens rear camera on phones, falls back
-          // to file picker on desktop
-          capture="environment"
           multiple
           onChange={(e) => handleFiles(e.target.files)}
           className="hidden"

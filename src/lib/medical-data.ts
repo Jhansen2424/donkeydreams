@@ -10,6 +10,9 @@ export type MedicalEntryType =
   | "Vaccination"
   | "Deworming"
   | "Fecal Test"
+  | "Special Needs"
+  | "Condition"
+  | "Incident"
   | "Other";
 
 export interface MedicalEntry {
@@ -38,6 +41,9 @@ export const entryTypes: MedicalEntryType[] = [
   "Vaccination",
   "Deworming",
   "Fecal Test",
+  "Special Needs",
+  "Condition",
+  "Incident",
   "Other",
 ];
 
@@ -56,6 +62,9 @@ export const typeBadgeColors: Record<
   Vaccination: { bg: "bg-green-100", text: "text-green-700" },
   Deworming: { bg: "bg-orange-100", text: "text-orange-700" },
   "Fecal Test": { bg: "bg-teal-100", text: "text-teal-700" },
+  "Special Needs": { bg: "bg-rose-100", text: "text-rose-700" },
+  Condition: { bg: "bg-indigo-100", text: "text-indigo-700" },
+  Incident: { bg: "bg-yellow-100", text: "text-yellow-800" },
   Other: { bg: "bg-gray-100", text: "text-gray-700" },
 };
 
@@ -93,7 +102,7 @@ import {
   braveActualEntries,
   scheduledDewormingEntries,
 } from "./scheduled-and-events-data";
-import { annualExamEntries } from "./donkey-profiles-data";
+import { annualExamEntries, revisedMedicalEntries } from "./donkey-profiles-data";
 
 // Sources of deworming truth, in order of authority (highest first):
 //   1. brave-events.csv  → braveActualEntries  (per-donkey events with weights)
@@ -167,6 +176,7 @@ export const allMedicalEntries: MedicalEntry[] = [
   ...braveActualEntries,
   ...scheduledDewormingEntries,
   ...annualExamEntries,
+  ...revisedMedicalEntries,
 ];
 
 // ── Helper Functions ──

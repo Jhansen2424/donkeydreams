@@ -346,24 +346,30 @@ export default function AnimalProfilePage() {
 
 /* ── Adoption status badges ── */
 function AdoptionStatusBadges({ animal }: { animal: Animal }) {
-  const badges: { label: string; cls: string }[] = [];
+  const badges: { label: string; cls: string; tooltip: string }[] = [];
 
   if (animal.isSpecialNeedsFlag) {
     badges.push({
       label: "Special Needs Sponsor",
       cls: "bg-red-100 text-red-700 border border-red-200",
+      tooltip:
+        "This donkey has a medical or behavioral condition that requires extra care. Sponsorship helps cover the additional vet, feed, or handling costs.",
     });
   }
   if (animal.isOver20) {
     badges.push({
       label: "Senior Care",
       cls: "bg-amber-100 text-amber-700 border border-amber-200",
+      tooltip:
+        "20 years or older. Senior donkeys often need softer feed, more frequent dental care, and gentler handling.",
     });
   }
   if (animal.isBondedPair) {
     badges.push({
       label: "Bonded Pair Required",
       cls: "bg-purple-100 text-purple-700 border border-purple-200",
+      tooltip:
+        "This donkey is closely bonded to another and must be adopted, sponsored, or rehomed alongside their bonded companion — separating them causes serious stress.",
     });
   }
   if ((animal.momBabyCount ?? 0) > 0) {
@@ -371,18 +377,21 @@ function AdoptionStatusBadges({ animal }: { animal: Animal }) {
       label:
         animal.momBabyCount === 1 ? "Mom + Baby" : `Mom of ${animal.momBabyCount}`,
       cls: "bg-pink-100 text-pink-700 border border-pink-200",
+      tooltip: "Mother of one or more donkeys currently in the herd.",
     });
   }
   if (animal.needsChip) {
     badges.push({
       label: "Needs Microchip",
       cls: "bg-orange-100 text-orange-700 border border-orange-200",
+      tooltip: "This donkey is missing a microchip ID and is on the list to be chipped at the next vet visit.",
     });
   }
   if (badges.length === 0) {
     badges.push({
       label: "Available for Adoption",
       cls: "bg-emerald-100 text-emerald-700 border border-emerald-200",
+      tooltip: "No special-care flags — this donkey is generally healthy and available for standard adoption or sponsorship.",
     });
   }
 
@@ -391,7 +400,8 @@ function AdoptionStatusBadges({ animal }: { animal: Animal }) {
       {badges.map((b) => (
         <span
           key={b.label}
-          className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${b.cls}`}
+          title={b.tooltip}
+          className={`text-[11px] font-semibold px-2.5 py-1 rounded-full cursor-help ${b.cls}`}
         >
           {b.label}
         </span>
@@ -843,6 +853,14 @@ function MedicalRecordCard({ record }: { record: MedicalRecord }) {
           {record.urgent && (
             <span className="text-[10px] font-bold uppercase tracking-wider text-red-600">
               Urgent
+            </span>
+          )}
+          {!isEditable && (
+            <span
+              title="This record was imported from historical spreadsheets and is read-only. To make a change, log a new entry."
+              className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-cream text-warm-gray border border-card-border cursor-help"
+            >
+              Imported
             </span>
           )}
         </div>

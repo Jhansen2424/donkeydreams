@@ -34,6 +34,10 @@ import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 
 const CSV_PATH = join(__dirname, "..", "src", "lib", "data", "donkey-adoption.csv");
+// Sidecar with revised columns: Adopted From, cleaned Relationships, and
+// prefixed Medical text (Condition: / Incident:). Overrides matching fields
+// from the primary CSV.
+const REVISED_CSV_PATH = join(__dirname, "..", "src", "lib", "data", "donkey-adoption-revised.csv");
 const OUT_PATH = join(__dirname, "..", "src", "lib", "donkey-profiles-data.ts");
 
 // CSV name → app-canonical name. Apply minimal renames; the adoption CSV is the
@@ -225,6 +229,7 @@ interface DonkeyProfile {
   birthDate: string | null; // ISO
   age: string; // calculated from birth date
   origin: string;
+  adoptedFrom: string; // From REVISED sheet — rescue/auction/source DDS got them from
   intakeDate: string | null; // ISO
   microchip: string | null; // null if no chip
   needsChip: boolean;
@@ -243,12 +248,62 @@ interface DonkeyProfile {
   bondedWith: string[];
 }
 
+// ── Load REVISED sidecar CSV ──
+// Columns: Name, Adopted from, Relationships, Medical, Special Needs,
+// Trim History, Dewormed Date, Deworming History, Next Vaccination,
+// Vaccination History, Vaccination Date.
+interface RevisedRow {
+  adoptedFrom: string;
+  relationships: string;
+  medical: string;
+  specialNeeds: string;
+}
+
+function loadRevisedCSV(): Map<string, RevisedRow> {
+  const out = new Map<string, RevisedRow>();
+  let text: string;
+  try {
+    text = readFileSync(REVISED_CSV_PATH, "utf-8");
+  } catch {
+    console.warn(`⚠ Revised CSV not found at ${REVISED_CSV_PATH} — skipping merge.`);
+    return out;
+  }
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCSVLine(lines[i]);
+    const csvName = cols[0]?.trim();
+    if (!csvName) continue;
+    const animalName = resolveName(csvName);
+    out.set(animalName, {
+      adoptedFrom: (cols[1] ?? "").trim(),
+      relationships: (cols[2] ?? "").trim(),
+      medical: (cols[3] ?? "").trim(),
+      specialNeeds: (cols[4] ?? "").trim(),
+    });
+  }
+  return out;
+}
+const revised = loadRevisedCSV();
+
 // ── Parse ──
 const csv = readFileSync(CSV_PATH, "utf-8");
 const lines = csv.split(/\r?\n/).filter((l) => l.trim().length > 0);
 
 const profiles: Map<string, DonkeyProfile> = new Map();
 const annualExams: Array<{ animal: string; date: string }> = [];
+// Medical entries derived from the REVISED sheet's Medical + Special Needs
+// columns. Type is determined by prefix:
+//   "Condition: <text>"  → Condition
+//   "Incident:  <text>"  → Incident
+//   anything in Special Needs column → Special Needs
+//   un-prefixed Medical text → Condition (default, with warning)
+const revisedMedicalEntries: Array<{
+  animal: string;
+  type: "Condition" | "Incident" | "Special Needs";
+  title: string;
+  description: string;
+}> = [];
+const unprefixedWarnings: string[] = [];
 
 let totalMomBaby = 0;
 let totalBondedHalves = 0;
@@ -294,12 +349,23 @@ for (let i = 1; i < lines.length; i++) {
   }
   const needsChip = !looksLikeChip;
 
-  const family = extractFamily(notes);
-  const bondedWith = extractBonded(notes);
+  // Prefer the cleaner Relationships column from the REVISED sheet for
+  // family + bonded extraction. Fall back to the freeform Notes column on
+  // the primary CSV if no revised entry exists.
+  const rev = revised.get(animalName);
+  const relationshipsText = rev?.relationships || notes;
+  const family = extractFamily(relationshipsText);
+  const bondedWith = extractBonded(relationshipsText);
 
-  // Special Needs Detail: prefer the explicit Special Needs column,
-  // fall back to Medical column if Special Needs is blank.
-  const specialNeedsDetail = specialNeeds || medical;
+  // adoptedFrom comes from the REVISED sheet only. The first line is the
+  // canonical source; trailing context (e.g. surrender history) is dropped.
+  const adoptedFromRaw = rev?.adoptedFrom ?? "";
+  const adoptedFrom = adoptedFromRaw.split(/\s{2,}/)[0]?.trim() ?? "";
+
+  // Special Needs Detail: REVISED sheet's Special Needs column wins;
+  // legacy CSV fallback only if revised entry is absent.
+  const specialNeedsRevised = rev?.specialNeeds ?? "";
+  const specialNeedsDetail = specialNeedsRevised || specialNeeds || medical;
 
   // Stats derivations:
   //   momBabyCount: number of unique children mentioned in notes
@@ -310,7 +376,7 @@ for (let i = 1; i < lines.length; i++) {
   const ageYears = calcAgeYears(birthDate);
   const momBabyCount = family.childCount;
   const isBondedPair = bondedWith.length > 0;
-  const isSpecialNeeds = specialNeeds.length > 0;
+  const isSpecialNeeds = specialNeedsRevised.length > 0 || specialNeeds.length > 0;
   const isOver20 = ageYears !== null && ageYears >= 20;
 
   totalMomBaby += momBabyCount;
@@ -328,6 +394,7 @@ for (let i = 1; i < lines.length; i++) {
     birthDate,
     age: calcAge(birthDate),
     origin,
+    adoptedFrom,
     intakeDate,
     microchip,
     needsChip,
@@ -345,6 +412,52 @@ for (let i = 1; i < lines.length; i++) {
 
   if (lastAnnualExam) {
     annualExams.push({ animal: animalName, date: lastAnnualExam });
+  }
+
+  // Emit medical entries from the REVISED sheet's Medical column.
+  // Format: "Condition: ..." or "Incident: ..." (case-insensitive). Multiple
+  // prefixed segments in one cell are split apart so each becomes its own row.
+  if (rev?.medical) {
+    const text = rev.medical.trim();
+    // Split on (?=Condition:|Incident:) so the prefix stays attached to its
+    // segment. Also accept either spelling case.
+    const segments = text.split(/(?=\b(?:Condition|Incident):\s*)/gi)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    for (const seg of segments) {
+      const m = seg.match(/^(Condition|Incident):\s*(.*)$/is);
+      if (m) {
+        const type = m[1].toLowerCase() === "incident" ? "Incident" : "Condition";
+        const desc = m[2].trim();
+        if (desc) {
+          revisedMedicalEntries.push({
+            animal: animalName,
+            type,
+            title: type === "Incident" ? "Incident" : "Condition",
+            description: desc,
+          });
+        }
+      } else {
+        // Un-prefixed text — default to Condition and warn.
+        unprefixedWarnings.push(`${animalName}: "${seg.slice(0, 60)}…"`);
+        revisedMedicalEntries.push({
+          animal: animalName,
+          type: "Condition",
+          title: "Condition",
+          description: seg,
+        });
+      }
+    }
+  }
+
+  // Emit a Special Needs medical entry from the REVISED sheet's column.
+  if (specialNeedsRevised) {
+    revisedMedicalEntries.push({
+      animal: animalName,
+      type: "Special Needs",
+      title: "Special Needs",
+      description: specialNeedsRevised,
+    });
   }
 }
 
@@ -364,6 +477,20 @@ const examEntries = annualExams
   )
   .join(",\n");
 
+// REVISED-CSV medical entries (Condition / Incident / Special Needs). Date is
+// the latest annual-exam date for the animal if available, otherwise today —
+// these are profile-level facts, not events, so the exact date matters less.
+const todayIso = new Date().toISOString().split("T")[0];
+const lastExamByAnimal = new Map<string, string>(
+  annualExams.map((e) => [e.animal, e.date])
+);
+const revisedMedicalEntryRows = revisedMedicalEntries
+  .map((e, idx) => {
+    const date = lastExamByAnimal.get(e.animal) ?? todayIso;
+    return `  { id: ${JSON.stringify(`med-import-${idx}`)}, animal: ${JSON.stringify(e.animal)}, type: ${JSON.stringify(e.type)}, title: ${JSON.stringify(e.title)}, date: ${JSON.stringify(date)}, description: ${JSON.stringify(e.description)}, urgent: false }`;
+  })
+  .join(",\n");
+
 const out = `// AUTO-GENERATED by scripts/parse-adoption-csv.ts
 // Source: src/lib/data/donkey-adoption.csv
 // Do not edit by hand — re-run the parser instead.
@@ -379,6 +506,7 @@ export interface DonkeyProfile {
   birthDate: string | null;
   age: string;
   origin: string;
+  adoptedFrom: string;
   intakeDate: string | null;
   microchip: string | null;
   needsChip: boolean;
@@ -407,6 +535,12 @@ export const annualExamEntries: MedicalEntry[] = [
 ${examEntries},
 ];
 
+// Profile-level medical entries imported from the REVISED adoption sheet.
+// These are CSV-sourced and read-only in the UI (id prefix "med-import-").
+export const revisedMedicalEntries: MedicalEntry[] = [
+${revisedMedicalEntryRows},
+];
+
 export interface SanctuaryStats {
   totalDonkeys: number;
   momBaby: number;
@@ -431,4 +565,9 @@ writeFileSync(OUT_PATH, out);
 console.log(`✓ Wrote ${OUT_PATH}`);
 console.log(`  Profiles parsed: ${profiles.size}`);
 console.log(`  Annual exam entries: ${annualExams.length}`);
+console.log(`  Revised-sheet medical entries: ${revisedMedicalEntries.length}`);
 console.log(`  Stats: ${totalMomBaby} mom/baby, ${Math.round(totalBondedHalves / 2)} bonded pairs, ${totalSpecialNeeds} special needs, ${totalOver20} seniors, ${totalNeedsChip} need chip`);
+if (unprefixedWarnings.length > 0) {
+  console.warn(`⚠ ${unprefixedWarnings.length} medical entries had no Condition:/Incident: prefix — defaulted to Condition:`);
+  for (const w of unprefixedWarnings) console.warn(`   ${w}`);
+}

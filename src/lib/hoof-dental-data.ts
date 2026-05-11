@@ -51,6 +51,7 @@ export interface ProviderSeed {
 }
 
 export const providers: ProviderSeed[] = [
+  { name: "Edj Fish", type: "Farrier", phone: "" },
   { name: "Dr. Martinez", type: "Farrier", phone: "(760) 555-0142" },
   { name: "Desert Hoof Care", type: "Farrier", phone: "(760) 555-0198" },
   { name: "Dr. Chen", type: "Equine Dentist", phone: "(760) 555-0267" },

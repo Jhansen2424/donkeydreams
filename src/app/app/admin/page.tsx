@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Search,
   X,
@@ -113,9 +113,77 @@ const allDays: DayOfWeek[] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 // ── Page ──
 
+// API ↔ UI mapping. The DB stores emergency contact as flat columns; the UI
+// model nests them and also tracks per-volunteer tasks (tasks are client-only
+// for now — no DB column).
+interface ApiVolunteer {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: string;
+  status: string;
+  startDate: string;
+  availability: string[];
+  skills: string[];
+  emergencyName: string;
+  emergencyPhone: string;
+  emergencyRelation: string;
+  notes: string;
+  hoursThisMonth: number;
+  committedHoursPerDay: number;
+}
+
+function fromApi(row: ApiVolunteer): Volunteer {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    phone: row.phone,
+    role: row.role as UserRole,
+    status: row.status as VolunteerStatus,
+    startDate: row.startDate,
+    availability: row.availability as DayOfWeek[],
+    skills: row.skills,
+    emergencyContact: {
+      name: row.emergencyName,
+      phone: row.emergencyPhone,
+      relation: row.emergencyRelation,
+    },
+    notes: row.notes,
+    hoursThisMonth: row.hoursThisMonth,
+    committedHoursPerDay: row.committedHoursPerDay,
+    tasks: [],
+  };
+}
+
+function toApiPayload(v: Partial<Volunteer> & { id?: string }): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (v.id !== undefined) out.id = v.id;
+  if (v.name !== undefined) out.name = v.name;
+  if (v.email !== undefined) out.email = v.email;
+  if (v.phone !== undefined) out.phone = v.phone;
+  if (v.role !== undefined) out.role = v.role;
+  if (v.status !== undefined) out.status = v.status;
+  if (v.startDate !== undefined) out.startDate = v.startDate;
+  if (v.availability !== undefined) out.availability = v.availability;
+  if (v.skills !== undefined) out.skills = v.skills;
+  if (v.emergencyContact !== undefined) {
+    out.emergencyName = v.emergencyContact.name;
+    out.emergencyPhone = v.emergencyContact.phone;
+    out.emergencyRelation = v.emergencyContact.relation;
+  }
+  if (v.notes !== undefined) out.notes = v.notes;
+  if (v.hoursThisMonth !== undefined) out.hoursThisMonth = v.hoursThisMonth;
+  if (v.committedHoursPerDay !== undefined) out.committedHoursPerDay = v.committedHoursPerDay;
+  return out;
+}
+
 export default function VolunteersPage() {
   const admin = useAdminAccess();
   const [localVolunteers, setLocalVolunteers] = useState<Volunteer[]>(initialVolunteers);
+  const [loading, setLoading] = useState(true);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<VolunteerStatus | "all">("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -151,6 +219,69 @@ export default function VolunteersPage() {
   const [editEmergRelation, setEditEmergRelation] = useState("");
   const [editHours, setEditHours] = useState("");
 
+  // ── Load from DB on mount, fall back to seed data on failure ──
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/volunteers", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.statusText)))
+      .then((data: { volunteers: ApiVolunteer[] }) => {
+        if (cancelled) return;
+        if (Array.isArray(data.volunteers) && data.volunteers.length > 0) {
+          setLocalVolunteers(data.volunteers.map(fromApi));
+        }
+      })
+      .catch(() => {
+        // Stay with the seed data if the API isn't reachable yet.
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Persist a single volunteer via POST (upsert by email). Used on add and on
+  // edit so the same write path covers both create-from-seed and update-existing.
+  const persistVolunteer = useCallback(async (vol: Volunteer) => {
+    try {
+      setSaveError(null);
+      const res = await fetch("/api/volunteers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(toApiPayload(vol)),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data: { volunteer: ApiVolunteer } = await res.json();
+      const saved = fromApi(data.volunteer);
+      // Replace the optimistic record with the server's canonical one (so the
+      // server-assigned id replaces our temporary "vol-<timestamp>" id).
+      setLocalVolunteers((prev) => {
+        const byEmail = prev.findIndex((v) => v.email === saved.email);
+        if (byEmail === -1) return [...prev, saved];
+        const next = [...prev];
+        next[byEmail] = { ...saved, tasks: prev[byEmail].tasks };
+        return next;
+      });
+    } catch (err) {
+      console.error("Failed to save volunteer:", err);
+      setSaveError("Couldn't save changes. Try again.");
+    }
+  }, []);
+
+  const persistDelete = useCallback(async (id: string) => {
+    try {
+      setSaveError(null);
+      const res = await fetch(`/api/volunteers?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error(await res.text());
+    } catch (err) {
+      console.error("Failed to delete volunteer:", err);
+      setSaveError("Couldn't delete. Try again.");
+    }
+  }, []);
+
   function startEditing(vol: Volunteer) {
     setEditingId(vol.id);
     setEditName(vol.name);
@@ -167,28 +298,29 @@ export default function VolunteersPage() {
 
   function handleSaveEdit() {
     if (!editingId || !editName.trim()) return;
+    const target = localVolunteers.find((v) => v.id === editingId);
+    if (!target) return;
+    const updated: Volunteer = {
+      ...target,
+      name: editName.trim(),
+      email: editEmail.trim(),
+      phone: editPhone.trim(),
+      availability: editAvailability,
+      skills: editSkills,
+      notes: editNotes.trim(),
+      emergencyContact: {
+        name: editEmergName.trim(),
+        phone: editEmergPhone.trim(),
+        relation: editEmergRelation.trim(),
+      },
+      hoursThisMonth: parseInt(editHours) || 0,
+    };
+    // Optimistic update — replaced with server's canonical row by persistVolunteer.
     setLocalVolunteers((prev) =>
-      prev.map((v) =>
-        v.id === editingId
-          ? {
-              ...v,
-              name: editName.trim(),
-              email: editEmail.trim(),
-              phone: editPhone.trim(),
-              availability: editAvailability,
-              skills: editSkills,
-              notes: editNotes.trim(),
-              emergencyContact: {
-                name: editEmergName.trim(),
-                phone: editEmergPhone.trim(),
-                relation: editEmergRelation.trim(),
-              },
-              hoursThisMonth: parseInt(editHours) || 0,
-            }
-          : v
-      )
+      prev.map((v) => (v.id === editingId ? updated : v))
     );
     setEditingId(null);
+    void persistVolunteer(updated);
   }
 
   function toggleEditDay(day: DayOfWeek) {
@@ -269,6 +401,7 @@ export default function VolunteersPage() {
       tasks: [],
     };
     setLocalVolunteers((prev) => [...prev, newVol]);
+    void persistVolunteer(newVol);
     // Reset form
     setFormName("");
     setFormEmail("");
@@ -283,13 +416,15 @@ export default function VolunteersPage() {
   }
 
   function handleToggleStatus(id: string) {
+    const target = localVolunteers.find((v) => v.id === id);
+    if (!target) return;
+    const nextStatus: VolunteerStatus =
+      target.status === "active" ? "inactive" : "active";
+    const updated = { ...target, status: nextStatus };
     setLocalVolunteers((prev) =>
-      prev.map((v) =>
-        v.id === id
-          ? { ...v, status: v.status === "active" ? "inactive" : v.status === "inactive" ? "active" : "active" }
-          : v
-      )
+      prev.map((v) => (v.id === id ? updated : v))
     );
+    void persistVolunteer(updated);
   }
 
   function handleToggleTask(volId: string, taskId: string) {
@@ -329,6 +464,7 @@ export default function VolunteersPage() {
   function handleRemoveVolunteer(id: string) {
     setLocalVolunteers((prev) => prev.filter((v) => v.id !== id));
     if (expandedId === id) setExpandedId(null);
+    void persistDelete(id);
   }
 
   return (
@@ -339,6 +475,21 @@ export default function VolunteersPage() {
       setUnlocked={admin.setUnlocked}
     >
       <div className="space-y-6">
+        {saveError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-2.5 flex items-center justify-between">
+            <span>{saveError}</span>
+            <button
+              onClick={() => setSaveError(null)}
+              className="text-red-500 hover:text-red-700"
+              aria-label="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        {loading && (
+          <div className="text-xs text-warm-gray">Loading volunteers…</div>
+        )}
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
