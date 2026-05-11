@@ -425,7 +425,7 @@ for (let i = 1; i < lines.length; i++) {
       .map((s) => s.trim())
       .filter(Boolean);
     for (const seg of segments) {
-      const m = seg.match(/^(Condition|Incident):\s*(.*)$/is);
+      const m = seg.match(/^(Condition|Incident):\s*([\s\S]*)$/i);
       if (m) {
         const type = m[1].toLowerCase() === "incident" ? "Incident" : "Condition";
         const desc = m[2].trim();
