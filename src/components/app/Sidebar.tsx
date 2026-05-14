@@ -41,7 +41,7 @@ const navGroups = [
     items: [
       { name: "Medical Entries", href: "/app/medical", icon: Stethoscope },
       { name: "Daily Routine", href: "/app/tasks", icon: ClipboardCheck },
-      { name: "Feed Buckets", href: "/app/feed", icon: UtensilsCrossed },
+      { name: "Feed Plans", href: "/app/feed", icon: UtensilsCrossed },
       { name: "Hoof Care", href: "/app/hoof-dental?tab=hoof", icon: Footprints },
       { name: "Dental Care", href: "/app/hoof-dental?tab=dental", icon: Footprints },
       { name: "Weight Tracking", href: "/app/weight", icon: Weight },

@@ -950,6 +950,7 @@ function MedicalRecordCard({ record }: { record: MedicalRecord }) {
 
 function MedicalTab({ animal }: { animal: Animal }) {
   const { entries: dbEntries } = useMedical();
+  const searchParams = useSearchParams();
   const seedRecords = getRecordsForAnimal(animal.name);
   // Merge DB entries for this animal with the seeded CSV history. Dedupe on
   // id; keep DB entries first so they win on collision. Sort newest-first to
@@ -965,8 +966,26 @@ function MedicalTab({ animal }: { animal: Animal }) {
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   })();
-  const [subTab, setSubTab] = useState<MedicalSubTab>("all");
+  // Allow deep-linking to a specific medical sub-tab via `?sub=...` (e.g. the
+  // hoof-dental page links here with `?tab=medical&sub=hoof-trims` so staff
+  // can edit trim protocols without hunting through the UI).
+  const initialSubTab = (() => {
+    const s = searchParams?.get("sub");
+    return s && medicalSubTabs.some((t) => t.id === s)
+      ? (s as MedicalSubTab)
+      : "all";
+  })();
+  const [subTab, setSubTab] = useState<MedicalSubTab>(initialSubTab);
   const [showAllTrims, setShowAllTrims] = useState(false);
+
+  // Keep `subTab` in sync with URL changes (e.g. back/forward navigation).
+  useEffect(() => {
+    const s = searchParams?.get("sub");
+    if (s && medicalSubTabs.some((t) => t.id === s) && s !== subTab) {
+      setSubTab(s as MedicalSubTab);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const hoofVisits = visitHistory
     .filter((v) => v.animal === animal.name && v.type === "hoof")

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback, Suspense } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   Footprints,
@@ -29,6 +30,7 @@ import {
   type CareType,
 } from "@/lib/hoof-dental-data";
 import { getTrimProfile, type TrimProfile } from "@/lib/trimming-data";
+import { animals } from "@/lib/animals";
 import TrimPhotos from "@/components/app/TrimPhotos";
 import ProviderPanel from "@/components/app/ProviderPanel";
 import { useProviders } from "@/lib/providers-context";
@@ -1014,36 +1016,102 @@ function EditableInterval({
 // ══════════════════════════════════════════
 function TrimProfileBlock({ animalName }: { animalName: string }) {
   const profile: TrimProfile | null = getTrimProfile(animalName);
+
+  // Overlay DB override on top of CSV defaults so edits made on the animal
+  // profile page show up here too. Null = not loaded yet; empty-string field
+  // values mean "fall back to CSV".
+  const [override, setOverride] = useState<{
+    preTrimTreatment: string | null;
+    protocols: string | null;
+    squishPads: string | null;
+    recentNotes: string | null;
+    trainingNotes: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/trim-profiles?animal=${encodeURIComponent(animalName)}`,
+          { cache: "no-store" }
+        );
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setOverride(data?.override ?? null);
+      } catch {
+        // Silent — the CSV defaults still render.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [animalName]);
+
   if (!profile) return null;
 
-  const {
-    lastTrim,
-    preTrimTreatment,
-    protocols,
-    squishPads,
-    recentNotes,
-    trainingDate,
-    trainingNotes,
-  } = profile;
+  // Effective values: override wins when set + non-empty, otherwise CSV.
+  const lastTrim = profile.lastTrim;
+  const trainingDate = profile.trainingDate;
+  const protocols = override?.protocols || profile.protocols;
+  const preTrimTreatment = override?.preTrimTreatment || profile.preTrimTreatment;
+  const squishPads = override?.squishPads || profile.squishPads;
+  const recentNotes = override?.recentNotes || profile.recentNotes;
+  const trainingNotes = override?.trainingNotes || profile.trainingNotes;
 
   const hasTrimInfo =
     preTrimTreatment || protocols || squishPads || recentNotes || lastTrim;
   const hasTraining = trainingDate || trainingNotes;
 
-  if (!hasTrimInfo && !hasTraining) return null;
+  // Deep-link to the animal profile's hoof-trims sub-tab where the full
+  // TrimProfileEditor lives. Cheaper than duplicating the edit UI here.
+  const slug = animals.find((a) => a.name === animalName)?.slug;
+  const editHref = slug
+    ? `/app/animals/${slug}?tab=medical&sub=hoof-trims`
+    : null;
+
+  if (!hasTrimInfo && !hasTraining) {
+    // Even with nothing to show, surface an Edit affordance so staff can
+    // create the first protocol entry.
+    return editHref ? (
+      <div className="flex items-center justify-end">
+        <Link
+          href={editHref}
+          className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky hover:text-sky-dark"
+        >
+          <Pencil className="w-3 h-3" />
+          Add trim protocol
+        </Link>
+      </div>
+    ) : null;
+  }
 
   return (
     <div className="space-y-2">
-      {lastTrim && (
-        <div className="flex items-center gap-2 text-[11px]">
-          <span className="font-semibold uppercase tracking-wider text-warm-gray/70">
-            Last Trim
-          </span>
-          <span className="text-charcoal font-medium">
-            {formatDate(lastTrim)}
-          </span>
-        </div>
-      )}
+      <div className="flex items-center justify-between">
+        {lastTrim ? (
+          <div className="flex items-center gap-2 text-[11px]">
+            <span className="font-semibold uppercase tracking-wider text-warm-gray/70">
+              Last Trim
+            </span>
+            <span className="text-charcoal font-medium">
+              {formatDate(lastTrim)}
+            </span>
+          </div>
+        ) : (
+          <span />
+        )}
+        {editHref && (
+          <Link
+            href={editHref}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky hover:text-sky-dark"
+            title="Edit trim protocols on the animal's profile"
+          >
+            <Pencil className="w-3 h-3" />
+            Edit
+          </Link>
+        )}
+      </div>
       {protocols && (
         <TrimProfileField label="Trimming Protocols" value={protocols} />
       )}
