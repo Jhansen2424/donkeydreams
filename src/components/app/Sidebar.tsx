@@ -21,6 +21,7 @@ import {
   Sparkles,
   Map as MapIcon,
 } from "lucide-react";
+import SignOutButton from "@/components/app/SignOutButton";
 import { useParkingLot, type EntryType } from "@/lib/parking-lot-context";
 import { useMedical } from "@/lib/medical-context";
 import { useSchedule } from "@/lib/schedule-context";
@@ -230,6 +231,11 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
+
+      {/* Sign-out at the bottom */}
+      <div className="px-3 py-3 border-t border-white/10 shrink-0">
+        <SignOutButton />
+      </div>
     </aside>
   );
 }

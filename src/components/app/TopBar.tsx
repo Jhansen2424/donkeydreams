@@ -10,7 +10,7 @@ import { useParkingLot } from "@/lib/parking-lot-context";
 
 const WAKE_PREF_KEY = "joshy:wakeEnabled";
 
-export default function TopBar() {
+export default function TopBar({ firstName }: { firstName?: string }) {
   const today = new Date();
   const greeting =
     today.getHours() < 12
@@ -18,6 +18,7 @@ export default function TopBar() {
       : today.getHours() < 17
         ? "Good afternoon"
         : "Good evening";
+  const greetingLine = firstName ? `${greeting}, ${firstName}` : greeting;
 
   const [quickInputOpen, setQuickInputOpen] = useState(false);
   const [autoVoice, setAutoVoice] = useState(false);
@@ -69,7 +70,7 @@ export default function TopBar() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h2 className="text-2xl sm:text-3xl font-bold text-charcoal">
-              {greeting} 👋
+              {greetingLine} 👋
             </h2>
             <p className="text-warm-gray text-sm mt-0.5">
               {format(today, "EEEE, MMMM d, yyyy")} · Scenic, AZ

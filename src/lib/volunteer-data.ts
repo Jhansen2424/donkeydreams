@@ -62,7 +62,7 @@ export const volunteers: Volunteer[] = [
   {
     id: "v-edj",
     name: "Edj Fish",
-    email: "edj@donkeydreams.org",
+    email: "theedj17@gmail.com",
     phone: '',
     role: 'admin',
     status: 'active',
@@ -94,7 +94,7 @@ export const volunteers: Volunteer[] = [
   {
     id: "v-josh",
     name: "Josh",
-    email: "joshua@webaholics.co",
+    email: "joshua@webaholics.ai",
     phone: '',
     role: 'admin',
     status: 'active',
