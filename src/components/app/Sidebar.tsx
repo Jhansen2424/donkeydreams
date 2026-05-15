@@ -20,7 +20,7 @@ import {
   Inbox,
   Sparkles,
 } from "lucide-react";
-import SignOutButton from "@/components/app/SignOutButton";
+import { UserButton } from "@neondatabase/auth/react/ui";
 import { useParkingLot, type EntryType } from "@/lib/parking-lot-context";
 import { useMedical } from "@/lib/medical-context";
 import { useSchedule } from "@/lib/schedule-context";
@@ -230,9 +230,10 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Account / sign-out */}
+      {/* Account / sign-out — the UserButton renders an avatar with a popover
+          menu containing Account settings, theme, and Sign out. */}
       <div className="px-3 py-3 border-t border-white/10 shrink-0">
-        <SignOutButton />
+        <UserButton />
       </div>
     </aside>
   );
