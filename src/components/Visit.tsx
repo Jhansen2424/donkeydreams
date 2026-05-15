@@ -88,12 +88,13 @@ export default function Visit() {
             </div>
 
             {/* Google Maps embed */}
-            <div className="rounded-[2rem] overflow-hidden min-h-[400px] ring-4 ring-white/10 shadow-[0_8px_40px_rgba(0,0,0,0.2)]">
+            <div className="rounded-[2rem] overflow-hidden ring-4 ring-white/10 shadow-[0_8px_40px_rgba(0,0,0,0.2)] h-[400px] md:h-auto md:min-h-[400px]">
               <iframe
                 src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d25889.04844648!2d-113.95!3d36.28!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x80c9a1f3b3b3b3b3%3A0x0!2sScenic%2C+AZ!5e0!3m2!1sen!2sus!4v1700000000000!5m2!1sen!2sus"
                 width="100%"
                 height="100%"
-                style={{ border: 0, minHeight: 400 }}
+                className="block w-full h-full"
+                style={{ border: 0 }}
                 allowFullScreen
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
