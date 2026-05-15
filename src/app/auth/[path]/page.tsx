@@ -59,7 +59,7 @@ export default async function AuthPage({
   return (
     <main className="flex min-h-screen items-center justify-center bg-cream p-4">
       <div className="w-full max-w-md">
-        <AuthView path={path} />
+        <AuthView path={path} redirectTo="/app" />
       </div>
     </main>
   );
