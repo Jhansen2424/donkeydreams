@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   Inbox,
   Sparkles,
+  Map as MapIcon,
 } from "lucide-react";
 import { useParkingLot, type EntryType } from "@/lib/parking-lot-context";
 import { useMedical } from "@/lib/medical-context";
@@ -45,6 +46,7 @@ const navGroups = [
       { name: "Hoof Care", href: "/app/hoof-dental?tab=hoof", icon: Footprints },
       { name: "Dental Care", href: "/app/hoof-dental?tab=dental", icon: Footprints },
       { name: "Weight Tracking", href: "/app/weight", icon: Weight },
+      { name: "Map", href: "/app/map", icon: MapIcon },
     ],
   },
   {
