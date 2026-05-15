@@ -16,6 +16,7 @@ import {
   Mail,
   Calendar,
   Shield,
+  Lock,
   Trash2,
   Pencil,
   Save,
@@ -33,6 +34,77 @@ import {
   type UserRole,
 } from "@/lib/volunteer-data";
 import { formatDate } from "@/lib/format-date";
+
+// ── Admin gate ──
+// Simple client-side role check — not security, just UI visibility.
+// In production this would be server-side auth.
+
+function useAdminAccess() {
+  const [unlocked, setUnlocked] = useState(false);
+  const [pin, setPin] = useState("");
+  return { unlocked, setUnlocked, pin, setPin };
+}
+
+function AdminGate({
+  children,
+  unlocked,
+  pin,
+  setPin,
+  setUnlocked,
+}: {
+  children: React.ReactNode;
+  unlocked: boolean;
+  pin: string;
+  setPin: (v: string) => void;
+  setUnlocked: (v: boolean) => void;
+}) {
+  // Simple PIN gate — "1234" placeholder. In real app, proper auth.
+  const ADMIN_PIN = "1234";
+
+  function handleUnlock() {
+    if (pin === ADMIN_PIN) {
+      setUnlocked(true);
+    }
+  }
+
+  if (unlocked) return <>{children}</>;
+
+  return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="bg-white rounded-xl border border-card-border p-8 max-w-sm w-full text-center space-y-4">
+        <div className="w-14 h-14 rounded-full bg-sidebar/10 flex items-center justify-center mx-auto">
+          <Lock className="w-7 h-7 text-sidebar" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-charcoal">Admin Access Required</h2>
+          <p className="text-sm text-warm-gray mt-1">
+            Admin panel is restricted to Edj and Amber.
+          </p>
+        </div>
+        <div className="space-y-3">
+          <input
+            type="password"
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleUnlock()}
+            placeholder="Enter admin PIN"
+            className="w-full px-4 py-3 text-center text-lg tracking-widest border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50 focus:border-sand"
+            autoFocus
+          />
+          <button
+            onClick={handleUnlock}
+            className="w-full px-4 py-3 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors"
+          >
+            Unlock
+          </button>
+        </div>
+        {pin.length > 0 && pin !== ADMIN_PIN && (
+          <p className="text-xs text-red-500">Incorrect PIN</p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ── Helpers ──
 // (formatDate is imported from @/lib/format-date at the top of the file.)
@@ -108,6 +180,7 @@ function toApiPayload(v: Partial<Volunteer> & { id?: string }): Record<string, u
 }
 
 export default function VolunteersPage() {
+  const admin = useAdminAccess();
   const [localVolunteers, setLocalVolunteers] = useState<Volunteer[]>(initialVolunteers);
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -395,7 +468,13 @@ export default function VolunteersPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <AdminGate
+      unlocked={admin.unlocked}
+      pin={admin.pin}
+      setPin={admin.setPin}
+      setUnlocked={admin.setUnlocked}
+    >
+      <div className="space-y-6">
         {saveError && (
           <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-2.5 flex items-center justify-between">
             <span>{saveError}</span>
@@ -1120,5 +1199,6 @@ export default function VolunteersPage() {
           </div>
         )}
       </div>
+    </AdminGate>
   );
 }

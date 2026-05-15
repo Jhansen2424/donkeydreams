@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Open_Sans } from "next/font/google";
 import SiteShell from "@/components/SiteShell";
-import AuthProvider from "@/components/AuthProvider";
-import "@neondatabase/auth-ui/css";
 import "./globals.css";
 
 const openSans = Open_Sans({
@@ -41,9 +39,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${openSans.variable} antialiased`}>
-        <AuthProvider>
-          <SiteShell>{children}</SiteShell>
-        </AuthProvider>
+        <SiteShell>{children}</SiteShell>
       </body>
     </html>
   );

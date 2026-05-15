@@ -20,7 +20,6 @@ import {
   Inbox,
   Sparkles,
 } from "lucide-react";
-import { UserButton } from "@neondatabase/auth/react/ui";
 import { useParkingLot, type EntryType } from "@/lib/parking-lot-context";
 import { useMedical } from "@/lib/medical-context";
 import { useSchedule } from "@/lib/schedule-context";
@@ -166,7 +165,7 @@ export default function Sidebar() {
       </div>
 
       {/* Nav groups */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6 min-h-0">
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
         {navGroups.map((group) => (
           <div key={group.label}>
             <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-cream/40 mb-2">
@@ -229,12 +228,6 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
-
-      {/* Account / sign-out — the UserButton renders an avatar with a popover
-          menu containing Account settings, theme, and Sign out. */}
-      <div className="px-3 py-3 border-t border-white/10 shrink-0">
-        <UserButton />
-      </div>
     </aside>
   );
 }
