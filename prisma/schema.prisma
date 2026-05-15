@@ -296,3 +296,26 @@ model TrimProfileOverride {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// ── Map Pens ──
+//
+// Physical pen boundaries drawn on the map page. Each pen belongs to a herd
+// (free-text — matches existing herd names from animals.ts, e.g. "Brave",
+// "Angels", "Seniors"). Multiple pens per herd are allowed. The `polygon`
+// column stores a GeoJSON Polygon geometry as JSON — i.e.
+//   { type: "Polygon", coordinates: [[ [lng,lat], [lng,lat], ... ]] }
+// We don't use PostGIS here because we don't need spatial queries; the
+// pen list is small (< 100 rows) and the map just renders all of them.
+
+model Pen {
+  id        String   @id @default(cuid())
+  name      String   // "Main Pasture", "Sick Bay", "Brave AM Lot"
+  herd      String   // canonical herd name; free-text, validated client-side
+  polygon   Json     // GeoJSON Polygon geometry
+  notes     String   @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([herd])
+}
