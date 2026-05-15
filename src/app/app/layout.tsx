@@ -8,7 +8,7 @@ import { ParkingLotProvider } from "@/lib/parking-lot-context";
 import { MedicalProvider } from "@/lib/medical-context";
 import { ToastProvider } from "@/lib/toast-context";
 import { ProvidersProvider } from "@/lib/providers-context";
-import { auth, isAllowedEmail } from "@/lib/auth";
+import { getSessionReadOnly, isAllowedEmail } from "@/lib/auth";
 import { getCurrentVolunteer } from "@/lib/current-user";
 
 export const metadata: Metadata = {
@@ -25,10 +25,12 @@ export default async function AppLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Server-side session check. Anonymous visitors get bounced to sign-in.
-  // Signed-in but non-allowlisted emails get bounced to an access-denied page
-  // so they can't probe whether we know their email.
-  const { data: session } = await auth.getSession();
+  // Server-side session check. Uses the read-only session cookie helper
+  // (not auth.getSession()) because layouts aren't allowed to modify cookies
+  // in Next.js — and the SDK's full getSession() always tries to refresh
+  // the cookie. The middleware has already validated/refreshed the session
+  // for this request; we just trust-and-verify the resulting cookie here.
+  const session = await getSessionReadOnly();
   if (!session?.user) {
     redirect("/auth/sign-in");
   }
