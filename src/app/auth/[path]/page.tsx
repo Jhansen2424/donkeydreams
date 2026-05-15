@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { AuthView } from "@neondatabase/auth/react/ui";
 import { authViewPaths } from "@neondatabase/auth/react/ui/server";
-import { auth } from "@/lib/auth";
+import { getSessionReadOnly } from "@/lib/auth";
 
 // Single page serves every auth view (sign-in, sign-up, forgot-password,
 // reset-password, email-otp, callback, etc.). `path` is the URL slug — the
@@ -47,8 +47,10 @@ export default async function AuthPage({
 
   // If they're already signed in and visiting a "log me in" view, jump
   // straight to /app. The /app layout will then enforce the allowlist.
+  // Read-only path — pages can't modify cookies, so we read the SDK's
+  // signed session-data cookie directly instead of calling auth.getSession().
   if (BOUNCE_IF_LOGGED_IN.has(path)) {
-    const { data: session } = await auth.getSession();
+    const session = await getSessionReadOnly();
     if (session?.user) {
       redirect("/app");
     }
