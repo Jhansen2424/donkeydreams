@@ -26,6 +26,7 @@ const moreLinks = [
   { name: "Hoof Care", href: "/app/hoof-dental?tab=hoof" },
   { name: "Dental Care", href: "/app/hoof-dental?tab=dental" },
   { name: "Weight Tracking", href: "/app/weight" },
+  { name: "Map", href: "/app/map" },
 
   { name: "Admin", href: "/app/admin" },
   { name: "Donations", href: "/app/donations" },
