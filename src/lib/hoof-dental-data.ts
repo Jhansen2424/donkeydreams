@@ -62,20 +62,21 @@ export const providers: ProviderSeed[] = [
 // Sourced from real trimming protocols in donkey-trimming-notes.csv
 const hoofIntervalOverrides: Record<string, { weeks: number; notes: string }> = {
   Gracie: { weeks: 2, notes: "Laminitis — fronts every 2 weeks, backs every 4-6 weeks. Sling trim with bute/dorma." },
-  Skyla: { weeks: 4, notes: "Laminitis — monthly trims with sedation. Use sling." },
+  "Skyla (Skye)": { weeks: 4, notes: "Laminitis — monthly trims with sedation. Use sling." },
   Shelley: { weeks: 3, notes: "Long right leg — weekly rasping, full trim every 3 weeks in sling." },
   Winnie: { weeks: 3, notes: "Long left leg — full trim every 3 weeks in sling." },
   Cassidy: { weeks: 5, notes: "Clubfoot — rasp special hoof every 1-2 weeks, full sling trim every 5-6 weeks." },
   Lila: { weeks: 5, notes: "Trim every 4-6 weeks. Does better with longer hooves and more concavity." },
-  Petey: { weeks: 5, notes: "Senior — trim every 4-6 weeks." },
+  // Previously listed as "Petey" and a duplicate "Pete" — collapsed under the
+  // canonical adoption-sheet name "Pete" with the Senior profile.
+  Pete: { weeks: 5, notes: "Senior — trim every 4-6 weeks." },
   Peggy: { weeks: 6, notes: "Cushings — corrective hoof care. Prone to bruising/abscess after trim." },
   Cinder: { weeks: 6, notes: "Curled passenger leg — sling trim with valerian." },
   Gabriel: { weeks: 6, notes: "Prosthetic leg — trim 1 hoof at a time while lying down." },
   Swayze: { weeks: 6, notes: "Sway back — one hoof per session unless under dorma." },
-  Pete: { weeks: 6, notes: "Senior — monitor for laminitis signs." },
 };
 
-const specialDentalAnimals = new Set(["Blossom", "Petey", "Gabriel", "Herman", "Tenzel"]);
+const specialDentalAnimals = new Set(["Blossom", "Pete", "Gabriel", "Herman", "Tenzel"]);
 
 function getInterval(animalName: string): CareInterval {
   const hoofOverride = hoofIntervalOverrides[animalName];

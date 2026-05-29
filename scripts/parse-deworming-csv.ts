@@ -31,23 +31,16 @@ const CSV_PATH = join(__dirname, "..", "src", "lib", "data", "deworming-vaccinat
 const OUT_PATH = join(__dirname, "..", "src", "lib", "deworming-vaccination-data.ts");
 
 // ── CSV name → app name overrides ──
+// Reversed direction: previously mapped canonical spreadsheet names back to
+// stale code-side misspellings (PETE -> Petey, CLOUD -> Cloudy, etc.). Now
+// normalizes CSV typos toward the canonical adoption-sheet names. See
+// scripts/parse-adoption-csv.ts for full context.
 const NAME_OVERRIDES: Record<string, string> = {
-  "NELLY BELLE": "Nelley",
-  "PRINCESS": "Princes",
-  "SOPHIE": "Sofie",
+  "NELLY BELLE": "Nelly Belle",
   "JEMMA": "Jemma",
-  "SERAPHINA": "Saraphina",
   "ELENORA": "Elanora",
-  "DUSK": "Dusky",
-  "RAINIER": "Raineer",
-  "MAKUAHINE HAU": "Maku",
-  "ROSIE": "Rosey",
-  "ISABELLA (IZZY)": "Izabelle",
-  "KAI-YA": "Kayla",
-  "PETE": "Petey",
-  "VANELLOPE": "Venelope",
-  "CLOUD": "Cloudy",
-  "SKYLA (SKYE)": "Skyla",
+  "ISABELLA (IZZY)": "Izabella (Izzy)",
+  "SKYLA (SKYE)": "Skyla (Skye)",
   "JACK JACK": "Jack Jack",
   "DANNY BOY": "Danny Boy",
 };

@@ -24,12 +24,12 @@ const OUT_PATH = join(__dirname, "..", "src", "lib", "scheduled-and-events-data.
 const TODAY = new Date().toISOString().split("T")[0];
 
 const NAME_OVERRIDES: Record<string, string> = {
+  // Reversed direction (see scripts/parse-adoption-csv.ts). Now normalizes
+  // CSV typos toward canonical adoption-sheet names.
   "JACK JACK": "Jack Jack",
   "DANNY BOY": "Danny Boy",
-  "ISABELLA (IZZY)": "Izabelle",
-  "KAI-YA": "Kayla",
-  "ROSIE": "Rosey",
-  "SARAPHINA": "Saraphina",
+  "ISABELLA (IZZY)": "Izabella (Izzy)",
+  "SARAPHINA": "Seraphina",
   "ELENORA": "Elanora",
   "LEILANI": "Leilani",
 };

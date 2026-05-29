@@ -15,6 +15,12 @@ model Animal {
   slug            String   @unique
   age             String
   sex             String
+  // size + color come from the adoption spreadsheet but until now lived only
+  // in the code-baked donkey-profiles-data.ts map. Added to the DB so the
+  // profile edit UI can persist changes (e.g. updating size after a vet
+  // confirms a final adult size for a young donkey).
+  size            String?
+  color           String?
   origin          String
   status          String   @default("Active")
   herd            String
@@ -25,6 +31,13 @@ model Animal {
   intakeDate      String   @default("")
   adoptedFrom     String   @default("")
   behavioralNotes String   @default("")
+  // Free-text fields imported 1:1 from the Donkey Adoption List spreadsheet.
+  // Used for displaying the donkey's profile context that doesn't fit the
+  // structured medical / hoof / weight tables. Nullable because not every
+  // animal will have these populated.
+  specialNeeds    String?
+  medical         String?
+  notes           String?
   profileImage    String?
   galleryImages   String[] @default([])
   traits          String[] @default([])

@@ -63,6 +63,9 @@ const EDITABLE: Array<
   | "bestFriends"
   | "behavioralNotes"
   | "status"
+  | "sex"
+  | "size"
+  | "color"
   | "herd"
   | "pen"
   | "tagline"
@@ -78,6 +81,11 @@ const EDITABLE: Array<
   "bestFriends",
   "behavioralNotes",
   "status",
+  // sex / size / color added to the writable list so the profile edit UI's
+  // new dropdowns can persist their selections.
+  "sex",
+  "size",
+  "color",
   "herd",
   "pen",
   "tagline",

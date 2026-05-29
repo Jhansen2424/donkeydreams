@@ -38,20 +38,12 @@ const OUT_PATH = join(__dirname, "..", "src", "lib", "trimming-data.ts");
 
 // CSV name → app name overrides where fuzzy matching fails.
 const NAME_OVERRIDES: Record<string, string> = {
-  "NELLY BELLE": "Nelley",
-  "PRINCESS": "Princes",
-  "SOPHIE": "Sofie",
-  "SERAPHINA": "Saraphina",
+  "NELLY BELLE": "Nelly Belle",
+  "SKYLA": "Skyla (Skye)",
+  // Reversed direction (see scripts/parse-adoption-csv.ts). Now normalizes
+  // CSV typos toward canonical adoption-sheet names.
   "ELENORA": "Elanora",
-  "DUSK": "Dusky",
-  "RAINIER": "Raineer",
-  "MAKUAHINE HAU": "Maku",
-  "ROSIE": "Rosey",
-  "ISABELLA": "Izabelle",
-  "KAI-YA": "Kayla",
-  "PETE": "Petey",
-  "VANELLOPE": "Venelope",
-  "CLOUD": "Cloudy",
+  "ISABELLA": "Izabella (Izzy)",
   "JACK JACK": "Jack Jack",
   "DANNY BOY": "Danny Boy",
   "LELANI": "Leilani",

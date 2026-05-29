@@ -19,6 +19,12 @@ import {
 } from "lucide-react";
 import { getAnimalBySlug, type Animal } from "@/lib/animals";
 import {
+  SEX_OPTIONS,
+  SIZE_OPTIONS,
+  COLOR_OPTIONS,
+  HERD_OPTIONS,
+} from "@/lib/animal-dropdown-options";
+import {
   getRecordsForAnimal,
   typeBadgeColors,
   type MedicalRecord,
@@ -74,6 +80,11 @@ export default function AnimalProfilePage() {
     story: string; // newline-joined for the textarea
     traits: string; // comma-joined
     bestFriends: string; // comma-joined
+    // Identity dropdown fields. Empty string = "no selection / clear value".
+    sex: string;
+    size: string;
+    color: string;
+    herd: string;
   };
   const [draft, setDraft] = useState<ProfileDraft | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -137,6 +148,10 @@ export default function AnimalProfilePage() {
                   story: (animal.story ?? []).join("\n\n"),
                   traits: (animal.traits ?? []).join(", "),
                   bestFriends: (animal.bestFriends ?? []).join(", "),
+                  sex: animal.sex ?? "",
+                  size: animal.size ?? "",
+                  color: animal.color ?? "",
+                  herd: animal.herd ?? "",
                 });
                 setEditing(true);
                 return;
@@ -168,6 +183,18 @@ export default function AnimalProfilePage() {
                 const nextStory = splitStory(draft.story);
                 if (nextStory.join("|") !== (animal.story ?? []).join("|"))
                   payload.story = nextStory;
+                // Identity dropdowns — diff against current animal so we only
+                // PATCH on actual change. Empty string sends as empty (clears
+                // the value), but currently the UI doesn't surface a clear
+                // action — every dropdown has options.
+                if (draft.sex !== (animal.sex ?? ""))
+                  payload.sex = draft.sex;
+                if (draft.size !== (animal.size ?? ""))
+                  payload.size = draft.size;
+                if (draft.color !== (animal.color ?? ""))
+                  payload.color = draft.color;
+                if (draft.herd !== (animal.herd ?? ""))
+                  payload.herd = draft.herd;
                 if (Object.keys(payload).length <= 1) {
                   // No changes to save — just exit edit mode.
                   setEditing(false);
@@ -266,11 +293,34 @@ export default function AnimalProfilePage() {
             {/* Quick info grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
               <InfoItem label="Age" value={animal.age} editing={editing} />
-              <InfoItem label="Sex" value={animal.sex} editing={editing} />
+              <SelectInfoItem
+                label="Sex"
+                value={editing && draft ? draft.sex : animal.sex}
+                options={SEX_OPTIONS}
+                editing={editing}
+                onChange={(next) => draft && setDraft({ ...draft, sex: next })}
+              />
               <InfoItem label="Origin" value={animal.origin} editing={editing} />
-              <InfoItem label="Herd" value={animal.herd} editing={editing} />
+              <SelectInfoItem
+                label="Herd"
+                value={editing && draft ? draft.herd : animal.herd}
+                options={HERD_OPTIONS}
+                editing={editing}
+                onChange={(next) => draft && setDraft({ ...draft, herd: next })}
+              />
               <InfoItem label="Enclosure" value={animal.pen} editing={editing} />
-              <InfoItem label="Intake Date" value={animal.intakeDate} editing={editing} />
+              <InfoItem
+                label="Intake Date"
+                // ISO date strings get formatted MM-DD-YYYY for display;
+                // legacy hand-coded values like "Sep 2021" pass through as-is.
+                value={
+                  animal.intakeDate &&
+                  /^\d{4}-\d{2}-\d{2}$/.test(animal.intakeDate)
+                    ? sharedFormatDate(animal.intakeDate)
+                    : animal.intakeDate
+                }
+                editing={editing}
+              />
               <InfoItem label="Adopted From" value={animal.adoptedFrom} editing={editing} />
             </div>
 
@@ -437,6 +487,54 @@ function InfoItem({
   );
 }
 
+/* ── Select-driven info item ──
+   Controlled <select> that mirrors InfoItem's layout. Use this for finite
+   identity fields (Sex / Size / Color / Herd) where free-typed values can
+   drift. In non-edit mode it just shows the current value as text. */
+function SelectInfoItem({
+  label,
+  value,
+  options,
+  editing,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: readonly string[];
+  editing: boolean;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">
+        {label}
+      </p>
+      {editing ? (
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full px-2 py-1 text-sm border border-card-border rounded-md text-charcoal bg-white focus:outline-none focus:ring-2 focus:ring-sand/50"
+        >
+          {/* If the current value isn't in the option list, surface it as a
+              fallback so the saved value doesn't silently disappear from the
+              UI. Lets staff notice + correct it. */}
+          {value && !options.includes(value) && (
+            <option value={value}>{value} (non-standard)</option>
+          )}
+          {!value && <option value="">— choose —</option>}
+          {options.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <p className="text-sm font-medium text-charcoal">{value || "—"}</p>
+      )}
+    </div>
+  );
+}
+
 /* ── Overview Tab ── */
 type ProfileDraftShape = {
   tagline: string;
@@ -444,6 +542,12 @@ type ProfileDraftShape = {
   story: string;
   traits: string;
   bestFriends: string;
+  // Identity dropdown fields (Sex / Size / Color / Herd). Empty string means
+  // unset — keeps the value off the PATCH payload.
+  sex: string;
+  size: string;
+  color: string;
+  herd: string;
 };
 
 function OverviewTab({
@@ -469,7 +573,12 @@ function OverviewTab({
       {/* Adoption & Identity rendered FIRST per the dev team's request — */}
       {/* it's the most-referenced reference data and used to be tucked at  */}
       {/* the bottom of the right column. Now full-width above the story.  */}
-      <AdoptionInfoCard animal={animal} />
+      <AdoptionInfoCard
+        animal={animal}
+        editing={editing}
+        draft={draft}
+        setDraft={setDraft}
+      />
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Story */}
@@ -607,17 +716,27 @@ function OverviewTab({
 }
 
 /* ── Adoption Info Card ── */
-function AdoptionInfoCard({ animal }: { animal: Animal }) {
+function AdoptionInfoCard({
+  animal,
+  editing,
+  draft,
+  setDraft,
+}: {
+  animal: Animal;
+  editing: boolean;
+  draft: ProfileDraftShape | null;
+  setDraft: (d: ProfileDraftShape | null) => void;
+}) {
+  // In edit mode the card should ALWAYS render — even if all fields are empty
+  // — so staff can pick a Color/Size from the dropdowns. In view mode, hide
+  // the card when nothing's there to avoid empty boxes on the profile.
   const hasIdentity =
     animal.birthDate ||
     animal.color ||
     animal.size ||
     animal.microchip ||
     animal.needsChip;
-  // Family members (parents/children/bondedWith) used to render here too,
-  // but per the dev team's "Bonds & Relationships" restructure they live in
-  // the Relationships card on the right column instead.
-  if (!hasIdentity) return null;
+  if (!editing && !hasIdentity) return null;
 
   return (
     <div className="bg-white rounded-xl border border-card-border p-5 space-y-4">
@@ -633,21 +752,25 @@ function AdoptionInfoCard({ animal }: { animal: Animal }) {
             </p>
           </div>
         )}
-        {animal.color && (
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">
-              Color
-            </p>
-            <p className="text-base font-medium text-charcoal">{animal.color}</p>
-          </div>
+        {/* Color + Size: always visible in edit mode (so staff can SET them);
+            only visible when populated in view mode. */}
+        {(editing || animal.color) && (
+          <SelectInfoItem
+            label="Color"
+            value={editing && draft ? draft.color : (animal.color ?? "")}
+            options={COLOR_OPTIONS}
+            editing={editing}
+            onChange={(next) => draft && setDraft({ ...draft, color: next })}
+          />
         )}
-        {animal.size && (
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">
-              Size
-            </p>
-            <p className="text-base font-medium text-charcoal">{animal.size}</p>
-          </div>
+        {(editing || animal.size) && (
+          <SelectInfoItem
+            label="Size"
+            value={editing && draft ? draft.size : (animal.size ?? "")}
+            options={SIZE_OPTIONS}
+            editing={editing}
+            onChange={(next) => draft && setDraft({ ...draft, size: next })}
+          />
         )}
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">

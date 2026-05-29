@@ -204,7 +204,7 @@ export const upcomingMedical = [
   { date: "APR 18", name: "Leilani", description: "Deworming", urgent: false },
   { date: "APR 22", name: "Pink", description: "Hoof Trim", urgent: false },
   { date: "APR 25", name: "Luna", description: "Hoof Trim", urgent: false },
-  { date: "APR 28", name: "Rosey", description: "Vaccination Booster", urgent: false },
+  { date: "APR 28", name: "Rosie", description: "Vaccination Booster", urgent: false },
   { date: "MAY 1", name: "Winky", description: "Hoof Trim", urgent: false },
 ];
 
@@ -249,7 +249,7 @@ function makeDonkey(
     }
   }
 
-  return {
+  const base: Animal = {
     name,
     slug: slug(name),
     age: profile?.age ?? ages[i % ages.length],
@@ -287,6 +287,24 @@ function makeDonkey(
     lastAnnualExam: profile?.lastAnnualExam ?? null,
     ...safeOverrides,
   };
+
+  // Union of hand-coded bestFriends with parser-extracted bondedWith from the
+  // adoption Notes column. Previously hand-coded overrides won outright, which
+  // left donkeys like Eli (hand-coded ["Pink"]) missing their full bond list
+  // ("Pink, Rizzo, Sandy" per the spreadsheet). Self-references are dropped.
+  const handCoded = safeOverrides.bestFriends ?? base.bestFriends;
+  const fromSheet = profile?.bondedWith ?? [];
+  const union: string[] = [];
+  const seen = new Set<string>();
+  for (const friend of [...handCoded, ...fromSheet]) {
+    if (friend === name) continue;
+    const key = friend.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    union.push(friend);
+  }
+  base.bestFriends = union;
+  return base;
 }
 
 // Alphabetized per the dev team's request. This array drives the herd
@@ -319,7 +337,12 @@ export const herdCounts: Record<HerdName, number> = {
 
 let idx = 0;
 
-export const animals: Animal[] = [
+// Raw array — declaration order matches how the herds were authored
+// historically. The public `animals` export below sorts within each herd
+// alphabetically by name (per the dev team's request) so list views and
+// dropdowns are easier to scan. Sorting is stable; cross-herd order is
+// preserved by `herds` (the canonical herd order array).
+const _animalsRaw: Animal[] = [
   // ── Elsie's Herd (22) ──
   makeDonkey("Elsie", "Elsie's Herd", idx++, { sex: "Jenny", age: "10 yr old", origin: "Wild — Death Valley, CA", traits: ["Leader", "Nurturing", "Calm"], bestFriends: ["Fred", "Buster"], tagline: "The matriarch of her herd" }),
   makeDonkey("Fred", "Elsie's Herd", idx++, { sex: "Gelding", age: "9 yr old", traits: ["Gentle", "Loyal"], bestFriends: ["Elsie"] }),
@@ -327,12 +350,12 @@ export const animals: Animal[] = [
   makeDonkey("Buster", "Elsie's Herd", idx++, { sex: "Gelding", age: "12 yr old", traits: ["Steady", "Social"], bestFriends: ["Elsie", "Fernie"] }),
   makeDonkey("Nakoa", "Elsie's Herd", idx++, { sex: "Jack", age: "5 yr old", traits: ["Curious", "Energetic"] }),
   makeDonkey("Herman", "Elsie's Herd", idx++, { sex: "Gelding", age: "14 yr old", traits: ["Wise", "Calm"] }),
-  makeDonkey("Nelley", "Elsie's Herd", idx++, { sex: "Jenny", age: "8 yr old", traits: ["Sweet", "Shy"] }),
+  makeDonkey("Nelly Belle", "Elsie's Herd", idx++, { sex: "Jenny", age: "8 yr old", traits: ["Sweet", "Shy"] }),
   makeDonkey("Athena", "Elsie's Herd", idx++, { sex: "Jenny", age: "7 yr old", traits: ["Confident", "Protective"] }),
   makeDonkey("Portia", "Elsie's Herd", idx++, { sex: "Jenny", age: "6 yr old", traits: ["Gentle", "Trusting"] }),
   makeDonkey("Elizabeth", "Elsie's Herd", idx++, { sex: "Jenny", age: "11 yr old", traits: ["Dignified", "Calm"] }),
   makeDonkey("Ashley", "Elsie's Herd", idx++, { sex: "Jenny", age: "5 yr old", traits: ["Playful", "Social"] }),
-  makeDonkey("Princes", "Elsie's Herd", idx++, { sex: "Jenny", age: "4 yr old", traits: ["Sweet", "Curious"] }),
+  makeDonkey("Princess", "Elsie's Herd", idx++, { sex: "Jenny", age: "4 yr old", traits: ["Sweet", "Curious"] }),
   makeDonkey("Bo", "Elsie's Herd", idx++, { sex: "Jack", age: "7 yr old", traits: ["Independent", "Strong"] }),
   makeDonkey("Pepper", "Elsie's Herd", idx++, {
     sex: "Jenny",
@@ -348,7 +371,7 @@ export const animals: Animal[] = [
   }),
   makeDonkey("Bella", "Elsie's Herd", idx++, { sex: "Jenny", age: "8 yr old", traits: ["Gentle", "Loving"] }),
   makeDonkey("Bob", "Elsie's Herd", idx++, { sex: "Gelding", age: "13 yr old", traits: ["Laid-back", "Friendly"] }),
-  makeDonkey("Sofie", "Elsie's Herd", idx++, { sex: "Jenny", age: "5 yr old", traits: ["Curious", "Playful"] }),
+  makeDonkey("Sophie", "Elsie's Herd", idx++, { sex: "Jenny", age: "5 yr old", traits: ["Curious", "Playful"] }),
   makeDonkey("J-Donk", "Elsie's Herd", idx++, { sex: "Jack", age: "9 yr old", traits: ["Goofy", "Social"] }),
   makeDonkey("Will", "Elsie's Herd", idx++, { sex: "Gelding", age: "10 yr old", traits: ["Stoic", "Reliable"] }),
   makeDonkey("Moses", "Elsie's Herd", idx++, { sex: "Jack", age: "11 yr old", traits: ["Wise", "Gentle"] }),
@@ -364,12 +387,12 @@ export const animals: Animal[] = [
   makeDonkey("Elanora", "Brave", idx++, { sex: "Jenny", age: "7 yr old", traits: ["Regal", "Calm"] }),
   makeDonkey("Asher", "Brave", idx++, { sex: "Jack", age: "5 yr old", traits: ["Brave", "Guiding"], bestFriends: ["Gabriel", "Halo"], tagline: "Gabriel's mentor in the Brave Herd" }),
   makeDonkey("Angel", "Brave", idx++, { sex: "Jenny", age: "8 yr old", traits: ["Gentle", "Protective"] }),
-  makeDonkey("Saraphina", "Brave", idx++, { sex: "Jenny", age: "6 yr old", traits: ["Elegant", "Trusting"] }),
+  makeDonkey("Seraphina", "Brave", idx++, { sex: "Jenny", age: "6 yr old", traits: ["Elegant", "Trusting"] }),
   makeDonkey("Celeste", "Brave", idx++, { sex: "Jenny", age: "5 yr old", traits: ["Dreamy", "Peaceful"] }),
   makeDonkey("Dawn", "Brave", idx++, { sex: "Jenny", age: "4 yr old", traits: ["Energetic", "Playful"] }),
-  makeDonkey("Dusky", "Brave", idx++, { sex: "Jack", age: "7 yr old", traits: ["Quiet", "Observant"] }),
+  makeDonkey("Dusk", "Brave", idx++, { sex: "Jack", age: "7 yr old", traits: ["Quiet", "Observant"] }),
   makeDonkey("Gracie", "Brave", idx++, { sex: "Jenny", age: "6 yr old", traits: ["Graceful", "Kind"] }),
-  makeDonkey("Skyla", "Brave", idx++, { sex: "Jenny", age: "3 yr old", traits: ["Young", "Adventurous"] }),
+  makeDonkey("Skyla (Skye)", "Brave", idx++, { sex: "Jenny", age: "3 yr old", traits: ["Young", "Adventurous"] }),
   makeDonkey("Gabriel", "Brave", idx++, {
     sex: "Jack",
     age: "2 yr old",
@@ -394,10 +417,10 @@ export const animals: Animal[] = [
   makeDonkey("Halo", "Brave", idx++, { sex: "Jenny", age: "3 yr old", traits: ["Playful", "Sweet"], bestFriends: ["Gabriel", "Asher"], tagline: "Gabriel's primary playmate" }),
 
   // ── Unicorns (10) ──
-  makeDonkey("Luna", "Unicorns", idx++, { sex: "Jenny", age: "6 yr old", traits: ["Dreamy", "Gentle"], bestFriends: ["Raineer"] }),
-  makeDonkey("Raineer", "Unicorns", idx++, { sex: "Jack", age: "8 yr old", traits: ["Strong", "Protective"], bestFriends: ["Luna"] }),
+  makeDonkey("Luna", "Unicorns", idx++, { sex: "Jenny", age: "6 yr old", traits: ["Dreamy", "Gentle"], bestFriends: ["Rainier"] }),
+  makeDonkey("Rainier", "Unicorns", idx++, { sex: "Jack", age: "8 yr old", traits: ["Strong", "Protective"], bestFriends: ["Luna"] }),
   makeDonkey("Xander", "Unicorns", idx++, { sex: "Jack", age: "5 yr old", traits: ["Bold", "Curious"] }),
-  makeDonkey("Maku", "Unicorns", idx++, { sex: "Gelding", age: "10 yr old", traits: ["Calm", "Wise"] }),
+  makeDonkey("Makuahine Hau", "Unicorns", idx++, { sex: "Gelding", age: "10 yr old", traits: ["Calm", "Wise"] }),
   makeDonkey("Olaf", "Unicorns", idx++, { sex: "Gelding", age: "7 yr old", traits: ["Goofy", "Friendly"] }),
   makeDonkey("Summer", "Unicorns", idx++, { sex: "Jenny", age: "4 yr old", traits: ["Warm", "Social"] }),
   makeDonkey("Oscar", "Unicorns", idx++, { sex: "Gelding", age: "9 yr old", traits: ["Distinguished", "Calm"] }),
@@ -406,16 +429,16 @@ export const animals: Animal[] = [
   makeDonkey("Ella", "Unicorns", idx++, { sex: "Jenny", age: "3 yr old", traits: ["Young", "Playful"] }),
 
   // ── Pegasus (11) ──
-  makeDonkey("Rosey", "Pegasus", idx++, { sex: "Jenny", age: "7 yr old", traits: ["Sassy", "Bold"], bestFriends: ["Enzo"] }),
-  makeDonkey("Enzo", "Pegasus", idx++, { sex: "Jack", age: "6 yr old", traits: ["Spirited", "Loyal"], bestFriends: ["Rosey"] }),
+  makeDonkey("Rosie", "Pegasus", idx++, { sex: "Jenny", age: "7 yr old", traits: ["Sassy", "Bold"], bestFriends: ["Enzo"] }),
+  makeDonkey("Enzo", "Pegasus", idx++, { sex: "Jack", age: "6 yr old", traits: ["Spirited", "Loyal"], bestFriends: ["Rosie"] }),
   makeDonkey("Farrah", "Pegasus", idx++, { sex: "Jenny", age: "8 yr old", traits: ["Elegant", "Trusting"] }),
   makeDonkey("Huck", "Pegasus", idx++, { sex: "Gelding", age: "5 yr old", traits: ["Adventurous", "Bold"] }),
   makeDonkey("Leialoha", "Pegasus", idx++, { sex: "Jenny", age: "4 yr old", traits: ["Gentle", "Loving"] }),
-  makeDonkey("Izabelle", "Pegasus", idx++, { sex: "Jenny", age: "6 yr old", traits: ["Poised", "Sweet"] }),
+  makeDonkey("Izabella (Izzy)", "Pegasus", idx++, { sex: "Jenny", age: "6 yr old", traits: ["Poised", "Sweet"] }),
   makeDonkey("Teo", "Pegasus", idx++, { sex: "Jack", age: "5 yr old", traits: ["Curious", "Energetic"] }),
   makeDonkey("Stella", "Pegasus", idx++, { sex: "Jenny", age: "7 yr old", traits: ["Star quality", "Confident"] }),
   makeDonkey("Everest", "Pegasus", idx++, { sex: "Jack", age: "9 yr old", traits: ["Strong", "Steady"] }),
-  makeDonkey("Kayla", "Pegasus", idx++, { sex: "Jenny", age: "4 yr old", traits: ["Playful", "Social"] }),
+  makeDonkey("Kai-Ya", "Pegasus", idx++, { sex: "Jenny", age: "4 yr old", traits: ["Playful", "Social"] }),
   makeDonkey("Kai", "Pegasus", idx++, { sex: "Jack", age: "3 yr old", traits: ["Young", "Fearless"] }),
 
   // ── Seniors (8) ──
@@ -484,7 +507,7 @@ export const animals: Animal[] = [
     bestFriends: ["Eli", "Sandy"],
     intakeDate: "Sep 2021",
   }),
-  makeDonkey("Petey", "Pinky's Herd", idx++, {
+  makeDonkey("Pete", "Pinky's Herd", idx++, {
     age: "28 yr old", sex: "Gelding", origin: "Domestic",
     tagline: "28 years old and living his best life",
     profileImage: "/donkeys/pete/profile-photo.jpg",
@@ -499,13 +522,13 @@ export const animals: Animal[] = [
     tagline: "Pete's girlfriend, big sis to the herd",
     profileImage: "/donkeys/lila/profile-photo.jpg",
     traits: ["Resilient", "Big sister", "Playful", "Supermodel"],
-    bestFriends: ["Petey", "Pink"],
+    bestFriends: ["Pete", "Pink"],
     tags: [{ label: "Healthy", color: "green" }, { label: "Sponsor Available", color: "blue" }],
     sponsorable: true,
   }),
   makeDonkey("Lava", "Pinky's Herd", idx++, { sex: "Jenny", age: "5 yr old", traits: ["Warm", "Bold"] }),
   makeDonkey("Obsidian", "Pinky's Herd", idx++, { sex: "Jack", age: "6 yr old", traits: ["Dark", "Mysterious", "Gentle"] }),
-  makeDonkey("Venelope", "Pinky's Herd", idx++, { sex: "Jenny", age: "4 yr old", traits: ["Sweet", "Playful"] }),
+  makeDonkey("Vanellope", "Pinky's Herd", idx++, { sex: "Jenny", age: "4 yr old", traits: ["Sweet", "Playful"] }),
   makeDonkey("Ralphie", "Pinky's Herd", idx++, { sex: "Gelding", age: "8 yr old", traits: ["Friendly", "Loyal"] }),
   makeDonkey("Peggy", "Pinky's Herd", idx++, { sex: "Jenny", age: "7 yr old", traits: ["Nurturing", "Calm"] }),
   makeDonkey("Cassidy", "Pinky's Herd", idx++, {
@@ -529,7 +552,7 @@ export const animals: Animal[] = [
   makeDonkey("Draco", "Dragons", idx++, { sex: "Jack", age: "7 yr old", traits: ["Strong", "Protective"] }),
   makeDonkey("Reiki", "Dragons", idx++, { sex: "Jenny", age: "5 yr old", traits: ["Healing", "Calm"] }),
   makeDonkey("Remi", "Dragons", idx++, { sex: "Gelding", age: "6 yr old", traits: ["Charming", "Social"] }),
-  makeDonkey("Cloudy", "Dragons", idx++, { sex: "Jenny", age: "3 yr old", traits: ["Dreamy", "Soft"] }),
+  makeDonkey("Cloud", "Dragons", idx++, { sex: "Jenny", age: "3 yr old", traits: ["Dreamy", "Soft"] }),
   makeDonkey("Sky", "Dragons", idx++, { sex: "Jack", age: "4 yr old", traits: ["Free spirit", "Adventurous"] }),
 
   // ── Angels (7) ──
@@ -576,6 +599,21 @@ export const animals: Animal[] = [
     sponsorable: true,
   }),
 ];
+
+// Public export — alphabetized within each herd, preserving the cross-herd
+// order defined by `herds`. Animals whose herd isn't in the canonical list
+// (defensive — shouldn't happen) come last in their original order.
+export const animals: Animal[] = (() => {
+  const herdOrder = new Map<string, number>(
+    herds.map((h, i) => [h, i] as const)
+  );
+  return [..._animalsRaw].sort((a, b) => {
+    const ha = herdOrder.get(a.herd) ?? Number.MAX_SAFE_INTEGER;
+    const hb = herdOrder.get(b.herd) ?? Number.MAX_SAFE_INTEGER;
+    if (ha !== hb) return ha - hb;
+    return a.name.localeCompare(b.name);
+  });
+})();
 
 export function getAnimalBySlug(s: string): Animal | undefined {
   return animals.find((a) => a.slug === s);

@@ -40,26 +40,23 @@ const CSV_PATH = join(__dirname, "..", "src", "lib", "data", "donkey-adoption.cs
 const REVISED_CSV_PATH = join(__dirname, "..", "src", "lib", "data", "donkey-adoption-revised.csv");
 const OUT_PATH = join(__dirname, "..", "src", "lib", "donkey-profiles-data.ts");
 
-// CSV name → app-canonical name. Apply minimal renames; the adoption CSV is the
-// new source of truth, but we keep the existing app spellings to avoid breaking
-// links and curated entries elsewhere.
+// CSV name → app-canonical name. The adoption spreadsheet is the source of
+// truth; these overrides exist for (a) multi-word names whose default
+// title-case would be wrong ("JACK JACK" → "Jack Jack") and (b) parenthetical
+// nicknames that the app surfaces as the primary name.
+//
+// Previously this map went the OTHER direction — mapping spreadsheet names
+// back to stale code-side misspellings (PETE → Petey, CLOUD → Cloudy, etc.),
+// which preserved the spelling drift instead of fixing it. Reversed on
+// 2026-05-29 along with re-importing the May 29 xlsx. Existing DB Animal
+// rows are migrated to the canonical names via a separate rename migration so
+// their attached medical / hoof / dental history is preserved.
 const NAME_OVERRIDES: Record<string, string> = {
   "JACK JACK": "Jack Jack",
   "DANNY BOY": "Danny Boy",
-  "ISABELLA (IZZY)": "Izabelle",
-  "KAI-YA": "Kayla",
-  "ROSIE": "Rosey",
-  "SERAPHINA": "Saraphina",
-  "SOPHIE": "Sofie",
-  "PRINCESS": "Princes",
-  "NELLY BELLE": "Nelley",
-  "RAINIER": "Raineer",
-  "MAKUAHINE HAU": "Maku",
-  "VANELLOPE": "Venelope",
-  "CLOUD": "Cloudy",
-  "PETE": "Petey",
-  "DUSK": "Dusky",
-  "SKYLA (SKYE)": "Skyla",
+  "ISABELLA (IZZY)": "Izabella (Izzy)",
+  "SKYLA (SKYE)": "Skyla (Skye)",
+  "NELLY BELLE": "Nelly Belle",
 };
 
 function resolveName(csvName: string): string {
@@ -159,15 +156,17 @@ function extractFamily(notes: string): {
   if (!notes) return { parents, children, childCount: 0 };
 
   // Children-producing patterns ("X is parent of …" or "Surrogate Mom to Y").
-  // Stop the capture at sentence-ending punctuation, parens, or a follow-on
-  // clause like "Bonded with…" / "Close with…" so those don't bleed into
-  // the children list.
+  // The character class includes `,` so lists like "Mother of Ashley, Portia
+  // and Elizabeth" capture as a single match — without the comma in the
+  // class, the lazy quantifier can't grow past the first name. Stop the
+  // capture at sentence-ending punctuation, parens, or a follow-on clause
+  // like "Bonded with…" / "Close with…" so those don't bleed into the list.
   const childRegex =
-    /(?:\bmom\b|\bmother\b|foster mom|surrogate mom|\bfather\b|\bgrandma\b)\s+(?:of|to)\s+([A-Z][a-zA-Z\s&]+?)(?=[.()]|,\s*(?:surrogate|foster|father|grandma|bonded|close|brother|sister|now)\b|\s+(?:bonded|close|brother|sister|now|surrogate|foster)\b|$)/gi;
+    /(?:\bmom\b|\bmother\b|foster mom|surrogate mom|\bfather\b|\bgrandma\b)\s+(?:of|to)\s+([A-Z][a-zA-Z\s&,]+?)(?=[.()]|,\s*(?:surrogate|foster|father|grandma|bonded|close|brother|sister|now)\b|\s+(?:bonded|close|brother|sister|now|surrogate|foster)\b|$)/gi;
   // Parent-pointing patterns ("X is child of …")
   const parentRegex =
-    /(?:son|daughter|foal|orphan son|orphan daughter)\s+(?:of|is)\s+([A-Z][a-zA-Z\s]+?)(?:[,.]|$| and | bonded| close| brother| sister)/gi;
-  const momIsRegex = /(?:\bmom\b|\bmother\b)\s+is\s+([A-Z][a-zA-Z\s]+?)(?:[,.()]|$| and )/gi;
+    /(?:son|daughter|foal|orphan son|orphan daughter)\s+(?:of|is)\s+([A-Z][a-zA-Z\s,]+?)(?:[,.]|$| and | bonded| close| brother| sister)/gi;
+  const momIsRegex = /(?:\bmom\b|\bmother\b)\s+is\s+([A-Z][a-zA-Z\s,]+?)(?:[,.()]|$| and )/gi;
 
   let m: RegExpExecArray | null;
 

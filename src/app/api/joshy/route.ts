@@ -191,7 +191,7 @@ Hoof/dental visit completion examples (log_hoof_visit, log_dental_visit) — the
 - "Farrier finished Pete's feet yesterday, next one should be April 20" → action: "log_hoof_visit", animal: "Pete", date: yesterday's date, provider: "farrier", nextDate: "<resolved>"
 - "Dr. Moore floated Edgar's teeth Tuesday" → action: "log_dental_visit", animal: "Edgar", date: "<this or last Tuesday resolved>", provider: "Dr. Moore"
 - "Did Winnie's dental float today" → action: "log_dental_visit", animal: "Winnie", date: today
-- "Trimmed Cassidy and Pete today" → action: "log_hoof_visit", animals: ["Cassidy", "Petey"], date: today
+- "Trimmed Cassidy and Pete today" → action: "log_hoof_visit", animals: ["Cassidy", "Pete"], date: today
 - "Farrier did all four Brave herd babies this morning" → action: "log_hoof_visit", animals: ["Asher", "Danny Boy", "Finn", "Halo"] (or whichever animals are in the Brave herd today — match exactly to known names)
 - "Trimmed all the Pegasus donkeys today" → action: "log_hoof_visit", animals: ["Pegasus"]. The DISPATCHER will expand "Pegasus" into the actual list of donkeys in that herd, so you can pass the herd name as a single entry instead of enumerating. Same trick works for "Brave", "Angels", "Seniors", etc. — and for log_dental_visit / log_provider_visit / log_temperature / log_fecal_test.
 
@@ -249,11 +249,11 @@ Don't clarify when:
 - The user says "switch to" / "change plan to" — that's always replace mode.
 
 set_feed_plan examples:
-- "Switch Pete to mash 3x daily" → action: "set_feed_plan", animal: "Petey", planMode: "replace", amPlan: [{item:"Mash", amount:"1 bucket"}], midPlan: [{item:"Mash", amount:"1 bucket"}], pmPlan: [{item:"Mash", amount:"1 bucket"}], summary: "Switch Petey's feed plan to mash 3x daily."
-- "Add joint supplement to Petey's lunch" → action: "set_feed_plan", animal: "Petey", planMode: "merge", midPlan: [{item:"Joint supplement", amount:"1 scoop"}], summary: "Add joint supplement to Petey's Mid feed."
+- "Switch Pete to mash 3x daily" → action: "set_feed_plan", animal: "Pete", planMode: "replace", amPlan: [{item:"Mash", amount:"1 bucket"}], midPlan: [{item:"Mash", amount:"1 bucket"}], pmPlan: [{item:"Mash", amount:"1 bucket"}], summary: "Switch Pete's feed plan to mash 3x daily."
+- "Add joint supplement to Pete's lunch" → action: "set_feed_plan", animal: "Pete", planMode: "merge", midPlan: [{item:"Joint supplement", amount:"1 scoop"}], summary: "Add joint supplement to Pete's Mid feed."
 - "Give Blossom 2 flakes hay AM and PM" → action: "set_feed_plan", animal: "Blossom", planMode: "replace", amPlan: [{item:"Hay", amount:"2 flakes"}], midPlan: [], pmPlan: [{item:"Hay", amount:"2 flakes"}]
 - "Change Edgar's feed to senior feed only, 3x daily" → action: "set_feed_plan", animal: "Edgar", planMode: "replace", amPlan: [{item:"Senior feed", amount:"1 scoop"}], midPlan: [{item:"Senior feed", amount:"1 scoop"}], pmPlan: [{item:"Senior feed", amount:"1 scoop"}]
-- "Pete's new plan: mash at breakfast and dinner, soak 10 min" → action: "set_feed_plan", animal: "Petey", planMode: "replace", amPlan: [{item:"Mash", amount:"1 bucket"}], midPlan: [], pmPlan: [{item:"Mash", amount:"1 bucket"}], feedNotes: "Soak 10 min."
+- "Pete's new plan: mash at breakfast and dinner, soak 10 min" → action: "set_feed_plan", animal: "Pete", planMode: "replace", amPlan: [{item:"Mash", amount:"1 bucket"}], midPlan: [], pmPlan: [{item:"Mash", amount:"1 bucket"}], feedNotes: "Soak 10 min."
 - "Add a scoop of Platinum Performance to Herman's breakfast" → action: "set_feed_plan", animal: "Herman", planMode: "merge", amPlan: [{item:"Platinum Performance", amount:"1 scoop"}]
 - "Bump Cassidy's hay to 3 flakes at dinner" → action: "set_feed_plan", animal: "Cassidy", planMode: "merge", pmPlan: [{item:"Hay", amount:"3 flakes"}]
 - "Pete didn't eat his lunch" → action: "feed" (NOT set_feed_plan — this is an observation, not a plan change)
@@ -293,7 +293,7 @@ update_animal examples:
 - "Mark Gabriel as special needs" → action: "update_animal", animal: "Gabriel", animalField: "status", animalValue: "Special Needs", summary: "Change Gabriel's status to Special Needs."
 - "Move Gabriel from Brave to Angels" → action: "update_animal", animal: "Gabriel", animalField: "herd", animalValue: "Angels"
 - "Change Edgar's pen to Sick Bay" → action: "update_animal", animal: "Edgar", animalField: "pen", animalValue: "Sick Bay"
-- "Move Pete to enclosure 4" → action: "update_animal", animal: "Petey", animalField: "pen", animalValue: "Enclosure 4"
+- "Move Pete to enclosure 4" → action: "update_animal", animal: "Pete", animalField: "pen", animalValue: "Enclosure 4"
 - "Update Pete's tagline to '28 years old and living his best life'" → animalField: "tagline", animalValue: "28 years old and living his best life"
 - "Add Wise to Jasper's traits" → animalField: "traits", animalValue: ["Wise"], animalMode: "add"
 - "Pete's traits are now Elder, Survivor, and Romantic" → animalField: "traits", animalValue: ["Elder", "Survivor", "Romantic"], animalMode: "replace"
@@ -316,18 +316,18 @@ LIVE STATE's 'medical' array is sorted newest-first and capped at 20 entries. me
 - "Delete the watch alert for Fernie's bandage" — Fernie's watch at entryIdx 2. action: "delete_watch", entryIdx: 2, summary: "Delete watch alert: Fernie's bandage."
 - "Fernie's bandage is healed" → use resolve_watch (not delete_watch). The record survives; it's marked resolved.
 
-- "Delete Pete's feed plan" → action: "delete_feed_plan", animal: "Petey", summary: "Delete Petey's structured feed plan."
+- "Delete Pete's feed plan" → action: "delete_feed_plan", animal: "Pete", summary: "Delete Pete's structured feed plan."
 - "Remove that feed observation about Blossom from yesterday" — Blossom's feed note at entryIdx 4. action: "delete_feed", entryIdx: 4
 - "Change the feed note about Pete's lunch to say it was breakfast instead" — Pete's feed note at entryIdx 4, original text "Pete didn't eat lunch". action: "edit_feed", entryIdx: 4, text: "Pete didn't eat breakfast."
 
 - "Fix Blossom's weight from yesterday — it should be 410 not 400" → action: "edit_weight_bcs", animal: "Blossom", date: "<yesterday resolved>", weight: 410, summary: "Correct Blossom's weight on <date> to 410 lbs."
-- "Change Pete's BCS on April 1 from 5 to 6" → action: "edit_weight_bcs", animal: "Petey", date: "<resolved April 1>", bcs: 6
-- "Delete that weight reading on Pete from yesterday" → action: "delete_weight_bcs", animal: "Petey", date: "<yesterday>"
+- "Change Pete's BCS on April 1 from 5 to 6" → action: "edit_weight_bcs", animal: "Pete", date: "<resolved April 1>", bcs: 6
+- "Delete that weight reading on Pete from yesterday" → action: "delete_weight_bcs", animal: "Pete", date: "<yesterday>"
 
 STRUCTURED LOGS (Phase 5) — prefer these over generic "medical" when the user gives numeric data:
 
 Temperature (log_temperature):
-- "Pete's temp is 101.2" → action: "log_temperature", animal: "Petey", tempF: 101.2, summary: "Log Petey's temperature: 101.2°F (normal)."
+- "Pete's temp is 101.2" → action: "log_temperature", animal: "Pete", tempF: 101.2, summary: "Log Pete's temperature: 101.2°F (normal)."
 - "Took Blossom's temperature, 100.8 this morning" → action: "log_temperature", animal: "Blossom", tempF: 100.8, date: today, summary: "Log Blossom's temperature: 100.8°F."
 - "Shelley temp 102.3, seems off" → action: "log_temperature", animal: "Shelley", tempF: 102.3, notes: "Seems off.". Dispatcher marks urgent (above 101.5).
 - "Cassidy was 98.5 degrees" → action: "log_temperature", animal: "Cassidy", tempF: 98.5. Dispatcher marks urgent (below 99).
@@ -342,13 +342,13 @@ The "from A to B" pattern is the strong signal for an edit. Without it, prefer t
 
 Fecal test (log_fecal_test):
 - "Fecal egg count for Blossom: 250 epg" → action: "log_fecal_test", animal: "Blossom", eggCount: 250
-- "Pete's fecal came back at 600" → action: "log_fecal_test", animal: "Petey", eggCount: 600 (dispatcher marks urgent as high shedder)
+- "Pete's fecal came back at 600" → action: "log_fecal_test", animal: "Pete", eggCount: 600 (dispatcher marks urgent as high shedder)
 - "Shelley fecal 150 eggs per gram from Horsemen's Lab" → action: "log_fecal_test", animal: "Shelley", eggCount: 150, labName: "Horsemen's Lab"
 - "Ran a fecal on Pete yesterday, low count" → clarify: "What was the actual egg count?" — don't guess.
 
 Provider visit (log_provider_visit) — use for general vet/farrier/dentist visits that don't map to log_hoof_visit / log_dental_visit. Supports multi-animal:
 - "Dr. Moore came today and checked on Blossom" → action: "log_provider_visit", animal: "Blossom", provider: "Dr. Moore", date: today, title: "Wellness check"
-- "Dr. Moore saw Pete and Blossom today" → action: "log_provider_visit", animals: ["Petey", "Blossom"], provider: "Dr. Moore", date: today
+- "Dr. Moore saw Pete and Blossom today" → action: "log_provider_visit", animals: ["Pete", "Blossom"], provider: "Dr. Moore", date: today
 - "Dr. Smith did wellness checks on all the Seniors today" → Clarify with the list of Seniors donkeys, or return animals: ["Edgar", "Winky", "Swayze", "Tenzel", "Blossom", "Churro", "Jasper"] (match the known donkeys list exactly) with provider: "Dr. Smith"
 - "Farrier visited, looked at Cassidy's special hoof" → action: "log_provider_visit", animal: "Cassidy", provider: "Farrier", title: "Special hoof check"
 - "Farrier trimmed Cassidy's hoof today" → action: "log_hoof_visit" (prefer the specific action over log_provider_visit when the user names the specific procedure)

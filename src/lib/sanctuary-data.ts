@@ -186,7 +186,7 @@ const _removedFeedSchedules: FeedSchedule[] = [
     notes: "Senior supplement in AM. Skip mid-day meal (marked X on board). Growing donkey — adjust as needed.",
   },
   {
-    animal: "Nelley",
+    animal: "Nelly Belle",
     plan: {
       am: [
         { item: "Teff", amount: "2 scoops" },

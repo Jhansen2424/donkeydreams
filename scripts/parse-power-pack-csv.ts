@@ -16,24 +16,15 @@ import { animals } from "../src/lib/animals";
 const CSV_PATH = join(__dirname, "..", "src", "lib", "data", "power-pack-doses.csv");
 const OUT_PATH = join(__dirname, "..", "src", "lib", "power-pack-data.ts");
 
+// Reversed direction (see scripts/parse-adoption-csv.ts). Now normalizes CSV
+// typos toward canonical adoption-sheet names.
 const NAME_OVERRIDES: Record<string, string> = {
-  "NELLY BELLE": "Nelley",
-  "PRINCESS": "Princes",
-  "SOPHIE": "Sofie",
+  "NELLY BELLE": "Nelly Belle",
   "JEMMA": "Jemma",
-  "SERAPHINA": "Saraphina",
-  "SARAPHINA": "Saraphina",
+  "SARAPHINA": "Seraphina",
   "ELENORA": "Elanora",
-  "DUSK": "Dusky",
-  "RAINIER": "Raineer",
-  "MAKUAHINE HAU": "Maku",
-  "ROSIE": "Rosey",
-  "ISABELLA (IZZY)": "Izabelle",
-  "KAI-YA": "Kayla",
-  "PETE": "Petey",
-  "VANELLOPE": "Venelope",
-  "CLOUD": "Cloudy",
-  "SKYLA (SKYE)": "Skyla",
+  "ISABELLA (IZZY)": "Izabella (Izzy)",
+  "SKYLA (SKYE)": "Skyla (Skye)",
   "JACK JACK": "Jack Jack",
   "DANNY BOY": "Danny Boy",
   "MRS. TRUMAN": "Mrs. Truman",
