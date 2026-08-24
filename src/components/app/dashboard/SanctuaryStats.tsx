@@ -2,6 +2,7 @@
 
 import { Heart, Users, Sparkles, Sun } from "lucide-react";
 import { sanctuaryStats } from "@/lib/donkey-profiles-data";
+import { animals } from "@/lib/animals";
 
 // Each tile carries a `derivation` string — when the user hovers, they see
 // exactly how the number is computed. Lets staff spot-check against their
@@ -9,10 +10,10 @@ import { sanctuaryStats } from "@/lib/donkey-profiles-data";
 const items = [
   {
     label: "Total Donkeys",
-    value: sanctuaryStats.totalDonkeys,
+    value: animals.length,
     icon: Heart,
     cls: "text-rose-600 bg-rose-50",
-    derivation: "Count of donkey rows in donkey-adoption.csv.",
+    derivation: "Count of donkeys in the sanctuary roster.",
   },
   {
     label: "Mom + Baby",

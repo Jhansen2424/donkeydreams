@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 
 certificates
+# local data backups (full pre-wipe exports — never commit)
+/backups
+/hoof-care-entries.csv

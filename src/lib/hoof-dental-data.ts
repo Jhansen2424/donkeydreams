@@ -50,33 +50,17 @@ export interface ProviderSeed {
   phone: string;
 }
 
-export const providers: ProviderSeed[] = [
-  { name: "Edj Fish", type: "Farrier", phone: "" },
-  { name: "Dr. Martinez", type: "Farrier", phone: "(760) 555-0142" },
-  { name: "Desert Hoof Care", type: "Farrier", phone: "(760) 555-0198" },
-  { name: "Dr. Chen", type: "Equine Dentist", phone: "(760) 555-0267" },
-  { name: "Valley Equine Dental", type: "Equine Dentist", phone: "(760) 555-0311" },
-];
+// 2026-08-24: blank slate — provider seed list emptied; providers now live
+// solely in the DB (added via the app).
+export const providers: ProviderSeed[] = [];
 
-// ── Per-animal hoof intervals (special needs animals trim more frequently) ──
-// Sourced from real trimming protocols in donkey-trimming-notes.csv
-const hoofIntervalOverrides: Record<string, { weeks: number; notes: string }> = {
-  Gracie: { weeks: 2, notes: "Laminitis — fronts every 2 weeks, backs every 4-6 weeks. Sling trim with bute/dorma." },
-  "Skyla (Skye)": { weeks: 4, notes: "Laminitis — monthly trims with sedation. Use sling." },
-  Shelley: { weeks: 3, notes: "Long right leg — weekly rasping, full trim every 3 weeks in sling." },
-  Winnie: { weeks: 3, notes: "Long left leg — full trim every 3 weeks in sling." },
-  Cassidy: { weeks: 5, notes: "Clubfoot — rasp special hoof every 1-2 weeks, full sling trim every 5-6 weeks." },
-  Lila: { weeks: 5, notes: "Trim every 4-6 weeks. Does better with longer hooves and more concavity." },
-  // Previously listed as "Petey" and a duplicate "Pete" — collapsed under the
-  // canonical adoption-sheet name "Pete" with the Senior profile.
-  Pete: { weeks: 5, notes: "Senior — trim every 4-6 weeks." },
-  Peggy: { weeks: 6, notes: "Cushings — corrective hoof care. Prone to bruising/abscess after trim." },
-  Cinder: { weeks: 6, notes: "Curled passenger leg — sling trim with valerian." },
-  Gabriel: { weeks: 6, notes: "Prosthetic leg — trim 1 hoof at a time while lying down." },
-  Swayze: { weeks: 6, notes: "Sway back — one hoof per session unless under dorma." },
-};
+// ── Per-animal hoof intervals ──
+// 2026-08-24: blank slate — the per-animal interval/notes overrides sourced
+// from donkey-trimming-notes.csv were wiped pending re-import from the new
+// spreadsheets. Every animal uses the default intervals until then.
+const hoofIntervalOverrides: Record<string, { weeks: number; notes: string }> = {};
 
-const specialDentalAnimals = new Set(["Blossom", "Pete", "Gabriel", "Herman", "Tenzel"]);
+const specialDentalAnimals = new Set<string>();
 
 function getInterval(animalName: string): CareInterval {
   const hoofOverride = hoofIntervalOverrides[animalName];
@@ -85,13 +69,7 @@ function getInterval(animalName: string): CareInterval {
     hoofWeeks: hoofOverride?.weeks ?? 8,
     dentalMonths: specialDentalAnimals.has(animalName) ? 6 : 12,
     hoofNotes: hoofOverride?.notes ?? "",
-    dentalNotes: specialDentalAnimals.has(animalName)
-      ? animalName === "Blossom"
-        ? "Dental issues — soft food only. Check for sharp points."
-        : animalName === "Herman" || animalName === "Tenzel"
-          ? "Cannot eat hay — needs mash-only diet"
-          : "Senior — may need sedation for float"
-      : "",
+    dentalNotes: "",
   };
 }
 

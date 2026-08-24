@@ -104,13 +104,21 @@ export default function AnimalsPage() {
 
   // Group by herd for display. When a herd filter or a search with a match
   // in that herd narrows results, we still render the herd header so the
-  // user can expand it.
-  const grouped = herds
-    .map((herd) => ({
-      herd,
+  // user can expand it. Animals without a herd assignment (blank slate until
+  // the new spreadsheets are imported) fall into an "Unassigned" bucket so
+  // they stay visible.
+  const grouped = [
+    ...herds.map((herd) => ({
+      herd: herd as string,
       animals: filtered.filter((a) => a.herd === herd),
-    }))
-    .filter((g) => g.animals.length > 0);
+    })),
+    {
+      herd: "Unassigned",
+      animals: filtered.filter(
+        (a) => !(herds as readonly string[]).includes(a.herd)
+      ),
+    },
+  ].filter((g) => g.animals.length > 0);
 
   return (
     <div className="space-y-6">

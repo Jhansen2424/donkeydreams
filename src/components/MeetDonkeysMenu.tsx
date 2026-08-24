@@ -5,19 +5,24 @@ import { animals, herds, herdCounts, type HerdName } from "@/lib/animals";
 
 type Mode = "closed" | "mega" | "palette";
 
-// Group donkeys by herd, alphabetized within each herd.
+// Group donkeys by herd, alphabetized within each herd. Donkeys without a
+// herd assignment (blank slate until the new spreadsheets are imported) are
+// collected separately so they still show in the menu.
 function useGroupedDonkeys() {
   return useMemo(() => {
     const grouped = new Map<HerdName, typeof animals>();
+    const unassigned: typeof animals = [];
     for (const h of herds) grouped.set(h, []);
     for (const a of animals) {
       const list = grouped.get(a.herd as HerdName);
       if (list) list.push(a);
+      else unassigned.push(a);
     }
     for (const list of grouped.values()) {
       list.sort((a, b) => a.name.localeCompare(b.name));
     }
-    return grouped;
+    unassigned.sort((a, b) => a.name.localeCompare(b.name));
+    return { grouped, unassigned };
   }, []);
 }
 
@@ -31,7 +36,7 @@ export default function MeetDonkeysMenu({
   const [activeIdx, setActiveIdx] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
   const paletteInputRef = useRef<HTMLInputElement>(null);
-  const grouped = useGroupedDonkeys();
+  const { grouped, unassigned } = useGroupedDonkeys();
 
   // Close on outside click
   useEffect(() => {
@@ -179,26 +184,59 @@ export default function MeetDonkeysMenu({
             </button>
           </div>
 
-          {/* Herd grid */}
+          {/* Herd grid — empty herds are hidden; donkeys without a herd
+              assignment render in alphabetical columns below. */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-5 max-h-[60vh] overflow-y-auto pr-2">
-            {herds.map((h) => {
-              const list = grouped.get(h) ?? [];
-              return (
-                <div key={h}>
-                  <a
-                    href={herdHref(h)}
-                    onClick={close}
-                    className="flex items-baseline justify-between mb-2 group"
-                  >
-                    <span className="text-sm font-bold text-charcoal group-hover:text-sky transition-colors">
-                      {h}
+            {herds
+              .filter((h) => (grouped.get(h) ?? []).length > 0)
+              .map((h) => {
+                const list = grouped.get(h) ?? [];
+                return (
+                  <div key={h}>
+                    <a
+                      href={herdHref(h)}
+                      onClick={close}
+                      className="flex items-baseline justify-between mb-2 group"
+                    >
+                      <span className="text-sm font-bold text-charcoal group-hover:text-sky transition-colors">
+                        {h}
+                      </span>
+                      <span className="text-[11px] text-charcoal/50 font-medium">
+                        {herdCounts[h]}
+                      </span>
+                    </a>
+                    <ul className="space-y-1">
+                      {list.map((d) => (
+                        <li key={d.slug}>
+                          <a
+                            href={donkeyHref(d.slug)}
+                            onClick={close}
+                            className="block text-xs text-charcoal/70 hover:text-sky hover:bg-sky/5 rounded px-2 py-1 transition-colors"
+                          >
+                            {d.name}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            {unassigned.length > 0 &&
+              Array.from(
+                { length: Math.ceil(unassigned.length / 15) },
+                (_, col) => unassigned.slice(col * 15, col * 15 + 15)
+              ).map((chunk, col) => (
+                <div key={`all-${col}`}>
+                  <div className="flex items-baseline justify-between mb-2">
+                    <span className="text-sm font-bold text-charcoal">
+                      {col === 0 ? "All Donkeys" : " "}
                     </span>
                     <span className="text-[11px] text-charcoal/50 font-medium">
-                      {herdCounts[h]}
+                      {col === 0 ? unassigned.length : " "}
                     </span>
-                  </a>
+                  </div>
                   <ul className="space-y-1">
-                    {list.map((d) => (
+                    {chunk.map((d) => (
                       <li key={d.slug}>
                         <a
                           href={donkeyHref(d.slug)}
@@ -211,8 +249,7 @@ export default function MeetDonkeysMenu({
                     ))}
                   </ul>
                 </div>
-              );
-            })}
+              ))}
           </div>
 
           {/* Footer link */}
