@@ -1,373 +1,357 @@
 /**
- * Parses src/lib/data/deworming-vaccination.csv into:
- *   - importedDewormingEntries: per-donkey deworming history → MedicalEntry[]
- *   - importedVaccinationEntries: per-donkey vaccination history → MedicalEntry[]
- *   - importedMedicalEntries: deworming + vaccination merged
- *   - yardWideDewormings: yard-wide dosing events (PREV-HERD-N rows) →
- *     YardWideDeworming[] with the donkey list expanded per-animal
- *   - nextVaccinationByAnimal: { [animalName]: ISODate } from the CSV's Next
- *     Vaccination column. Surfaces in the dashboard's "due soon" pipeline.
+ * Parses the Deworming & Vaccination Checklist CSVs into
+ * src/lib/deworming-vaccination-data.ts:
  *
- * Writes src/lib/deworming-vaccination-data.ts.
+ *   src/lib/data/deworming-vaccination.csv  (per-donkey, from
+ *     scripts/xlsx-to-deworming-csv.py; the dedicated checklist sheet is the
+ *     source of truth for deworming/vaccination — the adoption sheet's
+ *     matching columns are older duplicates and are NOT imported)
+ *       0  Name
+ *       1  Herd                (ignored — adoption sheet owns herd)
+ *       2  Dewormed Date       (fallback date/year for history events)
+ *       3  Deworming History   ("Drug M/D/YY" runs, ";"/"," separated)
+ *       4  Vaccinated          (ignored — duplicated by the history column)
+ *       5  Vaccination History ("M/D/YY Vaccine (lot)" and "Vaccine M/D/YY")
+ *       6  Vaccination Date    (fallback date/year for history events)
+ *       7  Next Vaccination    → nextVaccinationByAnimal + scheduled entries
+ *       8  Notes               → dated "Note" medical entries
  *
- * CSV layout:
- *   Section 1 (rows 1–24): "PREV-HERD-N, dateText, DRUG, dose, weight, dosage, ..."
- *     — yard-wide events. All 6 PREV-HERD-N rows for the same (date, drug)
- *     describe the same event (template duplication), so we dedupe.
- *   Section 2 (header row): blank, Herd, DewormedDate, DewormingHistory, blank,
- *     VaccinationHistory, VaccinationDate, NextVaccination
- *   Section 3 (per-animal rows): Name, Herd, DewormedDate, DewormingHistory,
- *     blank, VaccinationHistory, VaccinationDate, NextVaccination
- *   A stray "Name,Next Deworming Date,..." header may appear mid-file — skip it.
+ *   src/lib/data/yard-wide-deworming.csv  (Date, Drug, Dose)
+ *       → yardWideDewormings (dashboard widget only; per-donkey doses come
+ *         from each donkey's own history, so yard-wide rows are NOT expanded
+ *         into per-animal entries)
+ *
+ * History cells mix two shapes, split on ";" and ",":
+ *   drug-first: "Fenbendazole 12/27/25", "Gold 6 Way 4/23/25 (3710082A)"
+ *   date-first: "7/5/26 Prestige 5 Way (9186A0218)"
+ * A chunk may run several drug-first pairs together ("IVERMECTIN 11/10/25
+ * IVERMECTIN 5/5/25"). Lot numbers in parens become the entry description.
+ * Future-dated events (scheduled doses/vaccines) import as-is and surface on
+ * the medical dashboard's Upcoming tab.
  *
  * Run: npx tsx scripts/parse-deworming-csv.ts
  */
 
 import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
-import { animals } from "../src/lib/animals";
 
 const CSV_PATH = join(__dirname, "..", "src", "lib", "data", "deworming-vaccination.csv");
+const YARD_CSV_PATH = join(__dirname, "..", "src", "lib", "data", "yard-wide-deworming.csv");
 const OUT_PATH = join(__dirname, "..", "src", "lib", "deworming-vaccination-data.ts");
 
-// ── CSV name → app name overrides ──
-// Reversed direction: previously mapped canonical spreadsheet names back to
-// stale code-side misspellings (PETE -> Petey, CLOUD -> Cloudy, etc.). Now
-// normalizes CSV typos toward the canonical adoption-sheet names. See
-// scripts/parse-adoption-csv.ts for full context.
 const NAME_OVERRIDES: Record<string, string> = {
-  "NELLY BELLE": "Nelly Belle",
-  "JEMMA": "Jemma",
-  "ELENORA": "Elanora",
-  "ISABELLA (IZZY)": "Izabella (Izzy)",
-  "SKYLA (SKYE)": "Skyla (Skye)",
   "JACK JACK": "Jack Jack",
   "DANNY BOY": "Danny Boy",
+  "ISABELLA (IZZY)": "Izabella (Izzy)",
+  "SKYLA (SKYE)": "Skyla (Skye)",
+  "NELLY BELLE": "Nelly Belle",
+  ELENORA: "Elanora", // recurring sheet typo
 };
 
-const appNames = new Set(animals.map((a) => a.name));
-const appNameLower = new Map(animals.map((a) => [a.name.toLowerCase(), a.name]));
-
-function resolveAnimal(csvName: string): string | null {
+function resolveName(csvName: string): string {
   const upper = csvName.trim().toUpperCase();
   if (NAME_OVERRIDES[upper]) return NAME_OVERRIDES[upper];
-
-  const titled = csvName
+  return csvName
     .trim()
     .toLowerCase()
     .replace(/\b\w/g, (c) => c.toUpperCase());
-  if (appNames.has(titled)) return titled;
-  if (appNameLower.has(csvName.trim().toLowerCase())) {
-    return appNameLower.get(csvName.trim().toLowerCase())!;
-  }
-  const stripped = csvName.replace(/\([^)]*\)/g, "").trim();
-  if (stripped !== csvName) return resolveAnimal(stripped);
-  return null;
 }
 
-// Multi-line aware CSV parser (quoted fields can contain literal newlines)
-function parseCSV(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
+function parseCSVLine(line: string): string[] {
+  const out: string[] = [];
   let cur = "";
   let inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQuotes) {
-      if (c === '"' && text[i + 1] === '"') {
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQuotes && line[i + 1] === '"') {
         cur += '"';
         i++;
-      } else if (c === '"') {
-        inQuotes = false;
       } else {
-        cur += c;
+        inQuotes = !inQuotes;
       }
+    } else if (c === "," && !inQuotes) {
+      out.push(cur);
+      cur = "";
     } else {
-      if (c === '"') {
-        inQuotes = true;
-      } else if (c === ",") {
-        row.push(cur);
-        cur = "";
-      } else if (c === "\n" || c === "\r") {
-        if (c === "\r" && text[i + 1] === "\n") i++;
-        row.push(cur);
-        cur = "";
-        if (row.length > 1 || row[0].trim() !== "") rows.push(row);
-        row = [];
-      } else {
-        cur += c;
-      }
+      cur += c;
     }
   }
-  if (cur.length > 0 || row.length > 0) {
-    row.push(cur);
-    if (row.length > 1 || row[0].trim() !== "") rows.push(row);
-  }
-  return rows;
-}
-
-// Date normalizer: m/d/yy or m/d/yyyy → YYYY-MM-DD
-function normalizeDate(raw: string): string | null {
-  const m = raw.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
-  if (!m) return null;
-  const month = m[1].padStart(2, "0");
-  const day = m[2].padStart(2, "0");
-  let year = m[3];
-  if (year.length === 2) year = "20" + year;
-  const mo = Number(month);
-  const da = Number(day);
-  if (mo < 1 || mo > 12 || da < 1 || da > 31) return null;
-  return `${year}-${month}-${day}`;
-}
-
-// Parse a longer date format ("Jun 27, 2025") for the PREV-HERD section
-function normalizeFlexDate(raw: string): string | null {
-  const trimmed = raw.trim();
-  // Try slash format first
-  const slash = normalizeDate(trimmed);
-  if (slash) return slash;
-  // "Mon DD, YYYY" — let Date parse it
-  const d = new Date(trimmed);
-  if (isNaN(d.getTime())) return null;
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-// Drugs we recognize in deworming history strings
-const DRUGS = [
-  "Fenbendazole",
-  "Pyrantel Pamoate",
-  "Pyrantel",
-  "Tri-wormer",
-  "Triwormer",
-  "Ivermectin",
-  "Moxidectin",
-];
-
-function canonicalDrug(raw: string): string | null {
-  const lower = raw.toLowerCase().replace(/\s+/g, "").replace(/-/g, "");
-  if (lower.includes("fenbendazole")) return "Fenbendazole";
-  if (lower.includes("pyrantelpamoate")) return "Pyrantel Pamoate";
-  if (lower.includes("pyrantel")) return "Pyrantel";
-  if (lower.includes("triwormer")) return "Tri-wormer";
-  if (lower.includes("ivermectin")) return "Ivermectin";
-  if (lower.includes("moxidectin")) return "Moxidectin";
-  return null;
-}
-
-function extractDoses(history: string): Array<{ drug: string; date: string }> {
-  if (!history?.trim()) return [];
-  const doses: Array<{ drug: string; date: string }> = [];
-  const drugAlt = DRUGS.map((d) => d.replace("-", "[- ]?")).join("|");
-  const re = new RegExp(`(${drugAlt})\\s*(\\d{1,2}/\\d{1,2}/\\d{2,4})`, "gi");
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(history)) !== null) {
-    const drug = canonicalDrug(match[1]) ?? "Other";
-    const date = normalizeDate(match[2]);
-    if (!date) continue;
-    doses.push({ drug, date });
-  }
-  return doses;
-}
-
-function extractVaccinations(
-  history: string
-): Array<{ vaccine: string; date: string; lot?: string }> {
-  if (!history?.trim()) return [];
-  const out: Array<{ vaccine: string; date: string; lot?: string }> = [];
-  const parts = history.split(/[;,]/).map((p) => p.trim()).filter(Boolean);
-  for (const part of parts) {
-    const dateMatch = part.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
-    if (!dateMatch) continue;
-    const date = normalizeDate(dateMatch[1]);
-    if (!date) continue;
-    let label = part
-      .replace(dateMatch[0], "")
-      .replace(/\([^)]*\)/g, "")
-      .trim();
-    label = label.replace(/^[-:,\s]+|[-:,\s]+$/g, "");
-    if (!label) label = "Vaccination";
-    const lotMatch = part.match(/\(([^)]+)\)/);
-    out.push({ vaccine: label, date, lot: lotMatch ? lotMatch[1] : undefined });
-  }
+  out.push(cur);
   return out;
 }
 
-// ── Main ──
-const csv = readFileSync(CSV_PATH, "utf-8");
-const rows = parseCSV(csv);
+function normalizeDate(raw: string): string | null {
+  const m = raw.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (!m) return null;
+  let year = m[3];
+  if (year.length === 2) year = "20" + year;
+  return `${year}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+}
 
-const dewormingEntries: string[] = [];
-const vaccinationEntries: string[] = [];
-const yardWideRaw: Map<
-  string, // `${date}|${drug}|${dose}`
-  { date: string; drug: string; dose: string }
-> = new Map();
-const nextVaccByAnimal: Map<string, string> = new Map();
-const unmatched: string[] = [];
+function cleanTitle(raw: string): string {
+  let t = raw
+    .replace(/[.;]+/g, " ")
+    .replace(/^\s*(?:and|on|the|of)\s+/i, "")
+    .replace(/\s+(?:and|on|of)\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  t = t.replace(/rabiies/gi, "Rabies");
+  t = t.replace(/\b(\d+)\s*way\b/gi, "$1 Way");
+  t = t.replace(/^i?vermectin$/i, "Ivermectin"); // "Vermectin" sheet typo
+  t = t.replace(/\bGOLD\b/g, "Gold");
+  t = t.replace(/\+\s*VEE\b/gi, "+ VEE");
+  t = t.replace(/^5[- ]day power pack of\s+(\S+)$/i, (_, drug: string) => {
+    const d = drug.toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
+    return `${d} 5-day Power Pack`;
+  });
+  if (/^dewormed$/i.test(t)) t = "Deworming";
+  if (t === t.toUpperCase()) {
+    t = t.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return t;
+}
 
-let dewormingCount = 0;
-let vaccinationCount = 0;
-let perAnimalRowCount = 0;
+interface CareEvent {
+  title: string;
+  date: string;
+  description: string;
+}
 
-for (const cols of rows) {
-  const firstCol = cols[0]?.trim() ?? "";
-  if (!firstCol) continue;
+// Pull "(9186A0218)"-style lot numbers out of a title.
+function extractLot(title: string): { title: string; lot: string } {
+  const m = title.match(/\(([A-Za-z0-9-]{4,})\)/);
+  if (!m) return { title, lot: "" };
+  return { title: title.replace(m[0], "").trim(), lot: m[1] };
+}
 
-  // ── Section 1: PREV-HERD-N yard-wide events ──
-  if (firstCol.startsWith("PREV-HERD")) {
-    // Cols: 0=PREV-HERD-N, 1=date, 2=DRUG, 3=dose description
-    const date = normalizeFlexDate(cols[1] || "");
-    const drugRaw = (cols[2] || "").trim();
-    const dose = (cols[3] || "").trim();
-    const drug = canonicalDrug(drugRaw);
-    if (!date || !drug) continue;
-    const key = `${date}|${drug}|${dose}`;
-    if (!yardWideRaw.has(key)) {
-      yardWideRaw.set(key, { date, drug, dose });
+function parseCareHistory(text: string, fallbackDate: string | null): CareEvent[] {
+  const out: CareEvent[] = [];
+  if (!text) return out;
+  let prevTitle = "";
+
+  for (const chunkRaw of text.replace(/\s+/g, " ").split(/[;,]/)) {
+    const chunk = chunkRaw.trim();
+    if (!chunk) continue;
+
+    const dateRe = /(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/g;
+    const found: Array<{ start: number; end: number; m: number; d: number; y: string | null }> = [];
+    let dm: RegExpExecArray | null;
+    while ((dm = dateRe.exec(chunk)) !== null) {
+      found.push({ start: dm.index, end: dm.index + dm[0].length, m: +dm[1], d: +dm[2], y: dm[3] ?? null });
     }
-    continue;
+
+    if (found.length === 0) {
+      // Dateless fragment — usually a trailing lot number for the previous
+      // event; otherwise append it to the previous event's description.
+      if (out.length > 0) {
+        const { lot } = extractLot(chunk);
+        const extra = lot ? `Lot ${lot}` : cleanTitle(chunk);
+        if (extra) {
+          const prev = out[out.length - 1];
+          prev.description = prev.description ? `${prev.description} ${extra}` : extra;
+        }
+      }
+      continue;
+    }
+
+    // Segments around the dates: s0 [d0] s1 [d1] s2 ...
+    const segments: string[] = [];
+    segments.push(chunk.slice(0, found[0].start));
+    for (let i = 0; i < found.length; i++) {
+      segments.push(chunk.slice(found[i].end, found[i + 1]?.start ?? chunk.length));
+    }
+    const dateFirst = segments[0].trim() === "";
+
+    for (let i = 0; i < found.length; i++) {
+      const f = found[i];
+      let year = f.y;
+      if (!year) {
+        year = found.slice(i + 1).find((n) => n.y)?.y ?? fallbackDate?.slice(0, 4) ?? null;
+        if (!year) continue;
+      }
+      if (year.length === 2) year = "20" + year;
+      const date = `${year}-${String(f.m).padStart(2, "0")}-${String(f.d).padStart(2, "0")}`;
+
+      // date-first chunks name the event AFTER the date; drug-first before it.
+      let rawTitle = dateFirst ? segments[i + 1] : segments[i];
+      // Drug-first segments starting with lowercase context ("for weight
+      // concerns Dewormed 8/1/24") carry the PREVIOUS event's description.
+      if (!dateFirst) {
+        const ctx = rawTitle.match(/^[\s.]*((?:for|due to|because of)\s+[a-z][^A-Z]*)/);
+        if (ctx && out.length > 0) {
+          const prev = out[out.length - 1];
+          const extra = cleanTitle(ctx[1]);
+          prev.description = prev.description ? `${prev.description} ${extra}` : extra;
+          rawTitle = rawTitle.slice(ctx[0].length);
+        }
+      }
+      const { title: stripped, lot } = extractLot(rawTitle);
+      let title = cleanTitle(stripped);
+      if (!title) title = prevTitle;
+      prevTitle = title || prevTitle;
+      if (!title) continue;
+
+      let description = lot ? `Lot ${lot}` : "";
+      // Trailing text after the last date of a drug-first chunk is context.
+      if (!dateFirst && i === found.length - 1) {
+        const { title: tailText, lot: tailLot } = extractLot(segments[i + 1] ?? "");
+        const tail = tailLot ? `Lot ${tailLot}` : cleanTitle(tailText);
+        if (tail) description = description ? `${description} ${tail}` : tail;
+      }
+
+      out.push({ title, date, description });
+    }
   }
 
-  // Skip header rows: the section header `,Herd,Dewormed Date,...` and the
-  // stray mid-file `Name,Next Deworming Date,Dewormer,...` template header.
-  if (firstCol === "Name") continue;
+  // Drop exact repeats (same title + date) that show up across run-on chunks.
+  const seen = new Set<string>();
+  return out.filter((e) => {
+    const key = `${e.title}|${e.date}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
-  // ── Section 3: per-animal rows ──
-  // Cols: 0=Name, 1=Herd, 2=DewormedDate, 3=DewormingHistory, 4=blank,
-  //       5=VaccinationHistory, 6=VaccinationDate, 7=NextVaccination
-  const animal = resolveAnimal(firstCol);
-  if (!animal) {
-    unmatched.push(firstCol);
-    continue;
+// ── Parse per-donkey CSV ──
+const csv = readFileSync(CSV_PATH, "utf-8");
+const lines = csv.split(/\r?\n/).filter((l) => l.trim().length > 0);
+
+const dewormingEvents: Array<{ animal: string } & CareEvent> = [];
+const vaccinationEvents: Array<{ animal: string } & CareEvent> = [];
+const noteEvents: Array<{ animal: string; date: string | null; text: string }> = [];
+const nextVaccinations: Array<{ animal: string; date: string }> = [];
+
+for (let i = 1; i < lines.length; i++) {
+  const cols = parseCSVLine(lines[i]);
+  const csvName = cols[0]?.trim();
+  if (!csvName) continue;
+  const animal = resolveName(csvName);
+
+  const dewormedDate = normalizeDate(cols[2]?.trim() || "");
+  const dewormingHistory = cols[3]?.trim() || "";
+  const vaccinationHistory = cols[5]?.trim() || "";
+  const vaccinationDate = normalizeDate(cols[6]?.trim() || "");
+  const nextVaccination = normalizeDate(cols[7]?.trim() || "");
+  const notes = cols[8]?.trim() || "";
+
+  for (const e of parseCareHistory(dewormingHistory, dewormedDate)) {
+    dewormingEvents.push({ animal, ...e });
   }
-
-  perAnimalRowCount++;
-  const dewormingHistory = cols[3] || "";
-  const vaccinationHistory = cols[5] || "";
-  const nextVaccISO = normalizeDate(cols[7] || "");
-
-  if (nextVaccISO) {
-    nextVaccByAnimal.set(animal, nextVaccISO);
+  for (const e of parseCareHistory(vaccinationHistory, vaccinationDate)) {
+    // "6 Way and Dewormed 2/22/25" — one date covering a vaccine AND a
+    // deworming dose; peel the deworming off into its own entry.
+    let title = e.title;
+    const combo = title.match(/^(.*?)\s+and\s+Deworm(?:ed|ing)$/i);
+    if (combo) {
+      dewormingEvents.push({ animal, title: "Deworming", date: e.date, description: e.description });
+      title = cleanTitle(combo[1]);
+      if (!title) continue;
+    }
+    // "6 Way Booster and Rabies" — two vaccines, one date → one entry each.
+    for (const part of title.split(/\s+and\s+/i)) {
+      const t = cleanTitle(part);
+      if (t) vaccinationEvents.push({ animal, title: t, date: e.date, description: e.description });
+    }
   }
+  if (nextVaccination) nextVaccinations.push({ animal, date: nextVaccination });
 
-  for (const dose of extractDoses(dewormingHistory)) {
-    dewormingEntries.push(
-      `  rec(${JSON.stringify(animal)}, "Deworming", ${JSON.stringify(
-        dose.drug
-      )}, ${JSON.stringify(dose.date)}, ${JSON.stringify(
-        `${dose.drug} dose administered.`
-      )})`
-    );
-    dewormingCount++;
-  }
-
-  for (const vac of extractVaccinations(vaccinationHistory)) {
-    const desc = vac.lot
-      ? `${vac.vaccine}. Lot: ${vac.lot}`
-      : `${vac.vaccine}.`;
-    vaccinationEntries.push(
-      `  rec(${JSON.stringify(animal)}, "Vaccination", ${JSON.stringify(
-        vac.vaccine
-      )}, ${JSON.stringify(vac.date)}, ${JSON.stringify(desc)})`
-    );
-    vaccinationCount++;
+  if (notes) {
+    // "11/10/25 Visual of small round worms…" → dated note; else undated.
+    const dm = notes.match(/^(\d{1,2}\/\d{1,2}\/\d{2,4})\s*(.*)$/);
+    if (dm) {
+      noteEvents.push({ animal, date: normalizeDate(dm[1]), text: dm[2] || notes });
+    } else {
+      noteEvents.push({ animal, date: null, text: notes });
+    }
   }
 }
 
-// ── Yard-wide events: build sorted list (newest first) ──
-const yardWide = Array.from(yardWideRaw.values()).sort((a, b) =>
-  b.date.localeCompare(a.date)
-);
+// ── Parse yard-wide CSV ──
+const yardCsv = readFileSync(YARD_CSV_PATH, "utf-8");
+const yardLines = yardCsv.split(/\r?\n/).filter((l) => l.trim().length > 0);
+const yardRows: Array<{ date: string; drug: string; dose: string }> = [];
+for (let i = 1; i < yardLines.length; i++) {
+  const cols = parseCSVLine(yardLines[i]);
+  const date = normalizeDate(cols[0]?.trim() || "");
+  if (!date) continue;
+  yardRows.push({ date, drug: cleanTitle(cols[1]?.trim() || ""), dose: cols[2]?.trim() || "" });
+}
+yardRows.sort((a, b) => b.date.localeCompare(a.date));
 
 // ── Emit ──
-const yardWideEntries = yardWide
+const dwRows = dewormingEvents
   .map(
     (e, idx) =>
-      `  { id: ${JSON.stringify(`yard-${idx}`)}, date: ${JSON.stringify(
-        e.date
-      )}, drug: ${JSON.stringify(e.drug)}, dose: ${JSON.stringify(e.dose)} }`
+      `  { id: ${JSON.stringify(`med-dw-${idx}`)}, animal: ${JSON.stringify(e.animal)}, type: "Deworming", title: ${JSON.stringify(e.title)}, date: ${JSON.stringify(e.date)}, description: ${JSON.stringify(e.description || "Imported from deworming checklist.")}, urgent: false }`
   )
   .join(",\n");
 
-const nextVaccEntries = Array.from(nextVaccByAnimal.entries())
-  .sort(([a], [b]) => a.localeCompare(b))
-  .map(([name, date]) => `  [${JSON.stringify(name)}, ${JSON.stringify(date)}]`)
+const vxRows = vaccinationEvents
+  .map((e, idx) => {
+    // Dental work logged in the vaccination column keeps its real category.
+    const type = /dental/i.test(e.title) ? "Hoof & Dental" : "Vaccination";
+    return `  { id: ${JSON.stringify(`med-vx-${idx}`)}, animal: ${JSON.stringify(e.animal)}, type: ${JSON.stringify(type)}, title: ${JSON.stringify(e.title)}, date: ${JSON.stringify(e.date)}, description: ${JSON.stringify(e.description || "Imported from deworming checklist.")}, urgent: false }`;
+  })
+  .join(",\n");
+
+const todayIso = new Date().toISOString().split("T")[0];
+const noteRows = noteEvents
+  .map(
+    (e, idx) =>
+      `  { id: ${JSON.stringify(`med-note-${idx}`)}, animal: ${JSON.stringify(e.animal)}, type: "Condition", title: "Note", date: ${JSON.stringify(e.date ?? todayIso)}, description: ${JSON.stringify(e.text)}, urgent: false }`
+  )
+  .join(",\n");
+
+const nextVaccRows = nextVaccinations
+  .map((e) => `  [${JSON.stringify(e.animal)}, ${JSON.stringify(e.date)}]`)
+  .join(",\n");
+
+const yardRowsOut = yardRows
+  .map(
+    (r, idx) =>
+      `  { id: ${JSON.stringify(`yard-${idx}`)}, date: ${JSON.stringify(r.date)}, drug: ${JSON.stringify(r.drug)}, dose: ${JSON.stringify(r.dose)} }`
+  )
   .join(",\n");
 
 const out = `// AUTO-GENERATED by scripts/parse-deworming-csv.ts
-// Source: src/lib/data/deworming-vaccination.csv
+// Sources: src/lib/data/deworming-vaccination.csv, yard-wide-deworming.csv
+// (the "Deworming and Vaccination Checklist APP FINAL" sheet)
 // Do not edit by hand — re-run the parser instead.
 
-import type { MedicalEntry, MedicalRecordType } from "./medical-data";
-import { animals } from "./animals";
-
-let nextId = 10000;
-function rec(
-  animal: string,
-  type: MedicalRecordType,
-  title: string,
-  date: string,
-  description: string,
-  urgent = false
-): MedicalEntry {
-  return { id: \`med-import-\${nextId++}\`, animal, type, title, date, description, urgent };
-}
+import type { MedicalEntry } from "./medical-data";
 
 export const importedDewormingEntries: MedicalEntry[] = [
-${dewormingEntries.join(",\n")},
+${dwRows}${dwRows ? "," : ""}
 ];
 
 export const importedVaccinationEntries: MedicalEntry[] = [
-${vaccinationEntries.join(",\n")},
+${vxRows}${vxRows ? "," : ""}
 ];
 
-// ── Yard-wide dosing events (PREV-HERD-N rows) ─────────────────────────
-// Each entry represents a single yard-wide deworming protocol date. The CSV
-// duplicates the row 6 times for sheet bookkeeping; we collapse them by
-// (date, drug, dose). These are surfaced as a widget on the medical dashboard
-// AND attached as per-animal MedicalEntry records (see yardWideAsMedical
-// below) so each donkey's history reflects the dose they received.
+// Dated observations from the checklist's Notes column.
+export const checklistNoteEntries: MedicalEntry[] = [
+${noteRows}${noteRows ? "," : ""}
+];
+
 export interface YardWideDeworming {
   id: string;
   date: string; // ISO YYYY-MM-DD
   drug: string;
-  dose: string; // e.g. "Single Dose (0.2 mg/kg)" or "5-day Power Pack (5 mg/kg/day)"
+  dose: string;
 }
 
+// Yard-wide dosing schedule (dashboard widget). Per-donkey doses live in each
+// donkey's own history above, so these are NOT expanded into per-animal rows.
 export const yardWideDewormings: YardWideDeworming[] = [
-${yardWideEntries},
+${yardRowsOut}${yardRowsOut ? "," : ""}
 ];
 
-// Expand each yard-wide event into one MedicalEntry per donkey, so they show
-// up in each animal's deworming history. Skip any donkey whose own history
-// already mentions the drug within ±7 days — the dedup pipeline in
-// medical-data.ts will handle the rest.
-const yardWideAsMedical: MedicalEntry[] = (() => {
-  const out: MedicalEntry[] = [];
-  let idx = 100000;
-  for (const event of yardWideDewormings) {
-    for (const a of animals) {
-      out.push({
-        id: \`yard-med-\${idx++}\`,
-        animal: a.name,
-        type: "Deworming",
-        title: event.drug,
-        date: event.date,
-        description: \`Yard-wide \${event.drug.toLowerCase()} (\${event.dose}).\`,
-        urgent: false,
-      });
-    }
-  }
-  return out;
-})();
-
-// ── Next-vaccination dates per donkey (CSV's Next Vaccination column) ──
+// ── Next-vaccination dates per donkey (Next Vaccination column) ──
 // Used by the medical dashboard to surface upcoming/overdue boosters.
 export const nextVaccinationByAnimal: Map<string, string> = new Map([
-${nextVaccEntries},
+${nextVaccRows}${nextVaccRows ? "," : ""}
 ]);
 
 export function getNextVaccinationDue(animalName: string): string | null {
@@ -376,19 +360,13 @@ export function getNextVaccinationDue(animalName: string): string | null {
 
 // Emit the next-vaccination dates as scheduled MedicalEntry records so they
 // flow through the dashboard's existing Upcoming / Overdue / Recent tabs.
-//
-// Urgency is computed at evaluation time relative to today:
-//   - past due (date < today) → urgent: true (truly overdue)
-//   - today / future → urgent: false, title prefixed "Upcoming:" so the
-//     entry shows on the Upcoming tab without crying wolf in the Overdue
-//     stat. The dev team specifically asked us to stop flagging not-yet-due
-//     vaccinations as Urgent.
+// Urgency is computed at evaluation time relative to today.
 export const scheduledVaccinationEntries: MedicalEntry[] = (() => {
   const out: MedicalEntry[] = [];
   let idx = 200000;
-  const todayIso = new Date().toISOString().split("T")[0];
+  const today = new Date().toISOString().split("T")[0];
   for (const [animal, date] of nextVaccinationByAnimal) {
-    const isOverdue = date < todayIso;
+    const isOverdue = date < today;
     out.push({
       id: \`scheduled-vacc-\${idx++}\`,
       animal,
@@ -397,7 +375,7 @@ export const scheduledVaccinationEntries: MedicalEntry[] = (() => {
       date,
       description: isOverdue
         ? "Vaccination booster is past due — schedule as soon as possible."
-        : "Vaccination booster scheduled per the deworming/vaccination CSV.",
+        : "Vaccination booster scheduled per the deworming checklist.",
       urgent: isOverdue,
     });
   }
@@ -407,7 +385,7 @@ export const scheduledVaccinationEntries: MedicalEntry[] = (() => {
 export const importedMedicalEntries: MedicalEntry[] = [
   ...importedDewormingEntries,
   ...importedVaccinationEntries,
-  ...yardWideAsMedical,
+  ...checklistNoteEntries,
   ...scheduledVaccinationEntries,
 ];
 `;
@@ -415,12 +393,7 @@ export const importedMedicalEntries: MedicalEntry[] = [
 writeFileSync(OUT_PATH, out);
 
 console.log(`✓ Wrote ${OUT_PATH}`);
-console.log(`  Yard-wide events:     ${yardWide.length}`);
-console.log(`  Per-animal rows:      ${perAnimalRowCount}`);
-console.log(`  Deworming entries:    ${dewormingCount}`);
-console.log(`  Vaccination entries:  ${vaccinationCount}`);
-console.log(`  Next-vacc dates:      ${nextVaccByAnimal.size}`);
-if (unmatched.length) {
-  console.log(`\n⚠ Unmatched CSV names (skipped):`);
-  for (const n of unmatched) console.log(`    - ${n}`);
-}
+console.log(`  Deworming entries: ${dewormingEvents.length}`);
+console.log(`  Vaccination entries: ${vaccinationEvents.length}`);
+console.log(`  Notes: ${noteEvents.length} · Next-vaccination dates: ${nextVaccinations.length}`);
+console.log(`  Yard-wide protocol rows: ${yardRows.length}`);
