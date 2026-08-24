@@ -1,6 +1,7 @@
 import { animals } from "./animals";
 import { watchList } from "./sanctuary-data";
 import { importedHoofVisits } from "./trimming-data";
+import { adoptionTrimVisits } from "./donkey-profiles-data";
 
 // ── Types ──
 export type CareType = "hoof" | "dental";
@@ -74,11 +75,13 @@ function getInterval(animalName: string): CareInterval {
 }
 
 // ── Visit history ──
-// Real hoof trim data parsed from donkey-trimming-notes.csv (see scripts/parse-trimming-csv.ts).
+// Hoof trims from the trimming-notes CSV (parse-trimming-csv.ts) merged with
+// the adoption sheet's Trim History column (parse-adoption-csv.ts).
 // Dental visits are not yet imported — add manually via the /app/hoof-dental dashboard.
-export const visitHistory: CareVisit[] = [...importedHoofVisits].sort((a, b) =>
-  b.date.localeCompare(a.date)
-);
+export const visitHistory: CareVisit[] = [
+  ...importedHoofVisits,
+  ...adoptionTrimVisits,
+].sort((a, b) => b.date.localeCompare(a.date));
 
 // ── Compute status for each animal ──
 function daysBetween(a: string, b: string): number {

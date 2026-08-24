@@ -15,7 +15,7 @@
  *   2  bonded          (0.5 per member of a bonded pair; sum = pair count)
  *   3  Special Needs   (flag: 1)
  *   4  Over 20         (flag: 1)
- *   5  Under 3 yrs     (flag: 1 — not surfaced in the app yet)
+ *   5  Under 3 yrs     (flag: 1)
  *   6  Needs Chip?     (flag: 1)
  *   7  Herd
  *   8  Gender
@@ -30,12 +30,14 @@
  *  17  Medical         (free text → Condition entries)
  *  18  Special Needs   (free text → Special Needs entries)
  *  19  Last Annual Exam
- *  20  Trim History        (not parsed here — trimming pipeline)
- *  21  Dewormed Date       (not parsed here — deworming pipeline)
- *  22  Deworming History   (not parsed here)
- *  23  Next Vaccination    (not parsed here)
- *  24  Vaccination History (not parsed here)
- *  25  Vaccination Date    (not parsed here)
+ *  20  Trim History        → adoptionTrimVisits (hoof visits; "N/A" skipped)
+ *  21  Dewormed Date       → fallback date/year for Deworming History events
+ *  22  Deworming History   → importedDewormingEntries ("Drug M/D/YY" pairs)
+ *  23  Next Vaccination    → nextVaccinationByAnimal (upcoming/overdue boosters)
+ *  24  Vaccination History → importedVaccinationEntries ("Vaccine M/D/YY" pairs)
+ *  25  Vaccination Date    → fallback date/year for Vaccination History events
+ *
+ * Also writes src/lib/deworming-vaccination-data.ts (columns 21-25).
  *
  * Run: npx tsx scripts/parse-adoption-csv.ts
  */
@@ -45,6 +47,7 @@ import { join } from "path";
 
 const CSV_PATH = join(__dirname, "..", "src", "lib", "data", "donkey-adoption.csv");
 const OUT_PATH = join(__dirname, "..", "src", "lib", "donkey-profiles-data.ts");
+const DEWORM_OUT_PATH = join(__dirname, "..", "src", "lib", "deworming-vaccination-data.ts");
 
 // CSV name → app-canonical name. The adoption spreadsheet is the source of
 // truth; these overrides exist for (a) multi-word names whose default
@@ -217,6 +220,102 @@ function extractBonded(notes: string): string[] {
   return Array.from(new Set(bonded));
 }
 
+// ── History-cell tokenizer ──
+// The Deworming History / Vaccination History cells are free-text runs of
+// "<drug/vaccine> <M/D/YY>" pairs, e.g.:
+//   "Tri-wormer 4/1/25 Tri-wormer 1/3/25 Ivermectin 12/20 and 12/29/24."
+//   "Rabies 11/25/24       6 Way 11/25/24"
+// Each date closes one event; the words before it are the title. A date with
+// no year borrows the year from the next dated event in the cell, then the
+// fallback date. A dateless leading fragment or an empty title inherits the
+// previous event's title ("and 12/29/24" → another Ivermectin dose). Trailing
+// text after the last date ("for weight concerns") becomes that event's
+// description.
+function cleanEventTitle(raw: string): string {
+  let t = raw
+    .replace(/[.,;]+/g, " ")
+    .replace(/^\s*(?:and|on|the)\s+/i, "")
+    .replace(/\s+(?:and|on)\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  t = t.replace(/rabiies/gi, "Rabies"); // recurring sheet typo
+  t = t.replace(/\b(\d+)\s*way\b/gi, "$1 Way"); // "6 way"/"6 WAY" → "6 Way"
+  if (/^dewormed$/i.test(t)) t = "Deworming";
+  // Normalize shouty cells ("IVERMECTIN", "6 WAY") to title case.
+  if (t === t.toUpperCase()) {
+    t = t.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return t;
+}
+
+function parseHistoryEvents(
+  text: string,
+  fallbackDate: string | null
+): Array<{ title: string; date: string; description: string }> {
+  const out: Array<{ title: string; date: string; description: string }> = [];
+  if (!text) return out;
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  const dateRe = /(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/g;
+  const found: Array<{ start: number; end: number; m: number; d: number; y: string | null }> = [];
+  let dm: RegExpExecArray | null;
+  while ((dm = dateRe.exec(collapsed)) !== null) {
+    found.push({ start: dm.index, end: dm.index + dm[0].length, m: +dm[1], d: +dm[2], y: dm[3] ?? null });
+  }
+  if (found.length === 0) return out;
+
+  let prevEnd = 0;
+  let prevTitle = "";
+  for (let i = 0; i < found.length; i++) {
+    const f = found[i];
+    let year = f.y;
+    if (!year) {
+      year = found.slice(i + 1).find((n) => n.y)?.y ?? fallbackDate?.slice(0, 4) ?? null;
+      if (!year) continue; // no way to date this event
+    }
+    if (year.length === 2) year = "20" + year;
+    const date = `${year}-${String(f.m).padStart(2, "0")}-${String(f.d).padStart(2, "0")}`;
+
+    let seg = collapsed.slice(prevEnd, f.start);
+    // A segment starting with lowercase context ("for weight concerns Dewormed
+    // 8/1/24") is the PREVIOUS event's description, up to the next capitalized
+    // word that starts the new event's title.
+    const ctx = seg.match(/^[\s.,]*((?:for|due to|because of)\s+[a-z][^A-Z]*)/);
+    if (ctx && out.length > 0) {
+      out[out.length - 1].description = cleanEventTitle(ctx[1]);
+      seg = seg.slice(ctx[0].length);
+    }
+    let title = cleanEventTitle(seg);
+    if (!title) title = prevTitle;
+    prevTitle = title || prevTitle;
+    prevEnd = f.end;
+
+    // Trailing text after the LAST date is context for that event.
+    const description =
+      i === found.length - 1 ? cleanEventTitle(collapsed.slice(f.end)) : "";
+
+    if (title) out.push({ title, date, description });
+  }
+  return out;
+}
+
+// Extract a date from a Trim History cell — "Last PVDR trim 10/5/24" or
+// "Trimmed July 2025" (month-name → first of month).
+const MONTHS = ["january","february","march","april","may","june","july","august","september","october","november","december"];
+function parseTrimDate(text: string): string | null {
+  const m = text.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (m) {
+    let year = m[3];
+    if (year.length === 2) year = "20" + year;
+    return `${year}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+  }
+  const mn = text.toLowerCase().match(new RegExp(`(${MONTHS.join("|")})\\s+(\\d{4})`));
+  if (mn) {
+    const month = String(MONTHS.indexOf(mn[1]) + 1).padStart(2, "0");
+    return `${mn[2]}-${month}-01`;
+  }
+  return null;
+}
+
 // ── Types ──
 interface DonkeyProfile {
   name: string;
@@ -238,6 +337,7 @@ interface DonkeyProfile {
   isBondedPair: boolean;
   isSpecialNeeds: boolean;
   isOver20: boolean;
+  isUnder3: boolean;
   // Last annual exam (ISO)
   lastAnnualExam: string | null;
   // Extracted relationships
@@ -270,7 +370,14 @@ let totalMomBaby = 0;
 let totalBondedPairs = 0;
 let totalSpecialNeeds = 0;
 let totalOver20 = 0;
+let totalUnder3 = 0;
 let totalNeedsChip = 0;
+
+// Care-history events parsed from columns 20-25.
+const trimVisits: Array<{ animal: string; date: string; notes: string; provider: string }> = [];
+const dewormingEvents: Array<{ animal: string; title: string; date: string; description: string }> = [];
+const vaccinationEvents: Array<{ animal: string; title: string; date: string; description: string }> = [];
+const nextVaccinations: Array<{ animal: string; date: string }> = [];
 
 for (let i = 1; i < lines.length; i++) {
   const cols = parseCSVLine(lines[i]);
@@ -283,6 +390,7 @@ for (let i = 1; i < lines.length; i++) {
   const bondedFlag = parseFloat(cols[2]?.trim() || "");
   const specialFlag = (cols[3]?.trim() || "") !== "";
   const over20Flag = (cols[4]?.trim() || "") !== "";
+  const under3Flag = (cols[5]?.trim() || "") !== "";
   const needsChipFlag = (cols[6]?.trim() || "") !== "";
 
   const herdRaw = cols[7]?.trim() || "";
@@ -298,6 +406,12 @@ for (let i = 1; i < lines.length; i++) {
   const medical = cols[17]?.trim() || "";
   const specialNeedsText = cols[18]?.trim() || "";
   const lastAnnualExam = normalizeDate(cols[19]?.trim() || "");
+  const trimHistory = cols[20]?.trim() || "";
+  const dewormedDate = normalizeDate(cols[21]?.trim() || "");
+  const dewormingHistory = cols[22]?.trim() || "";
+  const nextVaccination = normalizeDate(cols[23]?.trim() || "");
+  const vaccinationHistory = cols[24]?.trim() || "";
+  const vaccinationDate = normalizeDate(cols[25]?.trim() || "");
 
   // Microchip: anything that looks like a number/dashed number is a real chip.
   // Normalize Avid # formatting — some entries use 977-200-101-226-644,
@@ -329,12 +443,66 @@ for (let i = 1; i < lines.length; i++) {
   const isBondedPair = Number.isFinite(bondedFlag) && bondedFlag > 0;
   const isSpecialNeeds = specialFlag;
   const isOver20 = over20Flag;
+  const isUnder3 = under3Flag;
 
   totalMomBaby += momBabyCount;
   if (Number.isFinite(bondedFlag)) totalBondedPairs += bondedFlag;
   if (isSpecialNeeds) totalSpecialNeeds++;
   if (isOver20) totalOver20++;
+  if (isUnder3) totalUnder3++;
   if (needsChip) totalNeedsChip++;
+
+  // ── Care-history columns (20-25) ──
+  if (trimHistory && trimHistory.toUpperCase() !== "N/A") {
+    const trimDate = parseTrimDate(trimHistory);
+    if (trimDate) {
+      trimVisits.push({
+        animal: animalName,
+        date: trimDate,
+        notes: trimHistory,
+        provider: /PVDR/i.test(trimHistory) ? "PVDR" : "",
+      });
+    }
+  }
+
+  const dwEvents = parseHistoryEvents(dewormingHistory, dewormedDate);
+  if (dwEvents.length > 0) {
+    for (const e of dwEvents) dewormingEvents.push({ animal: animalName, ...e });
+  } else if (dewormedDate) {
+    // Date but no parseable history text — record a generic dose.
+    dewormingEvents.push({
+      animal: animalName,
+      title: "Deworming",
+      date: dewormedDate,
+      description: dewormingHistory,
+    });
+  }
+
+  const vxEvents = parseHistoryEvents(vaccinationHistory, vaccinationDate);
+  if (vxEvents.length > 0) {
+    for (const e of vxEvents) {
+      // "6 Way and Dewormed 2/22/25" — one date covering a vaccine AND a
+      // deworming dose. Split into one entry of each type.
+      const combo = e.title.match(/^(.*?)\s+and\s+Deworm(?:ed|ing)$/i);
+      if (combo) {
+        vaccinationEvents.push({ animal: animalName, ...e, title: cleanEventTitle(combo[1]) });
+        dewormingEvents.push({ animal: animalName, title: "Deworming", date: e.date, description: e.description });
+      } else {
+        vaccinationEvents.push({ animal: animalName, ...e });
+      }
+    }
+  } else if (vaccinationDate) {
+    vaccinationEvents.push({
+      animal: animalName,
+      title: "Vaccination",
+      date: vaccinationDate,
+      description: vaccinationHistory,
+    });
+  }
+
+  if (nextVaccination) {
+    nextVaccinations.push({ animal: animalName, date: nextVaccination });
+  }
 
   profiles.set(animalName, {
     name: animalName,
@@ -355,6 +523,7 @@ for (let i = 1; i < lines.length; i++) {
     isBondedPair,
     isSpecialNeeds,
     isOver20,
+    isUnder3,
     lastAnnualExam,
     parents: family.parents,
     children: family.children,
@@ -440,11 +609,19 @@ const revisedMedicalEntryRows = revisedMedicalEntries
   })
   .join(",\n");
 
+const trimVisitRows = trimVisits
+  .map(
+    (v, idx) =>
+      `  { id: ${JSON.stringify(`trim-adopt-${idx}`)}, animal: ${JSON.stringify(v.animal)}, type: "hoof" as const, date: ${JSON.stringify(v.date)}, provider: ${JSON.stringify(v.provider)}, notes: ${JSON.stringify(v.notes)} }`
+  )
+  .join(",\n");
+
 const out = `// AUTO-GENERATED by scripts/parse-adoption-csv.ts
 // Source: src/lib/data/donkey-adoption.csv
 // Do not edit by hand — re-run the parser instead.
 
 import type { MedicalEntry } from "./medical-data";
+import type { CareVisit } from "./hoof-dental-data";
 
 export interface DonkeyProfile {
   name: string;
@@ -465,6 +642,7 @@ export interface DonkeyProfile {
   isBondedPair: boolean;
   isSpecialNeeds: boolean;
   isOver20: boolean;
+  isUnder3: boolean;
   lastAnnualExam: string | null;
   parents: string[];
   children: string[];
@@ -491,12 +669,19 @@ export const revisedMedicalEntries: MedicalEntry[] = [
 ${revisedMedicalEntryRows},
 ];
 
+// Hoof trims from the adoption sheet's Trim History column. Merged into
+// visitHistory by hoof-dental-data.ts alongside the trimming-notes imports.
+export const adoptionTrimVisits: CareVisit[] = [
+${trimVisitRows}${trimVisitRows ? "," : ""}
+];
+
 export interface SanctuaryStats {
   totalDonkeys: number;
   momBaby: number;
   bondedPairs: number;
   specialNeeds: number;
   seniors: number;
+  under3: number;
   needsChip: number;
 }
 
@@ -506,17 +691,110 @@ export const sanctuaryStats: SanctuaryStats = {
   bondedPairs: ${Math.round(totalBondedPairs)},
   specialNeeds: ${totalSpecialNeeds},
   seniors: ${totalOver20},
+  under3: ${totalUnder3},
   needsChip: ${totalNeedsChip},
 };
 `;
 
 writeFileSync(OUT_PATH, out);
 
+// ── Emit deworming-vaccination-data.ts (columns 21-25) ──
+const dwRows = dewormingEvents
+  .map(
+    (e, idx) =>
+      `  { id: ${JSON.stringify(`med-dw-${idx}`)}, animal: ${JSON.stringify(e.animal)}, type: "Deworming", title: ${JSON.stringify(e.title)}, date: ${JSON.stringify(e.date)}, description: ${JSON.stringify(e.description || "Imported from adoption sheet.")}, urgent: false }`
+  )
+  .join(",\n");
+
+const vxRows = vaccinationEvents
+  .map(
+    (e, idx) =>
+      `  { id: ${JSON.stringify(`med-vx-${idx}`)}, animal: ${JSON.stringify(e.animal)}, type: "Vaccination", title: ${JSON.stringify(e.title)}, date: ${JSON.stringify(e.date)}, description: ${JSON.stringify(e.description || "Imported from adoption sheet.")}, urgent: false }`
+  )
+  .join(",\n");
+
+const nextVaccRows = nextVaccinations
+  .map((e) => `  [${JSON.stringify(e.animal)}, ${JSON.stringify(e.date)}]`)
+  .join(",\n");
+
+const dewormOut = `// AUTO-GENERATED by scripts/parse-adoption-csv.ts
+// Source: src/lib/data/donkey-adoption.csv (Deworming / Vaccination columns)
+// Do not edit by hand — re-run the parser instead.
+
+import type { MedicalEntry } from "./medical-data";
+
+export const importedDewormingEntries: MedicalEntry[] = [
+${dwRows}${dwRows ? "," : ""}
+];
+
+export const importedVaccinationEntries: MedicalEntry[] = [
+${vxRows}${vxRows ? "," : ""}
+];
+
+export interface YardWideDeworming {
+  id: string;
+  date: string; // ISO YYYY-MM-DD
+  drug: string;
+  dose: string;
+}
+
+// The FINAL adoption sheet has no yard-wide deworming table — per-donkey
+// doses live in importedDewormingEntries instead.
+export const yardWideDewormings: YardWideDeworming[] = [];
+
+// ── Next-vaccination dates per donkey (Next Vaccination column) ──
+// Used by the medical dashboard to surface upcoming/overdue boosters.
+export const nextVaccinationByAnimal: Map<string, string> = new Map([
+${nextVaccRows}${nextVaccRows ? "," : ""}
+]);
+
+export function getNextVaccinationDue(animalName: string): string | null {
+  return nextVaccinationByAnimal.get(animalName) ?? null;
+}
+
+// Emit the next-vaccination dates as scheduled MedicalEntry records so they
+// flow through the dashboard's existing Upcoming / Overdue / Recent tabs.
+// Urgency is computed at evaluation time relative to today:
+//   - past due (date < today) → urgent: true (truly overdue)
+//   - today / future → urgent: false ("Upcoming Vaccination")
+export const scheduledVaccinationEntries: MedicalEntry[] = (() => {
+  const out: MedicalEntry[] = [];
+  let idx = 200000;
+  const todayIso = new Date().toISOString().split("T")[0];
+  for (const [animal, date] of nextVaccinationByAnimal) {
+    const isOverdue = date < todayIso;
+    out.push({
+      id: \`scheduled-vacc-\${idx++}\`,
+      animal,
+      type: "Vaccination",
+      title: isOverdue ? "Vaccination Overdue" : "Upcoming Vaccination",
+      date,
+      description: isOverdue
+        ? "Vaccination booster is past due — schedule as soon as possible."
+        : "Vaccination booster scheduled per the adoption sheet.",
+      urgent: isOverdue,
+    });
+  }
+  return out;
+})();
+
+export const importedMedicalEntries: MedicalEntry[] = [
+  ...importedDewormingEntries,
+  ...importedVaccinationEntries,
+  ...scheduledVaccinationEntries,
+];
+`;
+
+writeFileSync(DEWORM_OUT_PATH, dewormOut);
+
 console.log(`✓ Wrote ${OUT_PATH}`);
+console.log(`✓ Wrote ${DEWORM_OUT_PATH}`);
 console.log(`  Profiles parsed: ${profiles.size}`);
 console.log(`  Annual exam entries: ${annualExams.length}`);
 console.log(`  Medical entries (Condition/Incident/Special Needs): ${revisedMedicalEntries.length}`);
-console.log(`  Stats: ${totalMomBaby} mom/baby, ${Math.round(totalBondedPairs)} bonded pairs, ${totalSpecialNeeds} special needs, ${totalOver20} seniors, ${totalNeedsChip} need chip`);
+console.log(`  Deworming entries: ${dewormingEvents.length} · Vaccination entries: ${vaccinationEvents.length} · Next-vaccination dates: ${nextVaccinations.length}`);
+console.log(`  Trim visits from Trim History: ${trimVisits.length}`);
+console.log(`  Stats: ${totalMomBaby} mom/baby, ${Math.round(totalBondedPairs)} bonded pairs, ${totalSpecialNeeds} special needs, ${totalOver20} seniors, ${totalUnder3} under 3, ${totalNeedsChip} need chip`);
 if (unprefixedCount > 0) {
   console.log(`  (${unprefixedCount} Medical cells had no Condition:/Incident: prefix — imported as Condition)`);
 }

@@ -39,6 +39,7 @@ export interface Animal {
   isBondedPair?: boolean;
   isSpecialNeedsFlag?: boolean;
   isOver20?: boolean;
+  isUnder3?: boolean;
   // Family relationships extracted from notes
   parents?: string[];
   children?: string[];
@@ -87,6 +88,7 @@ const CSV_OWNED_KEYS = new Set<keyof Animal>([
   "isBondedPair",
   "isSpecialNeedsFlag",
   "isOver20",
+  "isUnder3",
   "parents",
   "children",
   "bondedWith",
@@ -148,6 +150,7 @@ function makeDonkey(
     isBondedPair: profile?.isBondedPair ?? false,
     isSpecialNeedsFlag: profile?.isSpecialNeeds ?? false,
     isOver20: profile?.isOver20 ?? false,
+    isUnder3: profile?.isUnder3 ?? false,
     parents: profile?.parents ?? [],
     children: profile?.children ?? [],
     bondedWith: profile?.bondedWith ?? [],

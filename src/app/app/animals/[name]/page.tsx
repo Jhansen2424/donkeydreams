@@ -430,6 +430,14 @@ function AdoptionStatusBadges({ animal }: { animal: Animal }) {
       tooltip: "Mother of one or more donkeys currently in the herd.",
     });
   }
+  if (animal.isUnder3) {
+    badges.push({
+      label: "Under 3",
+      cls: "bg-sky-100 text-sky-700 border border-sky-200",
+      tooltip:
+        "Younger than 3 years old. Youngsters are still growing — they need training time, gentle handling, and can't be worked or ridden.",
+    });
+  }
   if (animal.needsChip) {
     badges.push({
       label: "Needs Microchip",
