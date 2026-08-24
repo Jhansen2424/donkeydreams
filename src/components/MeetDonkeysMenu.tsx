@@ -229,7 +229,7 @@ export default function MeetDonkeysMenu({
                 <div key={`all-${col}`}>
                   <div className="flex items-baseline justify-between mb-2">
                     <span className="text-sm font-bold text-charcoal">
-                      {col === 0 ? "All Donkeys" : " "}
+                      {col === 0 ? "More Donkeys" : " "}
                     </span>
                     <span className="text-[11px] text-charcoal/50 font-medium">
                       {col === 0 ? unassigned.length : " "}
