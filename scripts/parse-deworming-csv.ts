@@ -125,7 +125,11 @@ function extractLot(title: string): { title: string; lot: string } {
   return { title: title.replace(m[0], "").trim(), lot: m[1] };
 }
 
-function parseCareHistory(text: string, fallbackDate: string | null): CareEvent[] {
+function parseCareHistory(
+  text: string,
+  fallbackDate: string | null,
+  defaultTitle: string
+): CareEvent[] {
   const out: CareEvent[] = [];
   if (!text) return out;
   let prevTitle = "";
@@ -188,11 +192,18 @@ function parseCareHistory(text: string, fallbackDate: string | null): CareEvent[
       }
       const { title: stripped, lot } = extractLot(rawTitle);
       let title = cleanTitle(stripped);
+      let unlabeled = false;
       if (!title) title = prevTitle;
-      prevTitle = title || prevTitle;
-      if (!title) continue;
+      if (!title) {
+        // A date with no label anywhere near it (e.g. Raya's leading
+        // "7/13/26") — keep the event rather than dropping the date.
+        title = defaultTitle;
+        unlabeled = true;
+      }
+      prevTitle = unlabeled ? prevTitle : title;
 
       let description = lot ? `Lot ${lot}` : "";
+      if (unlabeled) description = "Unlabeled date in checklist cell.";
       // Trailing text after the last date of a drug-first chunk is context.
       if (!dateFirst && i === found.length - 1) {
         const { title: tailText, lot: tailLot } = extractLot(segments[i + 1] ?? "");
@@ -236,10 +247,10 @@ for (let i = 1; i < lines.length; i++) {
   const nextVaccination = normalizeDate(cols[7]?.trim() || "");
   const notes = cols[8]?.trim() || "";
 
-  for (const e of parseCareHistory(dewormingHistory, dewormedDate)) {
+  for (const e of parseCareHistory(dewormingHistory, dewormedDate, "Deworming")) {
     dewormingEvents.push({ animal, ...e });
   }
-  for (const e of parseCareHistory(vaccinationHistory, vaccinationDate)) {
+  for (const e of parseCareHistory(vaccinationHistory, vaccinationDate, "Vaccination")) {
     // "6 Way and Dewormed 2/22/25" — one date covering a vaccine AND a
     // deworming dose; peel the deworming off into its own entry.
     let title = e.title;
