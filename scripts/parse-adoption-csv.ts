@@ -57,6 +57,13 @@ const NAME_OVERRIDES: Record<string, string> = {
   "SKYLA (SKYE)": "Skyla (Skye)",
   "NELLY BELLE": "Nelly Belle",
   ELENORA: "Elanora", // recurring sheet typo (also appears in relationship text)
+  // Relationship-text variants — resolve to canonical roster names so the
+  // family/bond links on profiles actually connect.
+  SKYLA: "Skyla (Skye)",
+  PRINCESSS: "Princess", // sheet typo
+  GRACE: "Gracie", // sheet typo ("Bonded with Grace" — no donkey named Grace)
+  ISABELLA: "Izabella (Izzy)", // "Son of Isabella" (Teo)
+  "MAKU AHINI HAU": "Makuahine Hau", // spelling variant (Olaf's mom)
 };
 
 function resolveName(csvName: string): string {

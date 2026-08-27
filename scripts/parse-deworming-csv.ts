@@ -132,9 +132,14 @@ function parseCareHistory(
 ): CareEvent[] {
   const out: CareEvent[] = [];
   if (!text) return out;
-  let prevTitle = "";
 
-  for (const chunkRaw of text.replace(/\s+/g, " ").split(/[;,]/)) {
+  // Semicolons are hard breaks: a bare date after one ("…; 6/6/2024") is
+  // unlabeled and gets the generic default title. Commas are soft breaks:
+  // "Onca Circa treatment - Ivermectin 3/3, 3/8, 3/16" is one series, so the
+  // title carries across comma-separated bare dates.
+  for (const majorRaw of text.replace(/\s+/g, " ").split(";")) {
+  let prevTitle = "";
+  for (const chunkRaw of majorRaw.split(",")) {
     const chunk = chunkRaw.trim();
     if (!chunk) continue;
 
@@ -214,6 +219,7 @@ function parseCareHistory(
       out.push({ title, date, description });
     }
   }
+  }
 
   // Drop exact repeats (same title + date) that show up across run-on chunks.
   const seen = new Set<string>();
@@ -242,6 +248,7 @@ for (let i = 1; i < lines.length; i++) {
 
   const dewormedDate = normalizeDate(cols[2]?.trim() || "");
   const dewormingHistory = cols[3]?.trim() || "";
+  const vaccinatedCol = normalizeDate(cols[4]?.trim() || "");
   const vaccinationHistory = cols[5]?.trim() || "";
   const vaccinationDate = normalizeDate(cols[6]?.trim() || "");
   const nextVaccination = normalizeDate(cols[7]?.trim() || "");
@@ -266,6 +273,20 @@ for (let i = 1; i < lines.length; i++) {
       if (t) vaccinationEvents.push({ animal, title: t, date: e.date, description: e.description });
     }
   }
+  // A "Vaccinated" column date with no matching history event would
+  // otherwise be lost (e.g. Halo 4/10/25) — keep it as a generic entry.
+  if (
+    vaccinatedCol &&
+    !vaccinationEvents.some((e) => e.animal === animal && e.date === vaccinatedCol)
+  ) {
+    vaccinationEvents.push({
+      animal,
+      title: "Vaccination",
+      date: vaccinatedCol,
+      description: "From the checklist's Vaccinated column (no vaccine named).",
+    });
+  }
+
   if (nextVaccination) nextVaccinations.push({ animal, date: nextVaccination });
 
   if (notes) {
