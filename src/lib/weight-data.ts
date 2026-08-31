@@ -137,11 +137,14 @@ function getFlag(
   return "normal";
 }
 
-export function computeWeightStatuses(allWeighIns?: WeighIn[]): AnimalWeightStatus[] {
+export function computeWeightStatuses(
+  allWeighIns?: WeighIn[],
+  roster?: Array<Pick<(typeof animals)[number], "name" | "herd">>
+): AnimalWeightStatus[] {
   const data = allWeighIns ?? weighInHistory;
   const today = new Date().toISOString().split("T")[0];
 
-  return animals.map((animal) => {
+  return (roster ?? animals).map((animal) => {
     const config = getDefaultConfig(animal.name);
     const history = data
       .filter((w) => w.animal === animal.name)
@@ -185,8 +188,11 @@ export function computeWeightStatuses(allWeighIns?: WeighIn[]): AnimalWeightStat
 }
 
 // ── Stats ──
-export function getWeightStats(allWeighIns?: WeighIn[]) {
-  const statuses = computeWeightStatuses(allWeighIns);
+export function getWeightStats(
+  allWeighIns?: WeighIn[],
+  roster?: Array<Pick<(typeof animals)[number], "name" | "herd">>
+) {
+  const statuses = computeWeightStatuses(allWeighIns, roster);
   return {
     gaining: statuses.filter((s) => s.trend === "gaining").length,
     losing: statuses.filter((s) => s.trend === "losing").length,

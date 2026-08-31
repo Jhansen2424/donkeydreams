@@ -112,6 +112,9 @@ const HERD_KEYWORDS: Record<string, string> = {
   "angels": "Angels",
   "angel herd": "Angels",
   "legacy": "Legacy",
+  "wilds": "Wilds",
+  "wild herd": "Wilds",
+  "wilds herd": "Wilds",
 };
 
 function expandHerdNames(

@@ -19,6 +19,48 @@ function slugify(name: string): string {
     .replace(/[^a-z0-9-]/g, "");
 }
 
+// GET returns every animal's app-editable fields (plus identity) so the
+// client can overlay DB state onto the CSV-baked roster — this is what makes
+// herd moves, profile edits, and newly created animals actually display.
+// Also returns the distinct herd list so herds created in-app are
+// discoverable without a dedicated Herd table.
+export async function GET() {
+  try {
+    const rows = await db.animal.findMany({
+      orderBy: { name: "asc" },
+      select: {
+        name: true,
+        slug: true,
+        age: true,
+        sex: true,
+        size: true,
+        color: true,
+        origin: true,
+        status: true,
+        herd: true,
+        pen: true,
+        tagline: true,
+        story: true,
+        sponsorable: true,
+        intakeDate: true,
+        adoptedFrom: true,
+        behavioralNotes: true,
+        traits: true,
+        bestFriends: true,
+        profileImage: true,
+        galleryImages: true,
+        nextHoofDue: true,
+        nextDentalDue: true,
+      },
+    });
+    const herds = Array.from(new Set(rows.map((r) => r.herd).filter(Boolean))).sort();
+    return NextResponse.json({ animals: rows, herds });
+  } catch (error) {
+    console.error("GET /api/animals failed:", error);
+    return NextResponse.json({ error: "Failed to load animals" }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();

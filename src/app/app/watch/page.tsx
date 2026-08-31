@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { watchList, type WatchListEntry } from "@/lib/sanctuary-data";
 import { useParkingLot } from "@/lib/parking-lot-context";
-import { animals } from "@/lib/animals";
+import { useAnimals } from "@/lib/animals-context";
 import { volunteers } from "@/lib/volunteer-data";
 import { formatDate as sharedFormatDate } from "@/lib/format-date";
 
@@ -183,6 +183,7 @@ function AddAlertModal({
     severity: "high" | "medium" | "low";
   }) => Promise<void> | void;
 }) {
+  const { animals } = useAnimals();
   const [animal, setAnimal] = useState(initial?.animal ?? "");
   const [issue, setIssue] = useState(initial?.issue ?? "");
   const [treatment, setTreatment] = useState(initial?.treatment ?? "");

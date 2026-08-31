@@ -8,6 +8,7 @@ import { ParkingLotProvider } from "@/lib/parking-lot-context";
 import { MedicalProvider } from "@/lib/medical-context";
 import { ToastProvider } from "@/lib/toast-context";
 import { ProvidersProvider } from "@/lib/providers-context";
+import { AnimalsProvider } from "@/lib/animals-context";
 import { getSessionReadOnly, isAllowedEmail } from "@/lib/auth";
 import { getCurrentVolunteer } from "@/lib/current-user";
 
@@ -59,6 +60,7 @@ export default async function AppLayout({
         <ParkingLotProvider>
           <MedicalProvider>
             <ProvidersProvider>
+              <AnimalsProvider>
               <div className="min-h-screen bg-cream">
                 <Sidebar />
                 <div className="md:ml-64 flex flex-col min-h-screen">
@@ -69,6 +71,7 @@ export default async function AppLayout({
                 </div>
                 <MobileNav />
               </div>
+              </AnimalsProvider>
             </ProvidersProvider>
           </MedicalProvider>
         </ParkingLotProvider>

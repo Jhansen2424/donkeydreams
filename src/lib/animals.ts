@@ -190,6 +190,7 @@ export const herds = [
   "Pinky's Herd",
   "Seniors",
   "Unicorns",
+  "Wilds",
 ] as const;
 
 export type HerdName = (typeof herds)[number];

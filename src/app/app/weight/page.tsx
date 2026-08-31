@@ -33,7 +33,7 @@ import {
   type WeighInFlag,
   type WeightTrend,
 } from "@/lib/weight-data";
-import { animals } from "@/lib/animals";
+import { useAnimals } from "@/lib/animals-context";
 import { formatDate as sharedFormatDate } from "@/lib/format-date";
 
 // ── Helpers ──
@@ -164,6 +164,7 @@ interface ApiWeighIn {
 }
 
 export default function WeightTrackingPage() {
+  const { animals: liveAnimals } = useAnimals();
   const [dbWeighIns, setDbWeighIns] = useState<WeighIn[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -197,8 +198,14 @@ export default function WeightTrackingPage() {
 
   const allWeighIns = useMemo(() => [...weighInHistory, ...dbWeighIns], [dbWeighIns]);
 
-  const statuses = useMemo(() => computeWeightStatuses(allWeighIns), [allWeighIns]);
-  const stats = useMemo(() => getWeightStats(allWeighIns), [allWeighIns]);
+  const statuses = useMemo(
+    () => computeWeightStatuses(allWeighIns, liveAnimals),
+    [allWeighIns, liveAnimals]
+  );
+  const stats = useMemo(
+    () => getWeightStats(allWeighIns, liveAnimals),
+    [allWeighIns, liveAnimals]
+  );
 
   // UI state
   const [search, setSearch] = useState("");
@@ -220,9 +227,9 @@ export default function WeightTrackingPage() {
 
   // Herds for filter
   const herds = useMemo(() => {
-    const h = new Set(animals.map((a) => a.herd));
+    const h = new Set(liveAnimals.map((a) => a.herd));
     return ["all", ...Array.from(h).sort()];
-  }, []);
+  }, [liveAnimals]);
 
   // ── Filter + Sort ──
   const filtered = useMemo(() => {
@@ -309,7 +316,7 @@ export default function WeightTrackingPage() {
     const overdueNames = new Set(
       statuses.filter((s) => s.flag === "overdue").map((s) => s.animal)
     );
-    const sorted = [...animals].sort((a, b) => {
+    const sorted = [...liveAnimals].sort((a, b) => {
       const aOverdue = overdueNames.has(a.name) ? 0 : 1;
       const bOverdue = overdueNames.has(b.name) ? 0 : 1;
       return aOverdue - bOverdue || a.name.localeCompare(b.name);
@@ -407,7 +414,7 @@ export default function WeightTrackingPage() {
 
   // ── Single record form ──
   const [showAddForm, setShowAddForm] = useState(false);
-  const [formAnimal, setFormAnimal] = useState(animals[0]?.name || "");
+  const [formAnimal, setFormAnimal] = useState(liveAnimals[0]?.name || "");
   const [formWeight, setFormWeight] = useState("");
   const [formBcs, setFormBcs] = useState("");
   const [formNotes, setFormNotes] = useState("");
@@ -644,7 +651,7 @@ export default function WeightTrackingPage() {
                   onChange={(e) => setFormAnimal(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal bg-white appearance-none focus:outline-none focus:ring-2 focus:ring-sand/50"
                 >
-                  {[...animals].sort((a, b) => a.name.localeCompare(b.name)).map((a) => (
+                  {[...liveAnimals].sort((a, b) => a.name.localeCompare(b.name)).map((a) => (
                     <option key={a.slug} value={a.name}>
                       {a.name}
                     </option>

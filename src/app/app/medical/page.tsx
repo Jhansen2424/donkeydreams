@@ -26,7 +26,7 @@ import {
   type MedicalRecordType,
 } from "@/lib/medical-data";
 import { useMedical } from "@/lib/medical-context";
-import { animals } from "@/lib/animals";
+import { useAnimals } from "@/lib/animals-context";
 import { yardWideDewormings } from "@/lib/deworming-vaccination-data";
 import ProviderPanel, { type ProviderType } from "@/components/app/ProviderPanel";
 import { useProviders } from "@/lib/providers-context";
@@ -158,6 +158,7 @@ function EditRecordModal({
     provider: string;
   }) => Promise<void>;
 }) {
+  const { animals } = useAnimals();
   const [animal, setAnimal] = useState(record.animal);
   const [type, setType] = useState<MedicalRecordType>(record.type);
   const [title, setTitle] = useState(record.title);
@@ -331,6 +332,7 @@ function MedicalDashboardPage() {
     useProviders();
   const [showProviderPanel, setShowProviderPanel] = useState(false);
   const { entries: dbEntries, addEntry: addMedicalEntry, updateEntry: updateMedicalEntry, removeEntry: removeMedicalEntry } = useMedical();
+  const { animals } = useAnimals();
   const [editing, setEditing] = useState<MedicalRecord | null>(null);
 
   // Add form state

@@ -1,7 +1,5 @@
 import { animals } from "./animals";
 import { watchList } from "./sanctuary-data";
-import { importedHoofVisits } from "./trimming-data";
-import { adoptionTrimVisits } from "./donkey-profiles-data";
 
 // ── Types ──
 export type CareType = "hoof" | "dental";
@@ -75,13 +73,11 @@ function getInterval(animalName: string): CareInterval {
 }
 
 // ── Visit history ──
-// Hoof trims from the trimming-notes CSV (parse-trimming-csv.ts) merged with
-// the adoption sheet's Trim History column (parse-adoption-csv.ts).
-// Dental visits are not yet imported — add manually via the /app/hoof-dental dashboard.
-export const visitHistory: CareVisit[] = [
-  ...importedHoofVisits,
-  ...adoptionTrimVisits,
-].sort((a, b) => b.date.localeCompare(a.date));
+// 2026-08-31: all hoof visits now live in the DB (HoofVisit rows) so staff
+// can edit every entry. Sheet imports are migrated in via
+// scripts/migrate-trims-to-db.ts rather than merged from code — keep this
+// empty or the dashboard will show duplicates.
+export const visitHistory: CareVisit[] = [];
 
 // ── Compute status for each animal ──
 function daysBetween(a: string, b: string): number {
@@ -108,6 +104,8 @@ export interface ComputeOptions {
   extraVisits?: CareVisit[];
   /** Per-animal next-due overrides (from the Animal table). */
   nextDueByAnimal?: Record<string, { nextHoofDue?: string | null; nextDentalDue?: string | null }>;
+  /** Live roster (from the animals context) — falls back to the static list. */
+  animals?: Array<Pick<(typeof animals)[number], "name" | "herd">>;
 }
 
 export function computeAnimalCareStatuses(
@@ -116,8 +114,9 @@ export function computeAnimalCareStatuses(
   const today = new Date().toISOString().split("T")[0];
   const extra = options.extraVisits ?? [];
   const allVisits = [...visitHistory, ...extra];
+  const roster = options.animals ?? animals;
 
-  return animals.map((animal) => {
+  return roster.map((animal) => {
     const interval = getInterval(animal.name);
 
     const hoofVisits = allVisits
@@ -163,8 +162,10 @@ export function computeAnimalCareStatuses(
 }
 
 // ── Stats ──
-export function getHoofDentalStats() {
-  const statuses = computeAnimalCareStatuses();
+// Pass the statuses you already computed (with DB visits merged) so the
+// tiles agree with the table; calling with no args falls back to seed data.
+export function getHoofDentalStats(precomputed?: AnimalCareStatus[]) {
+  const statuses = precomputed ?? computeAnimalCareStatuses();
   const hoofOverdue = statuses.filter((s) => s.hoofStatus === "overdue").length;
   const hoofDueSoon = statuses.filter((s) => s.hoofStatus === "due-soon").length;
   const dentalOverdue = statuses.filter(

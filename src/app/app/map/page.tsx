@@ -6,7 +6,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { Footprints, MapPin, Pencil, Plus, Trash2, X } from "lucide-react";
 import * as turf from "@turf/turf";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
-import { herds } from "@/lib/animals";
+import { useAnimals } from "@/lib/animals-context";
 import { colorForHerd } from "@/components/app/map/herd-colors";
 
 // The sanctuary's resolved address. Used as the initial map center when
@@ -40,6 +40,7 @@ type Mode =
 
 export default function MapPage() {
   const mapRef = useRef<MapRef | null>(null);
+  const { herds } = useAnimals();
 
   const [pens, setPens] = useState<PenRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -525,6 +526,7 @@ function PenEditor({
   pen: PenRow;
   onSaved: () => void | Promise<void>;
 }) {
+  const { herds } = useAnimals();
   const [name, setName] = useState(pen.name);
   const [herd, setHerd] = useState(pen.herd);
   const [notes, setNotes] = useState(pen.notes);

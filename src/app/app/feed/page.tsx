@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, AlertCircle, Plus, X, Check, Trash2, Pencil } from "lucide-react";
 import type { FeedSchedule } from "@/lib/sanctuary-data";
-import { animals } from "@/lib/animals";
+import { useAnimals } from "@/lib/animals-context";
 import { useParkingLot } from "@/lib/parking-lot-context";
 
 const noteStyles: Record<string, { bg: string; border: string; text: string; icon: string }> = {
@@ -40,23 +40,25 @@ export default function FeedPage() {
   const [addingNew, setAddingNew] = useState(false);
 
   const { entries: parkingEntries, addEntry, removeEntry } = useParkingLot();
+  // Live roster (CSV base + DB overlay) so herd moves and new animals are
+  // reflected in feed grouping without a rebuild.
+  const { animals } = useAnimals();
 
   // Map donkey name → herd, so we can group / filter feed plans by herd
-  // without having to refetch the Animal table. Built once from the seed.
+  // without having to refetch the Animal table.
   const herdByAnimal = useMemo(() => {
     const m = new Map<string, string>();
     for (const a of animals) m.set(a.name, a.herd);
     return m;
-  }, []);
+  }, [animals]);
 
   // Unique herd list (sorted), used for the filter chips + the modal's
-  // "Apply to herd" picker. Mirrors the canonical list in animals.ts so a new
-  // herd added via update_animal shows up automatically.
+  // "Apply to herd" picker.
   const allHerds = useMemo(() => {
     const set = new Set<string>();
     for (const a of animals) if (a.herd) set.add(a.herd);
     return Array.from(set).sort();
-  }, []);
+  }, [animals]);
 
   // Load feed plans from the API.
   const reload = async () => {
@@ -113,7 +115,7 @@ export default function FeedPage() {
     return animals
       .filter((a) => !have.has(a.name))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [schedules]);
+  }, [schedules, animals]);
 
   return (
     <div className="space-y-6">
@@ -425,11 +427,12 @@ function FeedPlanModal({
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [saving, setSaving] = useState(false);
 
-  // Members of the currently selected herd (live computed from animals.ts).
+  // Members of the currently selected herd (live roster from context).
+  const { animals } = useAnimals();
   const herdMembers = useMemo(() => {
     if (scope !== "herd" || !herd) return [];
     return animals.filter((a) => a.herd === herd).map((a) => a.name);
-  }, [scope, herd]);
+  }, [scope, herd, animals]);
 
   async function handleSave() {
     let targets: string[];

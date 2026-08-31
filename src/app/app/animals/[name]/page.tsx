@@ -17,12 +17,12 @@ import {
   Mail,
   Trash2,
 } from "lucide-react";
-import { getAnimalBySlug, type Animal } from "@/lib/animals";
+import { type Animal } from "@/lib/animals";
+import { useAnimals } from "@/lib/animals-context";
 import {
   SEX_OPTIONS,
   SIZE_OPTIONS,
   COLOR_OPTIONS,
-  HERD_OPTIONS,
 } from "@/lib/animal-dropdown-options";
 import {
   getRecordsForAnimal,
@@ -34,7 +34,7 @@ import { useMedical } from "@/lib/medical-context";
 import { useParkingLot } from "@/lib/parking-lot-context";
 import { useToast } from "@/lib/toast-context";
 import { formatDate as sharedFormatDate } from "@/lib/format-date";
-import { visitHistory } from "@/lib/hoof-dental-data";
+import type { CareVisit } from "@/lib/hoof-dental-data";
 import { getTrimProfile, type TrimProfile } from "@/lib/trimming-data";
 import { getDewormingDosage } from "@/lib/power-pack-data";
 import { getDonkeyWeight } from "@/lib/scheduled-and-events-data";
@@ -59,7 +59,10 @@ export default function AnimalProfilePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const slug = params.name as string;
-  const animal = getAnimalBySlug(slug);
+  // Live roster (CSV base + DB overlay) so edits and herd moves display
+  // immediately, and animals created in-app have profiles at all.
+  const { getBySlug, updateAnimal, herds: liveHerds, createHerd } = useAnimals();
+  const animal = getBySlug(slug);
 
   // Open on the tab requested via `?tab=...` when the link targets a section
   // (e.g. Medical Entries page → profile Medical tab).
@@ -201,22 +204,16 @@ export default function AnimalProfilePage() {
                   setDraft(null);
                   return;
                 }
-                const res = await fetch("/api/animals", {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(payload),
-                });
-                if (!res.ok) {
-                  const body = await res.json().catch(() => ({}));
-                  profileToastError(body?.error ?? "Failed to save profile.");
+                const { name: _n, ...patch } = payload;
+                const ok = await updateAnimal(animal.name, patch);
+                if (!ok) {
+                  profileToastError("Failed to save profile.");
                   return;
                 }
+                if (typeof patch.herd === "string") createHerd(patch.herd);
                 profileToastSuccess(`Saved ${animal.name}'s profile.`);
                 setEditing(false);
                 setDraft(null);
-                // NOTE: the in-memory animals list won't pick up these changes
-                // until reload. That's an existing architectural limitation —
-                // animals.ts exports a snapshot at boot.
               } finally {
                 setSavingProfile(false);
               }
@@ -304,8 +301,9 @@ export default function AnimalProfilePage() {
               <SelectInfoItem
                 label="Herd"
                 value={editing && draft ? draft.herd : animal.herd}
-                options={HERD_OPTIONS}
+                options={liveHerds}
                 editing={editing}
+                allowNew="New herd…"
                 onChange={(next) => draft && setDraft({ ...draft, herd: next })}
               />
               <InfoItem label="Enclosure" value={animal.pen} editing={editing} />
@@ -505,12 +503,15 @@ function SelectInfoItem({
   options,
   editing,
   onChange,
+  allowNew,
 }: {
   label: string;
   value: string;
   options: readonly string[];
   editing: boolean;
   onChange: (next: string) => void;
+  /** When set, adds a "+ <allowNew>" option that prompts for a new value. */
+  allowNew?: string;
 }) {
   return (
     <div>
@@ -520,7 +521,14 @@ function SelectInfoItem({
       {editing ? (
         <select
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            if (allowNew && e.target.value === "__new__") {
+              const entered = window.prompt(`${allowNew.replace(/…$/, "")} name:`);
+              if (entered && entered.trim()) onChange(entered.trim());
+              return;
+            }
+            onChange(e.target.value);
+          }}
           className="w-full px-2 py-1 text-sm border border-card-border rounded-md text-charcoal bg-white focus:outline-none focus:ring-2 focus:ring-sand/50"
         >
           {/* If the current value isn't in the option list, surface it as a
@@ -535,6 +543,7 @@ function SelectInfoItem({
               {opt}
             </option>
           ))}
+          {allowNew && <option value="__new__">+ {allowNew}</option>}
         </select>
       ) : (
         <p className="text-sm font-medium text-charcoal">{value || "—"}</p>
@@ -798,7 +807,8 @@ function AdoptionInfoCard({
 }
 
 function FamilyChip({ name, bonded = false }: { name: string; bonded?: boolean }) {
-  const animal = getAnimalBySlug(slugify(name));
+  const { getBySlug } = useAnimals();
+  const animal = getBySlug(slugify(name));
   const cls = bonded
     ? "bg-purple-100 text-purple-700 hover:bg-purple-200"
     : "bg-cream text-charcoal hover:bg-sand/30";
@@ -1118,9 +1128,28 @@ function MedicalTab({ animal }: { animal: Animal }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  const hoofVisits = visitHistory
-    .filter((v) => v.animal === animal.name && v.type === "hoof")
-    .sort((a, b) => b.date.localeCompare(a.date));
+  // Hoof visits live in the DB (imported sheet rows were migrated to
+  // HoofVisit rows) — fetch this animal's history from the API.
+  const [hoofVisits, setHoofVisits] = useState<CareVisit[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/hoof-visits?animal=${encodeURIComponent(animal.name)}`, {
+      cache: "no-store",
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.entries) return;
+        setHoofVisits(
+          (data.entries as Omit<CareVisit, "type">[])
+            .map((e) => ({ ...e, type: "hoof" as const }))
+            .sort((a, b) => b.date.localeCompare(a.date))
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [animal.name]);
   const trimProfile = getTrimProfile(animal.name);
   const visibleTrims = showAllTrims ? hoofVisits : hoofVisits.slice(0, 5);
   const dewormingDosage = getDewormingDosage(animal.name);
@@ -1810,19 +1839,10 @@ function NotesTab({ animal }: { animal: Animal }) {
 // ── Hoof & Dental at-a-glance summary (on the profile header)
 // ══════════════════════════════════════════
 function HoofDentalSummary({ animal }: { animal: Animal }) {
-  // Last-visit dates come from the merged visitHistory (CSV seeds + any DB
-  // visits). Next-due dates are live from the API since the in-memory
-  // animals snapshot doesn't carry them.
-  const hoofVisits = visitHistory
-    .filter((v) => v.animal === animal.name && v.type === "hoof")
-    .sort((a, b) => b.date.localeCompare(a.date));
-  const dentalVisits = visitHistory
-    .filter((v) => v.animal === animal.name && v.type === "dental")
-    .sort((a, b) => b.date.localeCompare(a.date));
-
-  const lastHoof = hoofVisits[0]?.date ?? null;
-  const lastDental = dentalVisits[0]?.date ?? null;
-
+  // All visits live in the DB now (imported sheet rows were migrated to
+  // HoofVisit rows), so last-visit AND next-due both come from the API.
+  const [lastHoof, setLastHoof] = useState<string | null>(null);
+  const [lastDental, setLastDental] = useState<string | null>(null);
   const [nextHoof, setNextHoof] = useState<string | null>(
     animal.nextHoofDue ?? null
   );
@@ -1843,11 +1863,17 @@ function HoofDentalSummary({ animal }: { animal: Animal }) {
         ]);
         if (hoofRes.ok) {
           const data = await hoofRes.json();
-          if (!cancelled) setNextHoof(data?.nextDue?.[animal.name] ?? null);
+          if (!cancelled) {
+            setNextHoof(data?.nextDue?.[animal.name] ?? null);
+            setLastHoof(data?.entries?.[0]?.date ?? null);
+          }
         }
         if (dentalRes.ok) {
           const data = await dentalRes.json();
-          if (!cancelled) setNextDental(data?.nextDue?.[animal.name] ?? null);
+          if (!cancelled) {
+            setNextDental(data?.nextDue?.[animal.name] ?? null);
+            setLastDental(data?.entries?.[0]?.date ?? null);
+          }
         }
       } catch {
         // Stay with the seeded values silently; the summary still renders.

@@ -30,7 +30,7 @@ import {
   type CareType,
 } from "@/lib/hoof-dental-data";
 import { getTrimProfile, type TrimProfile } from "@/lib/trimming-data";
-import { animals } from "@/lib/animals";
+import { useAnimals } from "@/lib/animals-context";
 import TrimPhotos from "@/components/app/TrimPhotos";
 import ProviderPanel from "@/components/app/ProviderPanel";
 import { useProviders } from "@/lib/providers-context";
@@ -67,6 +67,7 @@ interface ApiVisit {
 function HoofDentalPage() {
   // ── State ──
   const searchParams = useSearchParams();
+  const { animals: liveAnimals } = useAnimals();
   const initialTab = (searchParams.get("tab") as CareTab) || "both";
   // DB-backed visits only. Seed data stays in `initialVisitHistory` (CSV
   // imports) and is merged inside computeAnimalCareStatuses.
@@ -180,6 +181,7 @@ function HoofDentalPage() {
     const base = computeAnimalCareStatuses({
       extraVisits: [...dbHoofVisits, ...dbDentalVisits],
       nextDueByAnimal,
+      animals: liveAnimals,
     });
 
     return base.map((s) => {
@@ -190,9 +192,11 @@ function HoofDentalPage() {
         dentalInterval: intervalOverride?.dentalMonths ?? s.dentalInterval,
       };
     });
-  }, [dbHoofVisits, dbDentalVisits, dbNextHoofDue, dbNextDentalDue, intervalOverrides, nextDueOverrides]);
+  }, [dbHoofVisits, dbDentalVisits, dbNextHoofDue, dbNextDentalDue, intervalOverrides, nextDueOverrides, liveAnimals]);
 
-  const stats = useMemo(() => getHoofDentalStats(), [visits]);
+  // Stats derive from the same merged statuses so the tiles agree with the
+  // table (previously recomputed from seed data only).
+  const stats = useMemo(() => getHoofDentalStats(statuses), [statuses]);
 
   // ── Filter + sort ──
   const filtered = useMemo(() => {
@@ -1065,7 +1069,8 @@ function TrimProfileBlock({ animalName }: { animalName: string }) {
 
   // Deep-link to the animal profile's hoof-trims sub-tab where the full
   // TrimProfileEditor lives. Cheaper than duplicating the edit UI here.
-  const slug = animals.find((a) => a.name === animalName)?.slug;
+  const { animals: rosterAnimals } = useAnimals();
+  const slug = rosterAnimals.find((a) => a.name === animalName)?.slug;
   const editHref = slug
     ? `/app/animals/${slug}?tab=medical&sub=hoof-trims`
     : null;

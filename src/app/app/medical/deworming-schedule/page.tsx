@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { ArrowLeft, Calculator, Calendar, Pill, ChevronDown, ChevronRight, Plus, X, Check, Loader2 } from "lucide-react";
-import { animals } from "@/lib/animals";
+import { useAnimals } from "@/lib/animals-context";
 import { allMedicalEntries } from "@/lib/medical-data";
 import { useMedical } from "@/lib/medical-context";
 import { formatDate as sharedFormatDate } from "@/lib/format-date";
@@ -70,6 +70,7 @@ type HerdRow = {
 
 export default function DewormingSchedulePage() {
   const { entries: dbEntries, addEntry: addMedicalEntry } = useMedical();
+  const { animals } = useAnimals();
   const [logHerd, setLogHerd] = useState<{ herdName: string; nextDose?: { drug: string; date: string; rotIdx: number } | null } | null>(null);
 
   // ── Per-herd last dose + next dose ──
@@ -126,7 +127,7 @@ export default function DewormingSchedulePage() {
         return { name, ...data, nextDose };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [dbEntries]);
+  }, [dbEntries, animals]);
 
   // ── Dosage calculator ──
   const [weightLbs, setWeightLbs] = useState(400);

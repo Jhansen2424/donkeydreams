@@ -14,16 +14,9 @@ import {
 import FilterTabs from "@/components/app/FilterTabs";
 import AnimalGridCard from "@/components/app/AnimalGridCard";
 import AnimalTableRow from "@/components/app/AnimalTableRow";
-import { animals, herds, type Animal } from "@/lib/animals";
+import { type Animal } from "@/lib/animals";
+import { useAnimals } from "@/lib/animals-context";
 import { useToast } from "@/lib/toast-context";
-
-const filterTabs = [
-  "All Animals",
-  "Special Needs",
-  "Senior",
-  "Sponsor Available",
-  ...herds,
-];
 
 const tableHeaders = [
   "Name",
@@ -39,11 +32,22 @@ const tableHeaders = [
 
 export default function AnimalsPage() {
   const router = useRouter();
+  // Live roster: CSV base + DB overlay (herd moves, edits, new animals).
+  const { animals, herds } = useAnimals();
   const [view, setView] = useState<"grid" | "table">("grid");
   const [activeFilter, setActiveFilter] = useState("All Animals");
   const [search, setSearch] = useState("");
+
+  const filterTabs = [
+    "All Animals",
+    "Special Needs",
+    "Senior",
+    "Sponsor Available",
+    ...herds,
+  ];
+
   // Default every herd to collapsed — the user has to tap a herd header
-  // to expand its list.
+  // to expand its list. (Herds created after first render start expanded.)
   const [collapsedHerds, setCollapsedHerds] = useState<Set<string>>(
     () => new Set(herds)
   );
@@ -59,7 +63,7 @@ export default function AnimalsPage() {
 
   // Auto-expand the matching herd when the user clicks a herd filter tab.
   useEffect(() => {
-    if ((herds as readonly string[]).includes(activeFilter)) {
+    if (herds.includes(activeFilter)) {
       setCollapsedHerds((prev) => {
         if (!prev.has(activeFilter)) return prev;
         const next = new Set(prev);
@@ -67,7 +71,7 @@ export default function AnimalsPage() {
         return next;
       });
     }
-  }, [activeFilter]);
+  }, [activeFilter, herds]);
 
   const filtered = animals.filter((a) => {
     const q = search.toLowerCase();
@@ -104,19 +108,16 @@ export default function AnimalsPage() {
 
   // Group by herd for display. When a herd filter or a search with a match
   // in that herd narrows results, we still render the herd header so the
-  // user can expand it. Animals without a herd assignment (blank slate until
-  // the new spreadsheets are imported) fall into an "Unassigned" bucket so
-  // they stay visible.
+  // user can expand it. Animals without a herd assignment fall into an
+  // "Unassigned" bucket so they stay visible.
   const grouped = [
     ...herds.map((herd) => ({
-      herd: herd as string,
+      herd,
       animals: filtered.filter((a) => a.herd === herd),
     })),
     {
       herd: "Unassigned",
-      animals: filtered.filter(
-        (a) => !(herds as readonly string[]).includes(a.herd)
-      ),
+      animals: filtered.filter((a) => !herds.includes(a.herd)),
     },
   ].filter((g) => g.animals.length > 0);
 
@@ -143,7 +144,7 @@ export default function AnimalsPage() {
         <NewAnimalModal
           onClose={() => setShowNewAnimal(false)}
           onSaved={(name) => {
-            toastSuccess(`Added ${name}. Reload to see on the page.`);
+            toastSuccess(`Added ${name}.`);
             setShowNewAnimal(false);
           }}
           onError={(msg) => toastError(msg)}
@@ -320,6 +321,8 @@ export default function AnimalsPage() {
 
 const SEX_OPTIONS = ["Jenny", "Jack", "Gelding"] as const;
 
+const NEW_HERD_SENTINEL = "__new-herd__";
+
 function NewAnimalModal({
   onClose,
   onSaved,
@@ -329,8 +332,10 @@ function NewAnimalModal({
   onSaved: (name: string) => void;
   onError: (msg: string) => void;
 }) {
+  const { herds, createAnimal, createHerd } = useAnimals();
   const [name, setName] = useState("");
   const [herd, setHerd] = useState<string>(herds[0]);
+  const [newHerdName, setNewHerdName] = useState("");
   const [sex, setSex] = useState<(typeof SEX_OPTIONS)[number]>("Jenny");
   const [age, setAge] = useState("");
   const [origin, setOrigin] = useState("");
@@ -344,25 +349,27 @@ function NewAnimalModal({
       onError("Name is required.");
       return;
     }
+    const targetHerd =
+      herd === NEW_HERD_SENTINEL ? newHerdName.trim() : herd;
+    if (!targetHerd) {
+      onError("Herd name is required.");
+      return;
+    }
     setSaving(true);
     try {
-      const res = await fetch("/api/animals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          herd,
-          sex,
-          age: age.trim() || "Unknown",
-          origin: origin.trim(),
-          intakeDate,
-        }),
+      const ok = await createAnimal({
+        name: name.trim(),
+        herd: targetHerd,
+        sex,
+        age: age.trim() || "Unknown",
+        origin: origin.trim(),
+        intakeDate,
       });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        onError(body?.error || "Failed to create animal.");
+      if (!ok) {
+        onError("Failed to create animal.");
         return;
       }
+      if (herd === NEW_HERD_SENTINEL) createHerd(targetHerd);
       onSaved(name.trim());
     } catch {
       onError("Network error while creating animal.");
@@ -418,7 +425,17 @@ function NewAnimalModal({
                     {h}
                   </option>
                 ))}
+                <option value={NEW_HERD_SENTINEL}>+ New herd…</option>
               </select>
+              {herd === NEW_HERD_SENTINEL && (
+                <input
+                  value={newHerdName}
+                  onChange={(e) => setNewHerdName(e.target.value)}
+                  placeholder="New herd name"
+                  className="w-full mt-2 px-3 py-2 border border-card-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky/50"
+                  autoFocus
+                />
+              )}
             </div>
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider text-warm-gray">
