@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -43,8 +44,11 @@ interface ScheduleContextValue {
   addTask: (input: NewTaskInput) => Promise<void>;
   editTask: (blockIdx: number, taskIdx: number, updates: EditTaskInput) => Promise<void>;
   deleteTask: (blockIdx: number, taskIdx: number) => Promise<void>;
+  reorderTask: (blockIdx: number, fromIdx: number, toIdx: number) => Promise<void>;
   resetSchedule: () => Promise<void>;
-  refresh: () => Promise<void>;
+  refresh: (date?: string) => Promise<void>;
+  /** The ISO date (YYYY-MM-DD) the schedule currently shows. */
+  currentDate: string;
   loading: boolean;
   error: string | null;
 }
@@ -54,6 +58,14 @@ function currentBlockName(): "AM" | "Mid" | "PM" {
   if (hour < 10) return "AM";
   if (hour < 16) return "Mid";
   return "PM";
+}
+
+// Today's date in the USER'S timezone, as YYYY-MM-DD. The server runs in UTC,
+// so `new Date().toISOString()` flips to tomorrow at ~5–6 PM local — which is
+// how evening-entered tasks ended up stamped (and filtered) a day ahead.
+// en-CA formats as YYYY-MM-DD in local time.
+export function localToday(): string {
+  return new Date().toLocaleDateString("en-CA");
 }
 
 // Legacy block names used to live on persisted tasks. Map old → new so
@@ -71,10 +83,9 @@ function normalizeBlockName(name: string | undefined): string {
   }
 }
 
-// ── Augmented ScheduleTask with the server-side id ──
-// We keep the existing ScheduleTask shape so components can stay unchanged.
-// `serverId` is attached as an extra property (ignored by components) so
-// mutations can look up the DB row to update.
+// ── ScheduleTask with the server-side id ──
+// `serverId` now lives on ScheduleTask itself (components use it for stable
+// keys and to resolve which row to mutate). Alias kept for readability.
 type TaskWithId = ScheduleTask & { serverId?: string };
 
 interface ApiTask {
@@ -127,11 +138,21 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [taskBlocks, setTaskBlocks] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // The date the schedule is showing. Defaults to LOCAL today (the server's
+  // UTC "today" can be a day ahead in the evening). Kept in a ref too so the
+  // mutation callbacks below can read it without re-creating themselves.
+  const [currentDate, setCurrentDate] = useState<string>(() => localToday());
+  const currentDateRef = useRef(currentDate);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (date?: string) => {
     setError(null);
+    const target = date ?? currentDateRef.current;
+    if (target !== currentDateRef.current) {
+      currentDateRef.current = target;
+      setCurrentDate(target);
+    }
     try {
-      const res = await fetch("/api/tasks", { cache: "no-store" });
+      const res = await fetch(`/api/tasks?date=${encodeURIComponent(target)}`, { cache: "no-store" });
       if (!res.ok) throw new Error((await res.json()).error || "Failed to load");
       const body = (await res.json()) as { tasks: ApiTask[] };
       const tasks = body.tasks.map(apiToTask);
@@ -264,8 +285,12 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
 
   const addTask = useCallback(async (input: NewTaskInput) => {
     const block = input.blockName ?? currentBlockName();
-    const todayIso = new Date().toISOString().split("T")[0];
-    const taskDate = input.date || todayIso;
+    // Default to the VIEWED date (local today unless the user navigated),
+    // so adding while looking at tomorrow creates tomorrow's task.
+    const viewedDate = currentDateRef.current;
+    const taskDate = input.date || viewedDate;
+    // Append to the end of the target block.
+    const sortOrder = schedule.find((b) => b.name === block)?.tasks.length ?? 0;
     try {
       const res = await fetch("/api/tasks", {
         method: "POST",
@@ -278,6 +303,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
           animalSpecific: input.animalSpecific,
           note: input.note,
           date: taskDate,
+          sortOrder,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Failed to add");
@@ -288,9 +314,9 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         next.set(body.task.id, body.task.block);
         return next;
       });
-      // Only splice into today's schedule view when the task is actually for
-      // today. Future-dated tasks will surface when the user views that date.
-      if (taskDate === todayIso) {
+      // Only splice into the schedule view when the task is for the date the
+      // view is showing. Other dates surface when the user views that date.
+      if (taskDate === viewedDate) {
         setSchedule((prev) =>
           prev.map((b) => (b.name === body.task.block ? { ...b, tasks: [...b.tasks, newTask] } : b))
         );
@@ -298,7 +324,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add task");
     }
-  }, []);
+  }, [schedule]);
 
   const editTask = useCallback(async (blockIdx: number, taskIdx: number, updates: EditTaskInput) => {
     const ids = resolveIds(blockIdx, taskIdx);
@@ -380,6 +406,38 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     }
   }, [schedule]);
 
+  // Move a task within its block, then persist the block's new order as
+  // sortOrder = index via one bulk-reorder PATCH.
+  const reorderTask = useCallback(async (blockIdx: number, fromIdx: number, toIdx: number) => {
+    const block = schedule[blockIdx];
+    if (!block || fromIdx === toIdx) return;
+    if (!block.tasks[fromIdx] || toIdx < 0 || toIdx >= block.tasks.length) return;
+
+    const moved = [...block.tasks];
+    const [task] = moved.splice(fromIdx, 1);
+    moved.splice(toIdx, 0, task);
+
+    const snapshot = localUpdate((prev) =>
+      prev.map((b, bi) => (bi === blockIdx ? { ...b, tasks: moved } : b))
+    );
+
+    const reorder = moved
+      .map((t, i) => ({ id: (t as TaskWithId).serverId, sortOrder: i }))
+      .filter((r): r is { id: string; sortOrder: number } => Boolean(r.id));
+
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reorder }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to reorder");
+    } catch (e) {
+      setSchedule(snapshot);
+      setError(e instanceof Error ? e.message : "Failed to reorder tasks");
+    }
+  }, [schedule]);
+
   const resetSchedule = useCallback(async () => {
     await refresh();
   }, [refresh]);
@@ -394,8 +452,10 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         addTask,
         editTask,
         deleteTask,
+        reorderTask,
         resetSchedule,
         refresh,
+        currentDate,
         loading,
         error,
       }}

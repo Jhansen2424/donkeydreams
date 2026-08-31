@@ -129,11 +129,13 @@ model TaskCompletion {
   completedBy String?
   done       Boolean  @default(false)
   note       String?
+  sortOrder  Int      @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([date])
+  @@index([date, block, sortOrder])
 }
 
 // ── Feed Schedules ──

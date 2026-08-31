@@ -15,6 +15,8 @@ import {
   X,
   UserPlus,
   ClipboardCheck,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   groupTasksByAnimal,
@@ -28,7 +30,7 @@ import {
   type TaskCategory,
 } from "@/lib/sanctuary-data";
 import { volunteers } from "@/lib/volunteer-data";
-import { useSchedule } from "@/lib/schedule-context";
+import { useSchedule, localToday } from "@/lib/schedule-context";
 import { useParkingLot } from "@/lib/parking-lot-context";
 import VolunteerLoadBar from "@/components/app/VolunteerLoadBar";
 import TaskEditModal, { type TaskEditModalMode } from "@/components/app/TaskEditModal";
@@ -83,6 +85,13 @@ function getMemberByName(name: string): TeamMember | undefined {
   return teamMembers.find(
     (m) => m.name === name || m.initials === name || m.name.split(" ")[0] === name
   );
+}
+
+// Shift a YYYY-MM-DD date by whole days, in local time.
+function shiftDate(iso: string, days: number): string {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toLocaleDateString("en-CA");
 }
 
 // ── Assign Popover ──
@@ -215,7 +224,10 @@ export default function TasksPage() {
     assignTask,
     bulkAssign,
     editTask,
+    reorderTask,
     resetSchedule,
+    refresh,
+    currentDate,
   } = useSchedule();
   const [viewMode, setViewMode] = useState<ViewMode>("time");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
@@ -225,6 +237,23 @@ export default function TasksPage() {
   // `${blockIdx}:${taskIdx}` so the drop handler can locate the source.
   const [dragSource, setDragSource] = useState<{ blockIdx: number; taskIdx: number } | null>(null);
   const [dropTargetBlock, setDropTargetBlock] = useState<number | null>(null);
+  // Row hovered during a same-block drag — where the card will be dropped.
+  const [dropTargetRow, setDropTargetRow] = useState<{ blockIdx: number; taskIdx: number } | null>(null);
+
+  const viewingToday = currentDate === localToday();
+
+  // The provider is shared with the dashboard, which should always show local
+  // today. If the user navigates away while viewing another date, snap the
+  // shared schedule back to today on unmount.
+  const currentDateRef = useRef(currentDate);
+  useEffect(() => {
+    currentDateRef.current = currentDate;
+  }, [currentDate]);
+  useEffect(() => {
+    return () => {
+      if (currentDateRef.current !== localToday()) void refresh(localToday());
+    };
+  }, [refresh]);
 
   const totalTasks = schedule.reduce((s, b) => s + b.tasks.length, 0);
   const doneTasks = schedule.reduce(
@@ -274,6 +303,16 @@ export default function TasksPage() {
     [filteredSchedule]
   );
 
+  // Recover a task's index in the unfiltered schedule. Uses the stable DB id
+  // (serverId) so duplicate task texts don't collapse onto the same row; the
+  // text+animal match is only a fallback for tasks without an id.
+  const findTaskIdx = (blockIdx: number, task: ScheduleTask): number =>
+    schedule[blockIdx]?.tasks.findIndex((t) =>
+      task.serverId
+        ? t.serverId === task.serverId
+        : t.task === task.task && t.animalSpecific === task.animalSpecific
+    ) ?? -1;
+
   // Group filtered tasks by assigned human. An unassigned task shows up
   // under a synthetic "Unassigned" bucket so it doesn't disappear.
   const humanGroups = useMemo(() => {
@@ -282,7 +321,10 @@ export default function TasksPage() {
       const origBlockIdx = schedule.findIndex((b) => b.name === block.name);
       block.tasks.forEach((task) => {
         const origTaskIdx = schedule[origBlockIdx]?.tasks.findIndex(
-          (t) => t.task === task.task && t.animalSpecific === task.animalSpecific
+          (t) =>
+            task.serverId
+              ? t.serverId === task.serverId
+              : t.task === task.task && t.animalSpecific === task.animalSpecific
         ) ?? -1;
         const assignees = getAssignees(task);
         const targets = assignees.length > 0 ? assignees : ["Unassigned"];
@@ -337,7 +379,33 @@ export default function TasksPage() {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Day navigation — view / add tasks for any date */}
+          <div className="inline-flex items-center bg-white border border-card-border rounded-lg overflow-hidden">
+            <button
+              onClick={() => void refresh(shiftDate(currentDate, -1))}
+              className="px-2 py-2 text-charcoal hover:bg-cream transition-colors"
+              title="Previous day"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <input
+              type="date"
+              value={currentDate}
+              onChange={(e) => {
+                if (e.target.value) void refresh(e.target.value);
+              }}
+              className="px-2 py-1.5 text-sm text-charcoal bg-white border-x border-card-border focus:outline-none"
+              title="Jump to a date"
+            />
+            <button
+              onClick={() => void refresh(shiftDate(currentDate, 1))}
+              className="px-2 py-2 text-charcoal hover:bg-cream transition-colors"
+              title="Next day"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
           <div className="inline-flex bg-white border border-card-border rounded-lg overflow-hidden">
             <button
               onClick={() => setViewMode("time")}
@@ -394,7 +462,9 @@ export default function TasksPage() {
       {/* Progress bar */}
       <div className="bg-white rounded-xl border border-card-border p-4">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-sm font-medium text-charcoal">Today&apos;s Progress</p>
+          <p className="text-sm font-medium text-charcoal">
+            {viewingToday ? <>Today&apos;s Progress</> : <>Progress for {currentDate}</>}
+          </p>
           <p className="text-sm font-bold text-charcoal">{pct}%</p>
         </div>
         <div className="w-full bg-cream rounded-full h-3">
@@ -516,6 +586,8 @@ export default function TasksPage() {
                 onDrop={async (e) => {
                   e.preventDefault();
                   setDropTargetBlock(null);
+                  // Same-block drops are handled per-row (reorder); this
+                  // block-level handler only moves tasks BETWEEN blocks.
                   if (!dragSource || dragSource.blockIdx === origIdx) return;
                   await editTask(dragSource.blockIdx, dragSource.taskIdx, {
                     blockName: block.name,
@@ -569,14 +641,16 @@ export default function TasksPage() {
                 </div>
                 <div className="p-4 space-y-2">
                   {block.tasks.map((task, taskIdx) => {
-                    const origTaskIdx = schedule[origIdx].tasks.findIndex(
-                      (t) =>
-                        t.task === task.task &&
-                        t.animalSpecific === task.animalSpecific
-                    );
+                    const origTaskIdx = findTaskIdx(origIdx, task);
+                    const isRowDropTarget =
+                      dragSource !== null &&
+                      dragSource.blockIdx === origIdx &&
+                      dragSource.taskIdx !== origTaskIdx &&
+                      dropTargetRow?.blockIdx === origIdx &&
+                      dropTargetRow.taskIdx === origTaskIdx;
                     return (
                       <TaskRow
-                        key={taskIdx}
+                        key={task.serverId ?? `${block.name}-${taskIdx}`}
                         task={task}
                         onToggle={() => toggleTask(origIdx, origTaskIdx)}
                         onAssign={(name) =>
@@ -587,7 +661,34 @@ export default function TasksPage() {
                         onDragEnd={() => {
                           setDragSource(null);
                           setDropTargetBlock(null);
+                          setDropTargetRow(null);
                         }}
+                        onDragOverRow={(e) => {
+                          // Same-block drag: hovering a row marks where the
+                          // card will land on drop.
+                          if (dragSource && dragSource.blockIdx === origIdx) {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = "move";
+                            if (
+                              dropTargetRow?.blockIdx !== origIdx ||
+                              dropTargetRow.taskIdx !== origTaskIdx
+                            ) {
+                              setDropTargetRow({ blockIdx: origIdx, taskIdx: origTaskIdx });
+                            }
+                          }
+                        }}
+                        onDropRow={async (e) => {
+                          if (!dragSource || dragSource.blockIdx !== origIdx) return;
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const from = dragSource.taskIdx;
+                          setDragSource(null);
+                          setDropTargetRow(null);
+                          if (from >= 0 && origTaskIdx >= 0 && from !== origTaskIdx) {
+                            await reorderTask(origIdx, from, origTaskIdx);
+                          }
+                        }}
+                        isDropTarget={isRowDropTarget}
                       />
                     );
                   })}
@@ -633,13 +734,9 @@ export default function TasksPage() {
                       const blockIdx = schedule.findIndex(
                         (b) => b.name === block
                       );
-                      const taskIdx = schedule[blockIdx]?.tasks.findIndex(
-                        (t) =>
-                          t.task === task.task &&
-                          t.animalSpecific === task.animalSpecific
-                      );
+                      const taskIdx = findTaskIdx(blockIdx, task);
                       return (
-                        <div key={idx}>
+                        <div key={task.serverId ?? idx}>
                           <p className="text-[10px] font-semibold text-warm-gray/50 uppercase tracking-wider mb-0.5 ml-8">
                             {block}
                           </p>
@@ -707,7 +804,7 @@ export default function TasksPage() {
                   </div>
                   <div className="p-4 space-y-2">
                     {items.map(({ task, block, blockIdx, taskIdx }, idx) => (
-                      <div key={idx}>
+                      <div key={task.serverId ?? idx}>
                         <p className="text-[10px] font-semibold text-warm-gray/50 uppercase tracking-wider mb-0.5 ml-8">
                           {block}
                         </p>
@@ -1037,6 +1134,9 @@ function TaskRow({
   hideAnimal,
   onDragStart,
   onDragEnd,
+  onDragOverRow,
+  onDropRow,
+  isDropTarget,
 }: {
   task: ScheduleTask;
   onToggle: () => void;
@@ -1045,6 +1145,9 @@ function TaskRow({
   hideAnimal?: boolean;
   onDragStart?: () => void;
   onDragEnd?: () => void;
+  onDragOverRow?: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDropRow?: (e: React.DragEvent<HTMLDivElement>) => void;
+  isDropTarget?: boolean;
 }) {
   const meta = categoryMeta[task.category];
   const source = sourceMeta[task.source];
@@ -1061,9 +1164,13 @@ function TaskRow({
         onDragStart?.();
       }}
       onDragEnd={() => onDragEnd?.()}
+      onDragOver={onDragOverRow}
+      onDrop={onDropRow}
       className={`group relative flex items-start gap-3 p-3 rounded-lg transition-all text-left ${
         draggable ? "cursor-grab active:cursor-grabbing" : ""
       } ${
+        isDropTarget ? "ring-2 ring-sidebar/40 " : ""
+      }${
         task.done
           ? "bg-emerald-50/50 border border-emerald-200"
           : "bg-cream/30 border border-card-border hover:border-sand"

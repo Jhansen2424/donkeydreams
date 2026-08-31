@@ -14,6 +14,7 @@ interface ApiTask {
   note: string | null;
   animalSpecific: string | null;
   templateId: string | null;
+  sortOrder: number;
   createdAt: string;
 }
 
@@ -27,6 +28,7 @@ function toApi(row: {
   done: boolean;
   note: string | null;
   templateId: string | null;
+  sortOrder: number;
   createdAt: Date;
 }, animalSpecific: string | null): ApiTask {
   return {
@@ -40,6 +42,7 @@ function toApi(row: {
     note: row.note,
     animalSpecific,
     templateId: row.templateId,
+    sortOrder: row.sortOrder,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -86,7 +89,7 @@ export async function GET(req: NextRequest) {
 
     const rows = await db.taskCompletion.findMany({
       where: where as Parameters<typeof db.taskCompletion.findMany>[0] extends { where?: infer W } ? W : never,
-      orderBy: [{ date: "asc" }, { createdAt: "asc" }],
+      orderBy: [{ date: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
     });
     const tasks = rows.map((r) => {
       const { animal, cleanNote } = extractAnimal(r.note);
@@ -102,7 +105,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { task, block, category, assignedTo, note, animalSpecific, date, templateId } = body ?? {};
+    const { task, block, category, assignedTo, note, animalSpecific, date, templateId, sortOrder } = body ?? {};
 
     if (!task || typeof task !== "string") {
       return NextResponse.json({ error: "Missing 'task'" }, { status: 400 });
@@ -121,6 +124,7 @@ export async function POST(req: NextRequest) {
         note: encodeNote(note, animalSpecific),
         done: false,
         templateId: templateId || null,
+        sortOrder: typeof sortOrder === "number" ? sortOrder : 0,
       },
     });
     const { animal, cleanNote } = extractAnimal(row.note);
@@ -134,6 +138,20 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
+
+    // Bulk reorder: { reorder: [{ id, sortOrder }, ...] }. Sequential awaits —
+    // the Neon HTTP adapter does not support transactions.
+    if (Array.isArray(body?.reorder)) {
+      for (const item of body.reorder) {
+        if (!item || typeof item.id !== "string" || typeof item.sortOrder !== "number") continue;
+        await db.taskCompletion.update({
+          where: { id: item.id },
+          data: { sortOrder: item.sortOrder },
+        });
+      }
+      return NextResponse.json({ ok: true });
+    }
+
     const { id, ...updates } = body ?? {};
 
     if (!id || typeof id !== "string") {
@@ -149,6 +167,7 @@ export async function PATCH(req: NextRequest) {
       assignedTo?: string | null;
       note?: string | null;
       done?: boolean;
+      sortOrder?: number;
     } = {};
 
     if (typeof updates.task === "string") patch.task = updates.task;
@@ -156,6 +175,7 @@ export async function PATCH(req: NextRequest) {
     if (typeof updates.category === "string") patch.category = updates.category;
     if (updates.assignedTo !== undefined) patch.assignedTo = updates.assignedTo || null;
     if (typeof updates.done === "boolean") patch.done = updates.done;
+    if (typeof updates.sortOrder === "number") patch.sortOrder = updates.sortOrder;
 
     // To re-encode note+animal we need the current row.
     if (updates.note !== undefined || updates.animalSpecific !== undefined) {

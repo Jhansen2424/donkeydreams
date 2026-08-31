@@ -40,15 +40,16 @@ function splitAssignees(s?: string): string[] {
 }
 
 export default function TaskEditModal({ open, onClose, mode }: Props) {
-  const { addTask, editTask, deleteTask } = useSchedule();
+  const { addTask, editTask, deleteTask, currentDate } = useSchedule();
 
   // Form state
   const [text, setText] = useState("");
   const [block, setBlock] = useState<string>("AM");
   const [assignees, setAssignees] = useState<string[]>([]);
   const [animal, setAnimal] = useState("");
+  const [note, setNote] = useState("");
   const [category, setCategory] = useState<TaskCategory>("routine");
-  const [date, setDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState<string>(currentDate);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -57,18 +58,21 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
     if (!open) return;
     setConfirmDelete(false);
     setSaving(false);
-    const todayIso = new Date().toISOString().split("T")[0];
     if (mode.kind === "add") {
       setText("");
       setBlock(mode.defaultBlock ?? "AM");
       setAssignees([]);
       setAnimal("");
+      setNote("");
       setCategory("routine");
-      setDate(todayIso);
+      // Default to the date the schedule is showing (local, not UTC), so
+      // adding while viewing tomorrow schedules for tomorrow.
+      setDate(currentDate);
     } else {
       setText(mode.task.task);
       setAssignees(splitAssignees(mode.task.assignedTo));
       setAnimal(mode.task.animalSpecific ?? "");
+      setNote(mode.task.note ?? "");
       setCategory(mode.task.category);
       // Find the block name — the caller already has block context, but we
       // need to infer from the defaultBlock passed alongside `blockIdx`. We
@@ -99,6 +103,7 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
           blockName: block,
           assignedTo,
           animalSpecific: animal || undefined,
+          note: note.trim() || undefined,
           category,
           date,
         });
@@ -107,6 +112,7 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
           task: text.trim(),
           assignedTo: assignedTo ?? "",
           animalSpecific: animal,
+          note: note.trim(),
           blockName: block,
         });
       }
@@ -248,6 +254,20 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
                 <option key={a.slug} value={a.name} />
               ))}
             </datalist>
+          </div>
+
+          {/* Note */}
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1 block">
+              Note (optional)
+            </label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="e.g. Use the small halter"
+              rows={2}
+              className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal placeholder:text-warm-gray/50 focus:outline-none focus:ring-2 focus:ring-sand/50 resize-none"
+            />
           </div>
 
           {/* Category */}

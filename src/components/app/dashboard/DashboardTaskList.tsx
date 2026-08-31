@@ -161,7 +161,7 @@ export default function DashboardTaskList({ schedule, onToggle, onEdit, onAdd }:
             {visible.map((item) => {
               const isDone = item.task.done;
               return (
-                <li key={`${item.blockIdx}-${item.taskIdx}`}>
+                <li key={item.task.serverId ?? `${item.blockIdx}-${item.taskIdx}`}>
                   <div
                     className={`flex items-start gap-3 p-2.5 rounded-lg border transition-all ${
                       isDone
@@ -193,6 +193,11 @@ export default function DashboardTaskList({ schedule, onToggle, onEdit, onAdd }:
                       >
                         {item.task.task}
                       </p>
+                      {item.task.note && (
+                        <p className="text-[11px] text-warm-gray mt-0.5 italic">
+                          {item.task.note}
+                        </p>
+                      )}
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className="text-[10px] font-semibold uppercase tracking-wide text-warm-gray/50">
                           {item.block}

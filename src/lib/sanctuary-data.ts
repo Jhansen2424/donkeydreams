@@ -299,6 +299,8 @@ export interface ScheduleTask {
   category: TaskCategory;
   source: TaskSource;
   estimatedMinutes?: number;
+  /** DB row id (TaskCompletion.id) — stable identity for keys and mutations. */
+  serverId?: string;
 }
 
 export interface ScheduleBlock {
