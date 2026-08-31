@@ -103,16 +103,25 @@ model WatchAlert {
 
 // ── Tasks ──
 
+// Recurring routine template. Active templates are materialized into
+// per-day TaskCompletion rows on load (GET /api/tasks), so entering a
+// routine item once makes it appear every matching day until deactivated.
 model TaskTemplate {
   id               String  @id @default(cuid())
   task             String
-  block            String  // "Breakfast", "Lunch", "Dinner"
+  block            String  // "AM", "Mid", "PM" (legacy rows: "Breakfast" etc.)
   category         String  // "routine", "feeding", "treatment", etc.
   animalSpecific   String? // donkey name if animal-specific
   estimatedMinutes Int     @default(10)
   defaultAssignee  String?
   note             String?
   active           Boolean @default(true)
+  // Weekdays this repeats on (JS getDay(): 0=Sun … 6=Sat). Empty = every day.
+  repeatDays       Int[]    @default([])
+  // ISO dates the user deleted this template's instance for — never
+  // re-materialize those days.
+  skipDates        String[] @default([])
+  sortOrder        Int      @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -134,6 +143,9 @@ model TaskCompletion {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // One materialized instance per template per day (NULL templateId — manual
+  // tasks — is exempt from the constraint).
+  @@unique([templateId, date])
   @@index([date])
   @@index([date, block, sortOrder])
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Trash2, Check, Loader2 } from "lucide-react";
+import { X, Trash2, Check, Loader2, Repeat } from "lucide-react";
 import { animals } from "@/lib/animals";
 import { volunteers } from "@/lib/volunteer-data";
 import { categoryMeta, type TaskCategory, type ScheduleTask } from "@/lib/sanctuary-data";
@@ -39,8 +39,10 @@ function splitAssignees(s?: string): string[] {
   return s ? s.split(", ").filter(Boolean) : [];
 }
 
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 export default function TaskEditModal({ open, onClose, mode }: Props) {
-  const { addTask, editTask, deleteTask, currentDate } = useSchedule();
+  const { addTask, editTask, deleteTask, stopRepeating, currentDate } = useSchedule();
 
   // Form state
   const [text, setText] = useState("");
@@ -50,6 +52,10 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
   const [note, setNote] = useState("");
   const [category, setCategory] = useState<TaskCategory>("routine");
   const [date, setDate] = useState<string>(currentDate);
+  // Recurrence: "once" = a normal one-day task; "daily" = every day;
+  // "custom" = the weekdays selected in customDays.
+  const [repeat, setRepeat] = useState<"once" | "daily" | "custom">("once");
+  const [customDays, setCustomDays] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -68,6 +74,8 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
       // Default to the date the schedule is showing (local, not UTC), so
       // adding while viewing tomorrow schedules for tomorrow.
       setDate(currentDate);
+      setRepeat("once");
+      setCustomDays([]);
     } else {
       setText(mode.task.task);
       setAssignees(splitAssignees(mode.task.assignedTo));
@@ -106,6 +114,14 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
           note: note.trim() || undefined,
           category,
           date,
+          // "once" stays a one-day task; otherwise create a recurring
+          // template ([] = every day, else selected weekdays).
+          repeatDays:
+            repeat === "once"
+              ? undefined
+              : repeat === "daily"
+                ? []
+                : customDays,
         });
       } else {
         await editTask(mode.blockIdx, mode.taskIdx, {
@@ -169,8 +185,64 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
             />
           </div>
 
-          {/* Date (add mode only — edit keeps its original date) */}
+          {/* Repeat (add mode only) */}
           {mode.kind === "add" && (
+            <div>
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1 block">
+                Repeat
+              </label>
+              <div className="flex gap-1.5">
+                {([
+                  ["once", "One day"],
+                  ["daily", "Every day"],
+                  ["custom", "Specific days"],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    onClick={() => setRepeat(value)}
+                    className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                      repeat === value ? "bg-sky text-white" : "bg-cream text-charcoal hover:bg-sand/30"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {repeat === "custom" && (
+                <div className="flex gap-1 mt-2">
+                  {WEEKDAYS.map((day, i) => {
+                    const selected = customDays.includes(i);
+                    return (
+                      <button
+                        key={day}
+                        onClick={() =>
+                          setCustomDays((prev) =>
+                            prev.includes(i) ? prev.filter((d) => d !== i) : [...prev, i].sort()
+                          )
+                        }
+                        className={`flex-1 py-1.5 rounded-md text-xs font-semibold border transition-colors ${
+                          selected
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                            : "bg-white text-warm-gray border-card-border hover:bg-cream"
+                        }`}
+                      >
+                        {day}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {repeat !== "once" && (
+                <p className="text-[11px] text-warm-gray/70 mt-1">
+                  Appears on every matching day automatically until you stop it.
+                  Checking it off only affects that day.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Date (one-day add only — edit keeps its original date) */}
+          {mode.kind === "add" && repeat === "once" && (
             <div>
               <label className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1 block">
                 Date
@@ -182,9 +254,35 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
                 className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
               />
               <p className="text-[11px] text-warm-gray/70 mt-1">
-                Schedule for today or a future date. Today&apos;s routine only
-                shows today&apos;s tasks.
+                Schedule for today or a future date. Use the arrows on the
+                Daily Routine to view other days.
               </p>
+            </div>
+          )}
+
+          {/* Recurring-task controls (edit mode) */}
+          {mode.kind === "edit" && mode.task.templateId && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-sky/5 border border-sky/20">
+              <Repeat className="w-4 h-4 text-sky shrink-0" />
+              <span className="text-xs text-charcoal flex-1">
+                Repeating task — edits here change this day only.
+              </span>
+              <button
+                onClick={async () => {
+                  if (!mode.task.templateId) return;
+                  setSaving(true);
+                  try {
+                    await stopRepeating(mode.task.templateId);
+                    onClose();
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                disabled={saving}
+                className="px-3 py-1.5 bg-white border border-card-border text-charcoal text-xs font-semibold rounded-lg hover:bg-cream disabled:opacity-50"
+              >
+                Stop repeating
+              </button>
             </div>
           )}
 
@@ -332,7 +430,11 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
           </button>
           <button
             onClick={save}
-            disabled={!text.trim() || saving}
+            disabled={
+              !text.trim() ||
+              saving ||
+              (mode.kind === "add" && repeat === "custom" && customDays.length === 0)
+            }
             className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-sidebar rounded-lg hover:bg-sidebar-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}

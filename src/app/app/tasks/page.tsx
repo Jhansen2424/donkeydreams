@@ -17,6 +17,7 @@ import {
   ClipboardCheck,
   ChevronLeft,
   ChevronRight,
+  Repeat,
 } from "lucide-react";
 import {
   groupTasksByAnimal,
@@ -1214,6 +1215,15 @@ function TaskRow({
             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold text-sky-dark bg-sky/10 border border-sky/20">
               <Zap className="w-2.5 h-2.5" />
               {source.label}
+            </span>
+          )}
+          {task.templateId && (
+            <span
+              title="Repeats automatically — edit the task to stop it"
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200"
+            >
+              <Repeat className="w-2.5 h-2.5" />
+              Repeats
             </span>
           )}
         </div>

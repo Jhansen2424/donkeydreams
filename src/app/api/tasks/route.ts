@@ -69,6 +69,48 @@ function todayIso(): string {
   return new Date().toISOString().split("T")[0];
 }
 
+// Materialize active recurring templates into TaskCompletion rows for the
+// requested day, so a routine item entered once appears every matching day.
+// Idempotent: the @@unique([templateId, date]) constraint makes concurrent
+// loads safe (duplicate creates just fail quietly). Only today/future days
+// materialize (with one day of slack for the server's UTC clock vs the
+// sanctuary's local date) — paging back through history never invents rows.
+// Days the user explicitly deleted an instance for (template.skipDates) stay
+// deleted.
+async function materializeTemplates(date: string): Promise<void> {
+  const utcToday = todayIso();
+  const yesterday = new Date(Date.parse(utcToday) - 86_400_000)
+    .toISOString()
+    .split("T")[0];
+  if (date < yesterday) return;
+
+  const templates = await db.taskTemplate.findMany({ where: { active: true } });
+  if (templates.length === 0) return;
+  const weekday = new Date(date + "T12:00:00Z").getUTCDay();
+
+  for (const t of templates) {
+    if (t.repeatDays.length > 0 && !t.repeatDays.includes(weekday)) continue;
+    if (t.skipDates.includes(date)) continue;
+    try {
+      await db.taskCompletion.create({
+        data: {
+          templateId: t.id,
+          task: t.task,
+          block: t.block,
+          category: t.category,
+          date,
+          assignedTo: t.defaultAssignee,
+          note: encodeNote(t.note, t.animalSpecific),
+          done: false,
+          sortOrder: t.sortOrder,
+        },
+      });
+    } catch {
+      // Unique (templateId, date) violation — already materialized. Fine.
+    }
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -85,6 +127,7 @@ export async function GET(req: NextRequest) {
       if (to) where.date.lte = to;
     } else {
       where.date = date || todayIso();
+      await materializeTemplates(where.date);
     }
 
     const rows = await db.taskCompletion.findMany({
@@ -201,6 +244,19 @@ export async function DELETE(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Missing 'id' query param" }, { status: 400 });
+
+    // Deleting a recurring instance records the date on the template's
+    // skipDates so the materializer doesn't resurrect it on the next load.
+    const row = await db.taskCompletion.findUnique({ where: { id } });
+    if (row?.templateId) {
+      const template = await db.taskTemplate.findUnique({ where: { id: row.templateId } });
+      if (template && !template.skipDates.includes(row.date)) {
+        await db.taskTemplate.update({
+          where: { id: template.id },
+          data: { skipDates: [...template.skipDates, row.date] },
+        });
+      }
+    }
 
     await db.taskCompletion.delete({ where: { id } });
     return NextResponse.json({ ok: true });

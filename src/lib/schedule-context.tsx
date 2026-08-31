@@ -26,6 +26,12 @@ export interface NewTaskInput {
   category?: TaskCategory;
   /** ISO date (YYYY-MM-DD). Defaults to today. Used for scheduling tasks ahead. */
   date?: string;
+  /**
+   * When set, creates a RECURRING routine template instead of a one-day
+   * task: [] = every day, otherwise JS weekday numbers (0=Sun … 6=Sat).
+   * The template materializes into each matching day automatically.
+   */
+  repeatDays?: number[];
 }
 
 export interface EditTaskInput {
@@ -45,6 +51,8 @@ interface ScheduleContextValue {
   editTask: (blockIdx: number, taskIdx: number, updates: EditTaskInput) => Promise<void>;
   deleteTask: (blockIdx: number, taskIdx: number) => Promise<void>;
   reorderTask: (blockIdx: number, fromIdx: number, toIdx: number) => Promise<void>;
+  /** Deactivate a recurring template — future days stop getting the task. */
+  stopRepeating: (templateId: string) => Promise<void>;
   resetSchedule: () => Promise<void>;
   refresh: (date?: string) => Promise<void>;
   /** The ISO date (YYYY-MM-DD) the schedule currently shows. */
@@ -112,6 +120,7 @@ function apiToTask(a: ApiTask): TaskWithId {
     category: (a.category as TaskCategory) || "routine",
     source: (a.templateId ? "base" : "manual") as TaskSource,
     serverId: a.id,
+    templateId: a.templateId,
   };
 }
 
@@ -291,6 +300,33 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     const taskDate = input.date || viewedDate;
     // Append to the end of the target block.
     const sortOrder = schedule.find((b) => b.name === block)?.tasks.length ?? 0;
+
+    // Recurring: create a template; the server materializes it into each
+    // matching day on load, so a refresh brings in the viewed day's instance.
+    if (input.repeatDays !== undefined) {
+      try {
+        const res = await fetch("/api/tasks/templates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            task: input.task,
+            block,
+            category: input.category ?? "routine",
+            assignedTo: input.assignedTo,
+            animalSpecific: input.animalSpecific,
+            note: input.note,
+            repeatDays: input.repeatDays,
+            sortOrder,
+          }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error || "Failed to add");
+        await refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to add recurring task");
+      }
+      return;
+    }
+
     try {
       const res = await fetch("/api/tasks", {
         method: "POST",
@@ -324,7 +360,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add task");
     }
-  }, [schedule]);
+  }, [schedule, refresh]);
 
   const editTask = useCallback(async (blockIdx: number, taskIdx: number, updates: EditTaskInput) => {
     const ids = resolveIds(blockIdx, taskIdx);
@@ -438,6 +474,22 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     }
   }, [schedule]);
 
+  // Deactivate a recurring template. The current day's instance stays (it's
+  // already materialized); future days simply stop getting the task.
+  const stopRepeating = useCallback(async (templateId: string) => {
+    try {
+      const res = await fetch("/api/tasks/templates", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: templateId, active: false }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to stop");
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to stop repeating task");
+    }
+  }, [refresh]);
+
   const resetSchedule = useCallback(async () => {
     await refresh();
   }, [refresh]);
@@ -453,6 +505,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         editTask,
         deleteTask,
         reorderTask,
+        stopRepeating,
         resetSchedule,
         refresh,
         currentDate,

@@ -301,6 +301,8 @@ export interface ScheduleTask {
   estimatedMinutes?: number;
   /** DB row id (TaskCompletion.id) — stable identity for keys and mutations. */
   serverId?: string;
+  /** Set when this row was materialized from a recurring TaskTemplate. */
+  templateId?: string | null;
 }
 
 export interface ScheduleBlock {
