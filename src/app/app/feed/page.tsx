@@ -31,12 +31,23 @@ interface ApiFeedEntry {
   };
 }
 
+// Herd-level base plan (from /api/feed/herd). A donkey's effective plan is
+// this merged with their own row — per item, the donkey's entry wins.
+interface ApiHerdPlan {
+  id: string;
+  herd: string;
+  notes: string;
+  plan: ApiFeedEntry["plan"];
+}
+
 export default function FeedPage() {
   const [search, setSearch] = useState("");
   const [herdFilter, setHerdFilter] = useState<string>("all");
   const [schedules, setSchedules] = useState<ApiFeedEntry[]>([]);
+  const [herdPlans, setHerdPlans] = useState<ApiHerdPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<ApiFeedEntry | null>(null);
+  const [editingHerd, setEditingHerd] = useState<ApiHerdPlan | null>(null);
   const [addingNew, setAddingNew] = useState(false);
 
   const { entries: parkingEntries, addEntry, removeEntry } = useParkingLot();
@@ -60,14 +71,21 @@ export default function FeedPage() {
     return Array.from(set).sort();
   }, [animals]);
 
-  // Load feed plans from the API.
+  // Load per-donkey + herd-level feed plans from the API.
   const reload = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/feed", { cache: "no-store" });
+      const [res, herdRes] = await Promise.all([
+        fetch("/api/feed", { cache: "no-store" }),
+        fetch("/api/feed/herd", { cache: "no-store" }),
+      ]);
       if (!res.ok) throw new Error("Failed to load feed plans");
       const body = (await res.json()) as { entries: ApiFeedEntry[] };
       setSchedules(body.entries);
+      if (herdRes.ok) {
+        const herdBody = (await herdRes.json()) as { entries: ApiHerdPlan[] };
+        setHerdPlans(herdBody.entries);
+      }
     } catch {
       // surfaced below; leave list empty
     } finally {
@@ -95,12 +113,22 @@ export default function FeedPage() {
     return true;
   });
 
+  const herdPlanByHerd = useMemo(
+    () => new Map(herdPlans.map((p) => [p.herd, p])),
+    [herdPlans]
+  );
+
   // Group the visible cards by herd when no search is active. The search
   // filter falls back to a flat list since the user is looking for a single
-  // donkey by name.
+  // donkey by name. Herds that have a herd-level plan get a section even
+  // when no donkey has an override yet.
   const grouped = useMemo(() => {
     if (search) return null;
     const m = new Map<string, ApiFeedEntry[]>();
+    for (const p of herdPlans) {
+      if (herdFilter !== "all" && p.herd !== herdFilter) continue;
+      m.set(p.herd, []);
+    }
     for (const s of filtered) {
       const h = herdByAnimal.get(s.animal) ?? "Unassigned";
       const arr = m.get(h) ?? [];
@@ -108,7 +136,7 @@ export default function FeedPage() {
       m.set(h, arr);
     }
     return Array.from(m.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [filtered, herdByAnimal, search]);
+  }, [filtered, herdByAnimal, search, herdPlans, herdFilter]);
 
   const animalsWithoutPlan = useMemo(() => {
     const have = new Set(schedules.map((s) => s.animal));
@@ -194,31 +222,58 @@ export default function FeedPage() {
         <p className="text-sm text-warm-gray/60 text-center py-10">Loading feed plans...</p>
       ) : grouped ? (
         <div className="space-y-6">
-          {grouped.map(([herd, items]) => (
-            <div key={herd}>
-              <div className="flex items-baseline justify-between mb-2">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-warm-gray/80">
-                  {herd}
-                </h2>
-                <span className="text-xs text-warm-gray/60">{items.length} plan{items.length === 1 ? "" : "s"}</span>
+          {grouped.map(([herd, items]) => {
+            const herdPlan = herdPlanByHerd.get(herd) ?? null;
+            return (
+              <div key={herd}>
+                <div className="flex items-baseline justify-between mb-2">
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-warm-gray/80">
+                    {herd}
+                  </h2>
+                  <span className="text-xs text-warm-gray/60">
+                    {herdPlan ? "herd plan" : ""}
+                    {herdPlan && items.length > 0 ? " · " : ""}
+                    {items.length > 0 ? `${items.length} donkey plan${items.length === 1 ? "" : "s"}` : ""}
+                  </span>
+                </div>
+                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {herdPlan && (
+                    <FeedCard
+                      key={`herd-${herd}`}
+                      schedule={{
+                        id: herdPlan.id,
+                        animal: "Whole herd",
+                        notes: herdPlan.notes,
+                        plan: herdPlan.plan,
+                      }}
+                      isHerd
+                      onEdit={() => setEditingHerd(herdPlan)}
+                      onDelete={async () => {
+                        if (confirm(`Delete the herd feed plan for ${herd}?`)) {
+                          await fetch(`/api/feed/herd?id=${herdPlan.id}`, { method: "DELETE" });
+                          await reload();
+                        }
+                      }}
+                    />
+                  )}
+                  {items.map((schedule) => (
+                    <FeedCard
+                      key={schedule.animal}
+                      schedule={schedule}
+                      herdPlan={herdPlan}
+                      onEdit={() => setEditing(schedule)}
+                      onDelete={async () => {
+                        if (confirm(`Delete feed plan for ${schedule.animal}?`)) {
+                          await fetch(`/api/feed?id=${schedule.id}`, { method: "DELETE" });
+                          await reload();
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
-              <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {items.map((schedule) => (
-                  <FeedCard
-                    key={schedule.animal}
-                    schedule={schedule}
-                    onEdit={() => setEditing(schedule)}
-                    onDelete={async () => {
-                      if (confirm(`Delete feed plan for ${schedule.animal}?`)) {
-                        await fetch(`/api/feed?id=${schedule.id}`, { method: "DELETE" });
-                        await reload();
-                      }
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -226,6 +281,7 @@ export default function FeedPage() {
             <FeedCard
               key={schedule.animal}
               schedule={schedule}
+              herdPlan={herdPlanByHerd.get(herdByAnimal.get(schedule.animal) ?? "") ?? null}
               onEdit={() => setEditing(schedule)}
               onDelete={async () => {
                 if (confirm(`Delete feed plan for ${schedule.animal}?`)) {
@@ -238,7 +294,7 @@ export default function FeedPage() {
         </div>
       )}
 
-      {filtered.length === 0 && !loading && (
+      {filtered.length === 0 && herdPlans.length === 0 && !loading && (
         <div className="text-center py-16">
           <p className="text-4xl mb-3">🫏</p>
           <p className="text-warm-gray font-medium">No feed plans found</p>
@@ -252,9 +308,10 @@ export default function FeedPage() {
         </div>
       )}
 
-      {(editing || addingNew) && (
+      {(editing || editingHerd || addingNew) && (
         <FeedPlanModal
           initial={editing}
+          initialHerd={editingHerd}
           animalChoices={
             editing
               ? [editing.animal]
@@ -263,26 +320,38 @@ export default function FeedPage() {
           herdChoices={allHerds}
           onClose={() => {
             setEditing(null);
+            setEditingHerd(null);
             setAddingNew(false);
           }}
           onSave={async (data) => {
-            // `targets` is the list of animal names that should receive this
-            // plan. For single-donkey edits it's a 1-item array; for herd
-            // application it's every member of the herd. We loop POSTs since
-            // the API upserts per animal.
-            for (const animal of data.targets) {
-              await fetch("/api/feed", {
+            if (data.scope === "herd" && data.herd) {
+              // One herd-level row; per-donkey rows stay untouched and act
+              // as overrides/additions on top of it.
+              await fetch("/api/feed/herd", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  animal,
+                  herd: data.herd,
                   plan: data.plan,
                   notes: data.notes,
                 }),
               });
+            } else {
+              for (const animal of data.targets) {
+                await fetch("/api/feed", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    animal,
+                    plan: data.plan,
+                    notes: data.notes,
+                  }),
+                });
+              }
             }
             await reload();
             setEditing(null);
+            setEditingHerd(null);
             setAddingNew(false);
           }}
         />
@@ -293,10 +362,16 @@ export default function FeedPage() {
 
 function FeedCard({
   schedule,
+  herdPlan,
+  isHerd,
   onEdit,
   onDelete,
 }: {
   schedule: ApiFeedEntry;
+  /** Herd base plan merged under this donkey's own items (donkey wins). */
+  herdPlan?: ApiHerdPlan | null;
+  /** Renders as the herd's shared plan card. */
+  isHerd?: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -305,10 +380,11 @@ function FeedCard({
     { label: "MID", items: schedule.plan.mid, color: "bg-sky" },
     { label: "PM", items: schedule.plan.pm, color: "bg-purple-500" },
   ];
+  const rows = getItemRows(schedule, herdPlan ?? null);
 
   return (
     <div className="group bg-white rounded-xl border border-card-border overflow-hidden">
-      <div className="bg-sidebar px-4 py-3 flex items-center justify-between">
+      <div className={`${isHerd ? "bg-sky" : "bg-sidebar"} px-4 py-3 flex items-center justify-between`}>
         <h3 className="font-bold text-white">{schedule.animal}</h3>
         <div className="flex items-center gap-2">
           <div className="flex gap-1">
@@ -351,15 +427,22 @@ function FeedCard({
             </tr>
           </thead>
           <tbody>
-            {getItemRows(schedule).map((row) => (
+            {rows.map((row) => (
               <tr key={row.item} className="border-t border-card-border">
-                <td className="py-2 font-medium text-charcoal">{row.item}</td>
+                <td className="py-2 font-medium text-charcoal">
+                  {row.item}
+                  {row.source === "herd" && (
+                    <span className="ml-1.5 text-[9px] font-semibold uppercase tracking-wider text-sky bg-sky/10 px-1.5 py-0.5 rounded">
+                      herd
+                    </span>
+                  )}
+                </td>
                 <td className="py-2 text-center text-warm-gray">{row.am || "—"}</td>
                 <td className="py-2 text-center text-warm-gray">{row.mid || "—"}</td>
                 <td className="py-2 text-center text-warm-gray">{row.pm || "—"}</td>
               </tr>
             ))}
-            {getItemRows(schedule).length === 0 && (
+            {rows.length === 0 && (
               <tr>
                 <td colSpan={4} className="py-4 text-center text-xs text-warm-gray/60">
                   No items yet — click edit to add.
@@ -379,20 +462,41 @@ function FeedCard({
   );
 }
 
-function getItemRows(schedule: Pick<FeedSchedule, "plan"> | ApiFeedEntry) {
-  const items = new Map<string, { item: string; am: string; mid: string; pm: string }>();
-  for (const entry of schedule.plan.am) {
-    if (!items.has(entry.item)) items.set(entry.item, { item: entry.item, am: "", mid: "", pm: "" });
-    items.get(entry.item)!.am = entry.amount;
-  }
-  for (const entry of schedule.plan.mid) {
-    if (!items.has(entry.item)) items.set(entry.item, { item: entry.item, am: "", mid: "", pm: "" });
-    items.get(entry.item)!.mid = entry.amount;
-  }
-  for (const entry of schedule.plan.pm) {
-    if (!items.has(entry.item)) items.set(entry.item, { item: entry.item, am: "", mid: "", pm: "" });
-    items.get(entry.item)!.pm = entry.amount;
-  }
+type ItemRow = {
+  item: string;
+  am: string;
+  mid: string;
+  pm: string;
+  source: "herd" | "donkey";
+};
+
+// Union AM/MID/PM into per-item rows. When a herd base plan is supplied its
+// items come first tagged "herd"; the donkey's own entries then overlay by
+// item name (case-insensitive) — a donkey row for the same item replaces the
+// herd amounts entirely.
+function getItemRows(
+  schedule: Pick<FeedSchedule, "plan"> | ApiFeedEntry,
+  herdPlan?: ApiHerdPlan | null
+): ItemRow[] {
+  const items = new Map<string, ItemRow>();
+  const fill = (
+    plan: ApiFeedEntry["plan"],
+    source: "herd" | "donkey"
+  ) => {
+    for (const block of ["am", "mid", "pm"] as const) {
+      for (const entry of plan[block]) {
+        const key = entry.item.trim().toLowerCase();
+        let row = items.get(key);
+        if (!row || (row.source === "herd" && source === "donkey")) {
+          row = { item: entry.item, am: "", mid: "", pm: "", source };
+          items.set(key, row);
+        }
+        if (row.source === source) row[block] = entry.amount;
+      }
+    }
+  };
+  if (herdPlan) fill(herdPlan.plan, "herd");
+  fill(schedule.plan, "donkey");
   return Array.from(items.values());
 }
 
@@ -400,31 +504,37 @@ function getItemRows(schedule: Pick<FeedSchedule, "plan"> | ApiFeedEntry) {
 
 function FeedPlanModal({
   initial,
+  initialHerd,
   animalChoices,
   herdChoices,
   onClose,
   onSave,
 }: {
   initial: ApiFeedEntry | null;
+  initialHerd: ApiHerdPlan | null;
   animalChoices: string[];
   herdChoices: string[];
   onClose: () => void;
   onSave: (data: {
+    scope: "animal" | "herd";
+    herd?: string;
     targets: string[];
     plan: ApiFeedEntry["plan"];
     notes: string;
   }) => Promise<void>;
 }) {
-  // Scope: edit a single donkey (default) or stamp the plan onto every
-  // member of a herd. Editing an existing plan is always single-scope —
-  // herd scope is only for creating new plans.
-  const [scope, setScope] = useState<"animal" | "herd">("animal");
+  // Scope: edit a single donkey (default) or the herd's shared base plan.
+  // A herd plan is ONE row — donkeys keep their own rows as overrides on
+  // top of it, so saving a herd plan never touches per-donkey plans.
+  const [scope, setScope] = useState<"animal" | "herd">(
+    initialHerd ? "herd" : "animal"
+  );
   const [animal, setAnimal] = useState(initial?.animal ?? animalChoices[0] ?? "");
-  const [herd, setHerd] = useState(herdChoices[0] ?? "");
-  const [am, setAm] = useState(initial?.plan.am ?? []);
-  const [mid, setMid] = useState(initial?.plan.mid ?? []);
-  const [pm, setPm] = useState(initial?.plan.pm ?? []);
-  const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [herd, setHerd] = useState(initialHerd?.herd ?? herdChoices[0] ?? "");
+  const [am, setAm] = useState((initial ?? initialHerd)?.plan.am ?? []);
+  const [mid, setMid] = useState((initial ?? initialHerd)?.plan.mid ?? []);
+  const [pm, setPm] = useState((initial ?? initialHerd)?.plan.pm ?? []);
+  const [notes, setNotes] = useState((initial ?? initialHerd)?.notes ?? "");
   const [saving, setSaving] = useState(false);
 
   // Members of the currently selected herd (live roster from context).
@@ -435,12 +545,9 @@ function FeedPlanModal({
   }, [scope, herd, animals]);
 
   async function handleSave() {
-    let targets: string[];
+    let targets: string[] = [];
     if (scope === "herd") {
-      if (herdMembers.length === 0) return;
-      const confirmMsg = `Apply this feed plan to all ${herdMembers.length} donkey(s) in "${herd}"? This will overwrite any existing plans for those donkeys.`;
-      if (!confirm(confirmMsg)) return;
-      targets = herdMembers;
+      if (!herd) return;
     } else {
       if (!animal) return;
       targets = [animal];
@@ -448,6 +555,8 @@ function FeedPlanModal({
     setSaving(true);
     try {
       await onSave({
+        scope,
+        herd: scope === "herd" ? herd : undefined,
         targets,
         plan: {
           am: am.filter((x) => x.item.trim().length > 0),
@@ -471,15 +580,20 @@ function FeedPlanModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="bg-sidebar px-5 py-4 flex items-center justify-between">
-          <h3 className="font-bold text-white">{initial ? "Edit feed plan" : "New feed plan"}</h3>
+          <h3 className="font-bold text-white">
+            {initialHerd
+              ? `Edit herd plan — ${initialHerd.herd}`
+              : initial
+                ? "Edit feed plan"
+                : "New feed plan"}
+          </h3>
           <button onClick={onClose} className="text-cream/60 hover:text-white p-1">
             <X className="w-5 h-5" />
           </button>
         </div>
         <div className="p-5 space-y-4 overflow-y-auto flex-1">
-          {/* Scope toggle — only shown when creating a new plan. Editing is
-              always per-donkey. */}
-          {!initial && (
+          {/* Scope toggle — only shown when creating a new plan. */}
+          {!initial && !initialHerd && (
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
                 Apply to
@@ -535,7 +649,8 @@ function FeedPlanModal({
               <select
                 value={herd}
                 onChange={(e) => setHerd(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal bg-white focus:outline-none focus:ring-2 focus:ring-sand/50"
+                disabled={!!initialHerd}
+                className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal bg-white focus:outline-none focus:ring-2 focus:ring-sand/50 disabled:opacity-60"
               >
                 {herdChoices.map((name) => (
                   <option key={name} value={name}>
@@ -545,9 +660,9 @@ function FeedPlanModal({
               </select>
               {herdMembers.length > 0 && (
                 <p className="text-[11px] text-warm-gray/70 mt-1.5 leading-relaxed">
-                  Will apply to {herdMembers.length} donkey{herdMembers.length === 1 ? "" : "s"}:{" "}
+                  Shared base plan for {herdMembers.length} donkey{herdMembers.length === 1 ? "" : "s"}:{" "}
                   <span className="text-charcoal font-medium">{herdMembers.join(", ")}</span>.
-                  Existing plans for these donkeys will be overwritten.
+                  Donkeys with their own plan keep it as an override on top of this.
                 </p>
               )}
             </div>
@@ -577,14 +692,14 @@ function FeedPlanModal({
           </button>
           <button
             onClick={handleSave}
-            disabled={saving || (scope === "animal" ? !animal : herdMembers.length === 0)}
+            disabled={saving || (scope === "animal" ? !animal : !herd)}
             className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-sidebar rounded-lg hover:bg-sidebar-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <Check className="w-4 h-4" />
             {saving
               ? "Saving..."
               : scope === "herd"
-                ? `Save plan for ${herdMembers.length} donkey${herdMembers.length === 1 ? "" : "s"}`
+                ? "Save herd plan"
                 : "Save plan"}
           </button>
         </div>

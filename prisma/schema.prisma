@@ -156,6 +156,22 @@ model FeedSchedule {
   updatedAt DateTime @updatedAt
 }
 
+// Herd-level base feed plan. Each donkey's effective plan = the herd plan
+// merged with their own FeedSchedule row (per-item, donkey override wins).
+// Mirrors the TrimProfileOverride base+override pattern.
+model HerdFeedPlan {
+  id   String @id @default(cuid())
+  herd String @unique // free-text herd name (matches Animal.herd)
+
+  amPlan  Json @default("[]")
+  midPlan Json @default("[]")
+  pmPlan  Json @default("[]")
+  notes   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 // ── Hoof & Dental Visits ──
 
 model HoofVisit {
