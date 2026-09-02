@@ -22,8 +22,13 @@ import {
   Loader2,
 } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
+import { compressImage } from "@/lib/trim-photos";
 
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
+// Photos bigger than this get resized/recompressed in the browser before
+// uploading (longest edge 1600px, JPEG q0.8 — plenty for viewing and
+// printing). Keeps huge phone photos small AND under the per-file cap.
+const COMPRESS_IMAGES_OVER_BYTES = 500 * 1024;
 
 interface DocFolder {
   id: string;
@@ -125,35 +130,71 @@ export default function DocumentsPage() {
   };
 
   // ── Uploads ──
+  // Big photos are shrunk client-side before they leave the browser: resized
+  // to 1600px longest edge and recompressed as JPEG. If compression somehow
+  // doesn't help (already-optimized image), the original wins. Non-images
+  // (PDFs, spreadsheets…) upload as-is. Formats the browser can't decode
+  // (e.g. HEIC on some machines) quietly fall back to the original file.
+  const prepareUpload = async (
+    file: File
+  ): Promise<{ name: string; mimeType: string; dataBase64: string; bytes: number }> => {
+    if (file.type.startsWith("image/") && file.size > COMPRESS_IMAGES_OVER_BYTES) {
+      try {
+        const dataUrl = await compressImage(file, 1600, 0.8);
+        const dataBase64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+        const bytes = Math.floor((dataBase64.length * 3) / 4);
+        if (bytes < file.size) {
+          return {
+            name: file.name.replace(/\.[a-z0-9]+$/i, "") + ".jpg",
+            mimeType: "image/jpeg",
+            dataBase64,
+            bytes,
+          };
+        }
+      } catch {
+        // Undecodable image — fall through to the original bytes.
+      }
+    }
+    return {
+      name: file.name,
+      mimeType: file.type || "application/octet-stream",
+      dataBase64: await fileToBase64(file),
+      bytes: file.size,
+    };
+  };
+
   const uploadFiles = async (files: FileList | File[]) => {
     const list = Array.from(files);
     if (list.length === 0) return;
     let done = 0;
     for (const file of list) {
-      if (file.size > MAX_FILE_BYTES) {
-        toastError(`${file.name} is over the ${formatBytes(MAX_FILE_BYTES)} limit — skipped.`);
-        continue;
-      }
-      setUploading(`${file.name} (${++done} of ${list.length})`);
+      setUploading(`${file.name} (${done + 1} of ${list.length})`);
       try {
-        const dataBase64 = await fileToBase64(file);
+        const prepared = await prepareUpload(file);
+        if (prepared.bytes > MAX_FILE_BYTES) {
+          toastError(`${file.name} is over the ${formatBytes(MAX_FILE_BYTES)} limit — skipped.`);
+          continue;
+        }
         const res = await fetch("/api/documents", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name: file.name,
+            name: prepared.name,
             folderId: currentFolder,
-            mimeType: file.type || "application/octet-stream",
-            dataBase64,
+            mimeType: prepared.mimeType,
+            dataBase64: prepared.dataBase64,
           }),
         });
         if (!res.ok) throw new Error((await res.json()).error || "Upload failed");
+        done++;
       } catch (e) {
         toastError(`${file.name}: ${e instanceof Error ? e.message : "upload failed"}`);
       }
     }
     setUploading(null);
-    toastSuccess(done === 1 ? "File uploaded." : `${done} files uploaded.`);
+    if (done > 0) {
+      toastSuccess(done === 1 ? "File uploaded." : `${done} files uploaded.`);
+    }
     await reload(currentFolder);
   };
 
@@ -267,7 +308,8 @@ export default function DocumentsPage() {
         <div>
           <h1 className="text-2xl font-bold text-charcoal">Documents</h1>
           <p className="text-sm text-warm-gray mt-0.5">
-            Drag files anywhere on this page to upload · {formatBytes(MAX_FILE_BYTES)} max per file
+            Drag files anywhere on this page to upload · {formatBytes(MAX_FILE_BYTES)} max per
+            file · big photos are compressed automatically
           </p>
         </div>
         <div className="flex items-center gap-2 self-start">
