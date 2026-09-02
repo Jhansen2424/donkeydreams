@@ -437,24 +437,10 @@ export default function AnimalProfilePage() {
               onOpen={() => setActiveTab("hoof")}
             />
 
-            {/* Tags + adoption status badges */}
+            {/* Status badges — the ONE set of bubbles on the profile. The
+                tag bubbles derive from the same flags and power the list
+                cards; rendering both here duplicated "Under 3" etc. */}
             <div className="flex flex-wrap gap-1.5">
-              {animal.tags.map((tag) => (
-                <span
-                  key={tag.label}
-                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${
-                    tag.color === "green"
-                      ? "bg-emerald-100 text-emerald-700"
-                      : tag.color === "blue"
-                        ? "bg-sky/10 text-sky-dark"
-                        : tag.color === "amber"
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-red-100 text-red-700"
-                  }`}
-                >
-                  {tag.label}
-                </span>
-              ))}
               <AdoptionStatusBadges
                 animal={animal}
                 editing={editing}
@@ -599,10 +585,10 @@ function AdoptionStatusBadges({
 
   if (animal.isSpecialNeedsFlag) {
     badges.push({
-      label: "Special Needs Sponsor",
+      label: "Special Needs",
       cls: "bg-red-100 text-red-700 border border-red-200",
       tooltip:
-        "This donkey has a medical or behavioral condition that requires extra care. Sponsorship helps cover the additional vet, feed, or handling costs.",
+        "This donkey has a medical or behavioral condition that requires extra care.",
     });
   }
   if (animal.isOver20) {
@@ -615,7 +601,7 @@ function AdoptionStatusBadges({
   }
   if (animal.isBondedPair) {
     badges.push({
-      label: "Bonded Pair Required",
+      label: "Bonded Pair",
       cls: "bg-purple-100 text-purple-700 border border-purple-200",
       tooltip:
         "This donkey is closely bonded to another and must be adopted, sponsored, or rehomed alongside their bonded companion — separating them causes serious stress.",
