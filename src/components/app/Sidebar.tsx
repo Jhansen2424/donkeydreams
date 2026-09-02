@@ -155,7 +155,10 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="hidden md:flex print:hidden flex-col w-64 bg-sidebar text-cream min-h-screen fixed left-0 top-0 z-40">
+    // h-screen (not min-h-screen) caps the fixed aside at the viewport so the
+    // nav's flex-1 overflow-y-auto actually scrolls when the menu is taller
+    // than the screen.
+    <aside className="hidden md:flex print:hidden flex-col w-64 bg-sidebar text-cream h-screen fixed left-0 top-0 z-40">
       {/* Logo */}
       <div className="px-6 py-6 border-b border-white/10">
         <Link href="/app" className="block">
