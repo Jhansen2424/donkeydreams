@@ -21,7 +21,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { animals as staticAnimals, herds as staticHerds, type Animal } from "./animals";
+import {
+  animals as staticAnimals,
+  herds as staticHerds,
+  deriveTags,
+  type Animal,
+} from "./animals";
 
 // The DB fields the app can edit (mirrors EDITABLE in /api/animals) plus the
 // identity fields needed to display DB-only animals.
@@ -46,6 +51,10 @@ interface ApiAnimal {
   bestFriends: string[];
   parents: string[];
   children: string[];
+  momBabyCount: number;
+  isBondedPair: boolean;
+  isSpecialNeeds: boolean;
+  needsChip: boolean;
   profileImage: string | null;
   galleryImages: string[];
   nextHoofDue: string | null;
@@ -67,6 +76,9 @@ export type AnimalPatch = Partial<
     | "bestFriends"
     | "parents"
     | "children"
+    | "momBabyCount"
+    | "isBondedPair"
+    | "needsChip"
     | "behavioralNotes"
     | "sponsorable"
     | "profileImage"
@@ -75,7 +87,10 @@ export type AnimalPatch = Partial<
     | "nextHoofDue"
     | "nextDentalDue"
   >
->;
+> & {
+  /** DB column name (the Animal type calls this isSpecialNeedsFlag). */
+  isSpecialNeeds?: boolean;
+};
 
 export interface NewAnimalInput {
   name: string;
@@ -104,6 +119,18 @@ function overlay(base: Animal, row: ApiAnimal): Animal {
   return {
     ...base,
     status: row.status,
+    momBabyCount: row.momBabyCount,
+    isBondedPair: row.isBondedPair,
+    isSpecialNeedsFlag: row.isSpecialNeeds,
+    needsChip: row.needsChip,
+    // Tag bubbles re-derive from the overlaid flags (age-based ones keep the
+    // live values computed in the static base).
+    tags: deriveTags({
+      isSpecialNeedsFlag: row.isSpecialNeeds,
+      isOver20: base.isOver20,
+      isUnder3: base.isUnder3,
+      sponsorable: row.sponsorable,
+    }),
     sex: row.sex || base.sex,
     size: row.size ?? base.size,
     color: row.color ?? base.color,
@@ -135,11 +162,15 @@ function fromDbOnly(row: ApiAnimal): Animal {
     status: row.status,
     herd: row.herd,
     pen: row.pen,
-    tags: [],
+    tags: deriveTags({ isSpecialNeedsFlag: row.isSpecialNeeds, sponsorable: row.sponsorable }),
     traits: row.traits,
     bestFriends: row.bestFriends,
     parents: row.parents,
     children: row.children,
+    momBabyCount: row.momBabyCount,
+    isBondedPair: row.isBondedPair,
+    isSpecialNeedsFlag: row.isSpecialNeeds,
+    needsChip: row.needsChip,
     profileImage: row.profileImage ?? undefined,
     galleryImages: row.galleryImages,
     tagline: row.tagline,

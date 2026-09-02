@@ -49,6 +49,10 @@ export async function GET() {
         bestFriends: true,
         parents: true,
         children: true,
+        momBabyCount: true,
+        isBondedPair: true,
+        isSpecialNeeds: true,
+        needsChip: true,
         profileImage: true,
         galleryImages: true,
         nextHoofDue: true,
@@ -107,6 +111,10 @@ const EDITABLE: Array<
   | "bestFriends"
   | "parents"
   | "children"
+  | "momBabyCount"
+  | "isBondedPair"
+  | "isSpecialNeeds"
+  | "needsChip"
   | "behavioralNotes"
   | "status"
   | "sex"
@@ -129,6 +137,11 @@ const EDITABLE: Array<
   // relationships change (births, bonding, departures).
   "parents",
   "children",
+  // Status flags — the profile badges are editable.
+  "momBabyCount",
+  "isBondedPair",
+  "isSpecialNeeds",
+  "needsChip",
   "behavioralNotes",
   "status",
   // sex / size / color added to the writable list so the profile edit UI's

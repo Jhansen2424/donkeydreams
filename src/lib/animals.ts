@@ -85,6 +85,37 @@ function liveAge(birthDateIso: string | null | undefined, fallback: string): str
   return `${years} yr old`;
 }
 
+// Whole years old right now, or null when no valid birth date is on file.
+function liveAgeYears(birthDateIso: string | null | undefined): number | null {
+  if (!birthDateIso) return null;
+  const birth = new Date(birthDateIso + "T00:00:00");
+  if (Number.isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let years = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    years--;
+  }
+  return years;
+}
+
+// Card/list tag bubbles derived from the status flags, so they stay in sync
+// with badge edits and fall off automatically on birthdays (Senior/Under 3
+// come from the live age when a birth date exists).
+export function deriveTags(a: {
+  isSpecialNeedsFlag?: boolean;
+  isOver20?: boolean;
+  isUnder3?: boolean;
+  sponsorable?: boolean;
+}): Animal["tags"] {
+  const tags: Animal["tags"] = [];
+  if (a.isSpecialNeedsFlag) tags.push({ label: "Special Needs", color: "red" });
+  if (a.isOver20) tags.push({ label: "Senior Care", color: "amber" });
+  if (a.isUnder3) tags.push({ label: "Under 3", color: "blue" });
+  if (a.sponsorable) tags.push({ label: "Sponsor Available", color: "blue" });
+  return tags;
+}
+
 // Upcoming medical events (for dashboard).
 // 2026-08-24: blank slate — the hardcoded placeholder events were removed.
 // The dashboard falls back to this array only when the DB has no upcoming
@@ -142,6 +173,15 @@ function makeDonkey(
     }
   }
 
+  // Age-based flags compute from the birth date when one exists (so donkeys
+  // age out of "Under 3" / into "Senior" on their birthday automatically);
+  // the sheet's explicit flag is the fallback for donkeys without one.
+  const ageYears = liveAgeYears(profile?.birthDate);
+  const isOver20 =
+    ageYears !== null ? ageYears >= 20 : profile?.isOver20 ?? false;
+  const isUnder3 =
+    ageYears !== null ? ageYears < 3 : profile?.isUnder3 ?? false;
+
   const base: Animal = {
     name,
     slug: slug(name),
@@ -151,7 +191,11 @@ function makeDonkey(
     status,
     herd: profile?.herd ?? herd,
     pen: "",
-    tags: [],
+    tags: deriveTags({
+      isSpecialNeedsFlag: profile?.isSpecialNeeds ?? false,
+      isOver20,
+      isUnder3,
+    }),
     traits: [],
     bestFriends: profile?.bondedWith ?? [],
     tagline: "",
@@ -173,8 +217,8 @@ function makeDonkey(
     momBabyCount: profile?.momBabyCount ?? 0,
     isBondedPair: profile?.isBondedPair ?? false,
     isSpecialNeedsFlag: profile?.isSpecialNeeds ?? false,
-    isOver20: profile?.isOver20 ?? false,
-    isUnder3: profile?.isUnder3 ?? false,
+    isOver20,
+    isUnder3,
     parents: profile?.parents ?? [],
     children: profile?.children ?? [],
     bondedWith: profile?.bondedWith ?? [],
@@ -240,7 +284,6 @@ const _animalsRaw: Animal[] = [
   makeDonkey("Bella", ""),
   makeDonkey("Bob", ""),
   makeDonkey("Sophie", ""),
-  makeDonkey("J-Donk", ""),
   makeDonkey("Will", ""),
   makeDonkey("Moses", ""),
   makeDonkey("Peter", ""),
@@ -285,15 +328,14 @@ const _animalsRaw: Animal[] = [
   makeDonkey("Everest", ""),
   makeDonkey("Kai-Ya", ""),
   makeDonkey("Kai", ""),
+  // Blossom, Mrs. Truman, Rodney, J-Donk, Gemma, Cora removed 2026-09-02 at
+  // the sanctuary's request (not on the FINAL adoption sheet).
   makeDonkey("Edgar", ""),
   makeDonkey("Winky", ""),
   makeDonkey("Swayze", ""),
   makeDonkey("Tenzel", ""),
-  makeDonkey("Blossom", ""),
   makeDonkey("Churro", ""),
   makeDonkey("Jasper", ""),
-  makeDonkey("Rodney", ""),
-  makeDonkey("Mrs. Truman", ""),
   makeDonkey("Pink", "", {
     profileImage: "/donkeys/pink/profile.jpeg",
     galleryImages: ["/donkeys/pink/%231.jpg", "/donkeys/pink/%232.jpg", "/donkeys/pink/%233.jpeg"],
@@ -321,7 +363,6 @@ const _animalsRaw: Animal[] = [
   makeDonkey("Ralphie", ""),
   makeDonkey("Peggy", ""),
   makeDonkey("Cassidy", ""),
-  makeDonkey("Cora", ""),
   makeDonkey("Aurora", ""),
   makeDonkey("Jett", ""),
   makeDonkey("Raya", ""),
@@ -337,7 +378,6 @@ const _animalsRaw: Animal[] = [
   makeDonkey("Olivia", ""),
   makeDonkey("Zara", ""),
   makeDonkey("Amira", ""),
-  makeDonkey("Gemma", ""),
   makeDonkey("Winnie", "", {
     profileImage: "/donkeys/winnie/profile-photo.jpg",
     galleryImages: ["/donkeys/winnie/%231.jpg", "/donkeys/winnie/%232.jpg", "/donkeys/winnie/%233.jpg"],

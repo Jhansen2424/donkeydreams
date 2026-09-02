@@ -95,14 +95,18 @@ export const medicalEntries: MedicalEntry[] = [];
 // Backwards-compatible alias
 export const medicalRecords = medicalEntries;
 
-// ── Imported entries (parsed from CSVs) ──
-import { importedMedicalEntries } from "./deworming-vaccination-data";
+// ── Imported entries ──
+// 2026-09-02: the sheet-imported history (annual exams, conditions,
+// deworming/vaccination doses, checklist notes) was MIGRATED into MedicalEntry
+// DB rows so staff can edit it (scripts/migrate-medical-to-db.ts) — those
+// static sets must NOT be aggregated here anymore or every entry doubles.
+// Only the runtime-computed "Upcoming Vaccination" reminders stay code-side.
+import { scheduledVaccinationEntries } from "./deworming-vaccination-data";
 import { powerPackEntries } from "./power-pack-data";
 import {
   braveActualEntries,
   scheduledDewormingEntries,
 } from "./scheduled-and-events-data";
-import { annualExamEntries, revisedMedicalEntries } from "./donkey-profiles-data";
 
 // Sources of deworming truth, in order of authority (highest first):
 //   1. brave-events.csv  → braveActualEntries  (per-donkey events with weights)
@@ -146,7 +150,7 @@ const dedupedPowerPackEntries = powerPackEntries.filter((pp) => {
 });
 
 // Then drop summary-level entries that overlap with EITHER higher-authority source.
-const dedupedDewormingImports = importedMedicalEntries.filter((e) => {
+const dedupedDewormingImports = scheduledVaccinationEntries.filter((e) => {
   if (e.type !== "Deworming") return true;
   const drug = entryDrug(e);
   if (!drug) return true;
@@ -175,8 +179,6 @@ export const allMedicalEntries: MedicalEntry[] = [
   ...powerPackAsMedical,
   ...braveActualEntries,
   ...scheduledDewormingEntries,
-  ...annualExamEntries,
-  ...revisedMedicalEntries,
 ];
 
 // ── Helper Functions ──

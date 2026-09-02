@@ -36,6 +36,7 @@ import {
 import { useMedical } from "@/lib/medical-context";
 import { useParkingLot } from "@/lib/parking-lot-context";
 import { useProviders } from "@/lib/providers-context";
+import { useSchedule } from "@/lib/schedule-context";
 import { useToast } from "@/lib/toast-context";
 import { formatDate as sharedFormatDate } from "@/lib/format-date";
 import type { CareVisit } from "@/lib/hoof-dental-data";
@@ -91,6 +92,11 @@ export default function AnimalProfilePage() {
     bestFriends: string; // comma-joined
     parents: string; // comma-joined
     children: string; // comma-joined
+    // Status-badge flags (Senior / Under 3 are automatic from birth date)
+    momBabyCount: number;
+    isBondedPair: boolean;
+    isSpecialNeeds: boolean;
+    needsChip: boolean;
     // Identity dropdown fields. Empty string = "no selection / clear value".
     sex: string;
     size: string;
@@ -175,6 +181,10 @@ export default function AnimalProfilePage() {
                   bestFriends: (animal.bestFriends ?? []).join(", "),
                   parents: (animal.parents ?? []).join(", "),
                   children: (animal.children ?? []).join(", "),
+                  momBabyCount: animal.momBabyCount ?? 0,
+                  isBondedPair: animal.isBondedPair ?? false,
+                  isSpecialNeeds: animal.isSpecialNeedsFlag ?? false,
+                  needsChip: animal.needsChip ?? false,
                   sex: animal.sex ?? "",
                   size: animal.size ?? "",
                   color: animal.color ?? "",
@@ -234,6 +244,14 @@ export default function AnimalProfilePage() {
                   payload.pen = draft.pen;
                 if (draft.adoptedFrom !== (animal.adoptedFrom ?? ""))
                   payload.adoptedFrom = draft.adoptedFrom;
+                if (draft.momBabyCount !== (animal.momBabyCount ?? 0))
+                  payload.momBabyCount = draft.momBabyCount;
+                if (draft.isBondedPair !== (animal.isBondedPair ?? false))
+                  payload.isBondedPair = draft.isBondedPair;
+                if (draft.isSpecialNeeds !== (animal.isSpecialNeedsFlag ?? false))
+                  payload.isSpecialNeeds = draft.isSpecialNeeds;
+                if (draft.needsChip !== (animal.needsChip ?? false))
+                  payload.needsChip = draft.needsChip;
                 if (Object.keys(payload).length <= 1) {
                   // No changes to save — just exit edit mode.
                   setEditing(false);
@@ -437,7 +455,12 @@ export default function AnimalProfilePage() {
                   {tag.label}
                 </span>
               ))}
-              <AdoptionStatusBadges animal={animal} />
+              <AdoptionStatusBadges
+                animal={animal}
+                editing={editing}
+                draft={draft}
+                onPatch={(patch) => draft && setDraft({ ...draft, ...patch })}
+              />
             </div>
           </div>
         </div>
@@ -488,7 +511,90 @@ export default function AnimalProfilePage() {
 }
 
 /* ── Adoption status badges ── */
-function AdoptionStatusBadges({ animal }: { animal: Animal }) {
+type BadgeFlagsPatch = Partial<{
+  momBabyCount: number;
+  isBondedPair: boolean;
+  isSpecialNeeds: boolean;
+  needsChip: boolean;
+}>;
+
+function AdoptionStatusBadges({
+  animal,
+  editing,
+  draft,
+  onPatch,
+}: {
+  animal: Animal;
+  editing?: boolean;
+  draft?: BadgeFlagsPatch | null;
+  onPatch?: (patch: BadgeFlagsPatch) => void;
+}) {
+  // Edit mode: the badges become toggles (Senior / Under 3 stay automatic —
+  // they derive from the birth date and fall off on birthdays by themselves).
+  if (editing && draft && onPatch) {
+    const toggles: Array<{
+      label: string;
+      on: boolean;
+      cls: string;
+      toggle: () => void;
+    }> = [
+      {
+        label: "Special Needs",
+        on: !!draft.isSpecialNeeds,
+        cls: "bg-red-100 text-red-700 border-red-300",
+        toggle: () => onPatch({ isSpecialNeeds: !draft.isSpecialNeeds }),
+      },
+      {
+        label: "Bonded Pair",
+        on: !!draft.isBondedPair,
+        cls: "bg-purple-100 text-purple-700 border-purple-300",
+        toggle: () => onPatch({ isBondedPair: !draft.isBondedPair }),
+      },
+      {
+        label: "Needs Microchip",
+        on: !!draft.needsChip,
+        cls: "bg-orange-100 text-orange-700 border-orange-300",
+        toggle: () => onPatch({ needsChip: !draft.needsChip }),
+      },
+    ];
+    return (
+      <div className="flex flex-wrap items-center gap-1.5">
+        {toggles.map((t) => (
+          <button
+            key={t.label}
+            onClick={t.toggle}
+            className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-colors ${
+              t.on ? t.cls : "bg-white text-warm-gray/60 border-card-border hover:bg-cream"
+            }`}
+            title={`Toggle ${t.label}`}
+          >
+            {t.on ? "✓ " : ""}
+            {t.label}
+          </button>
+        ))}
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-pink-300 bg-pink-50 text-pink-700">
+          Mom of
+          <input
+            type="number"
+            min={0}
+            max={20}
+            value={draft.momBabyCount ?? 0}
+            onChange={(e) =>
+              onPatch({ momBabyCount: Math.max(0, parseInt(e.target.value) || 0) })
+            }
+            className="w-10 px-1 py-0 text-[11px] border border-pink-200 rounded bg-white text-charcoal focus:outline-none"
+          />
+        </span>
+        <span
+          className="text-[10px] text-warm-gray/60 italic"
+          title="Senior (20+) and Under 3 come from the birth date and update automatically on birthdays."
+        >
+          Senior / Under 3 are automatic
+        </span>
+      </div>
+    );
+  }
+
   const badges: { label: string; cls: string; tooltip: string }[] = [];
 
   if (animal.isSpecialNeedsFlag) {
@@ -670,6 +776,10 @@ type ProfileDraftShape = {
   herd: string;
   pen: string;
   adoptedFrom: string;
+  momBabyCount: number;
+  isBondedPair: boolean;
+  isSpecialNeeds: boolean;
+  needsChip: boolean;
 };
 
 function OverviewTab({
@@ -1565,52 +1675,79 @@ function MedicalTab({ animal }: { animal: Animal }) {
 }
 
 /* ── Tasks Tab ── */
+/* ── Daily Care Tab ──
+   The donkey's slice of the REAL Daily Routine (shared schedule context) —
+   tasks created on the Daily Routine page with this animal selected show up
+   here, and checking one off here checks it off there too. */
 function TasksTab({ animal }: { animal: Animal }) {
-  const [checked, setChecked] = useState<Set<number>>(new Set());
+  const { schedule, toggleTask, currentDate } = useSchedule();
 
-  const toggle = (i: number) => {
-    setChecked((prev) => {
-      const next = new Set(prev);
-      if (next.has(i)) next.delete(i);
-      else next.add(i);
-      return next;
-    });
-  };
+  // This donkey's tasks across all time blocks, keeping the (blockIdx,
+  // taskIdx) coordinates the schedule mutations need.
+  const mine = schedule.flatMap((block, blockIdx) =>
+    block.tasks
+      .map((task, taskIdx) => ({ block, blockIdx, task, taskIdx }))
+      .filter(({ task }) => task.animalSpecific === animal.name)
+  );
+  const doneCount = mine.filter(({ task }) => task.done).length;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="font-bold text-charcoal">Daily Care Tasks</h3>
-        <p className="text-sm text-warm-gray">
-          {checked.size}/{animal.tasks.length} complete
-        </p>
+        <div>
+          <h3 className="font-bold text-charcoal">Daily Care Tasks</h3>
+          <p className="text-xs text-warm-gray mt-0.5">
+            {sharedFormatDate(currentDate)} · from the Daily Routine
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-warm-gray">
+            {doneCount}/{mine.length} complete
+          </p>
+          <a
+            href="/app/tasks"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add Task
+          </a>
+        </div>
       </div>
 
-      {animal.tasks.length === 0 ? (
+      {mine.length === 0 ? (
         <div className="bg-white rounded-xl border border-card-border p-8 text-center">
           <ClipboardCheck className="w-8 h-8 text-warm-gray/30 mx-auto mb-3" />
-          <p className="text-warm-gray font-medium">No tasks assigned</p>
+          <p className="text-warm-gray font-medium">
+            No tasks for {animal.name} today
+          </p>
+          <p className="text-sm text-warm-gray/60 mt-1">
+            Add one on the{" "}
+            <a href="/app/tasks" className="text-sky-600 hover:underline">
+              Daily Routine
+            </a>{" "}
+            and pick {animal.name} as the animal — it shows up here.
+          </p>
         </div>
       ) : (
         <div className="space-y-2">
-          {animal.tasks.map((task, i) => (
+          {mine.map(({ block, blockIdx, task, taskIdx }) => (
             <button
-              key={i}
-              onClick={() => toggle(i)}
+              key={task.serverId ?? `${blockIdx}-${taskIdx}`}
+              onClick={() => void toggleTask(blockIdx, taskIdx)}
               className={`w-full flex items-center gap-3 bg-white rounded-xl border p-4 transition-all text-left ${
-                checked.has(i)
+                task.done
                   ? "border-emerald-200 bg-emerald-50/50"
                   : "border-card-border hover:border-sand"
               }`}
             >
               <div
                 className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
-                  checked.has(i)
+                  task.done
                     ? "bg-emerald-500 border-emerald-500"
                     : "border-card-border"
                 }`}
               >
-                {checked.has(i) && (
+                {task.done && (
                   <svg
                     className="w-3 h-3 text-white"
                     fill="none"
@@ -1626,19 +1763,26 @@ function TasksTab({ animal }: { animal: Animal }) {
                   </svg>
                 )}
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p
                   className={`text-sm font-medium ${
-                    checked.has(i)
-                      ? "text-warm-gray line-through"
-                      : "text-charcoal"
+                    task.done ? "text-warm-gray line-through" : "text-charcoal"
                   }`}
                 >
-                  {task.title}
+                  {task.task}
+                  {task.templateId && (
+                    <span className="ml-2 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                      Repeats
+                    </span>
+                  )}
                 </p>
                 <p className="text-xs text-warm-gray/60 mt-0.5">
-                  {task.interval} · {task.type}
+                  {block.name}
+                  {task.assignedTo ? ` · ${task.assignedTo}` : ""}
                 </p>
+                {task.note && (
+                  <p className="text-[11px] text-warm-gray mt-0.5 italic">{task.note}</p>
+                )}
               </div>
             </button>
           ))}

@@ -46,6 +46,13 @@ model Animal {
   // Relationships column; editable in-app since relationships change.
   parents         String[] @default([])
   children        String[] @default([])
+  // Status flags — seeded from the adoption sheet's flag columns, editable
+  // in-app (profile badges). Over-20 / under-3 are NOT stored: they derive
+  // from birthDate so they update on birthdays automatically.
+  momBabyCount    Int      @default(0)
+  isBondedPair    Boolean  @default(false)
+  isSpecialNeeds  Boolean  @default(false)
+  needsChip       Boolean  @default(false)
   // Next scheduled care dates — set by hoof/dental logging + Joshy voice commands.
   nextHoofDue     String?
   nextDentalDue   String?

@@ -47,6 +47,10 @@ async function main() {
           bestFriends: p.bondedWith,
           parents: p.parents,
           children: p.children,
+          momBabyCount: p.momBabyCount,
+          isBondedPair: p.isBondedPair,
+          isSpecialNeeds: p.isSpecialNeeds,
+          needsChip: p.needsChip,
         },
       });
     }

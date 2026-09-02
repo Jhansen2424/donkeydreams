@@ -264,6 +264,20 @@ export default function AnimalsPage() {
             Try a different search or filter
           </p>
         </div>
+      ) : search ? (
+        /* ── Search results: flat, always expanded, click straight through
+              to the profile — no herd folders to open first. ── */
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filtered.map((animal) => (
+            <div
+              key={animal.slug}
+              onClick={() => goToAnimal(animal)}
+              className="cursor-pointer"
+            >
+              <AnimalGridCard {...animal} onEdit={() => goToAnimal(animal)} />
+            </div>
+          ))}
+        </div>
       ) : view === "grid" ? (
         /* ── Grid View ── */
         <div className="space-y-8">
