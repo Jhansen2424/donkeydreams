@@ -314,8 +314,17 @@ export default function AnimalProfilePage() {
                 try {
                   const dataUrl = await compressImage(file, 640, 0.6);
                   const ok = await updateAnimal(animal.name, { profileImage: dataUrl });
-                  if (ok) profileToastSuccess(`Updated ${animal.name}'s profile photo.`);
-                  else profileToastError("Could not save the photo. Try again.");
+                  if (ok) {
+                    // Tell staff the compression happened — otherwise a big
+                    // phone photo "just working" looks suspicious.
+                    const compressedKb = Math.round(((dataUrl.length - dataUrl.indexOf(",")) * 3) / 4 / 1024);
+                    const originalMb = file.size / 1024 / 1024;
+                    profileToastSuccess(
+                      originalMb >= 0.5
+                        ? `Updated ${animal.name}'s photo (compressed ${originalMb.toFixed(1)} MB → ${compressedKb} KB).`
+                        : `Updated ${animal.name}'s profile photo.`
+                    );
+                  } else profileToastError("Could not save the photo. Try again.");
                 } catch {
                   profileToastError("Could not read that image file.");
                 } finally {
@@ -1822,14 +1831,42 @@ function RelationshipsTab({ animal }: { animal: Animal }) {
 
 /* ── Photos Tab ── */
 function PhotosTab({ animal }: { animal: Animal }) {
-  // Photos are stored as URLs in `galleryImages` on the Animal record. No
-  // file upload yet — users paste an image URL (from Google Drive share, S3,
-  // etc.). The local optimistic list keeps the UI responsive while the API
+  // Photos are stored in `galleryImages` on the Animal record — either
+  // uploaded files (compressed client-side, stored as data URLs) or pasted
+  // links. The local optimistic list keeps the UI responsive while the API
   // PATCH round-trips.
   const [gallery, setGallery] = useState<string[]>(animal.galleryImages ?? []);
   const [urlDraft, setUrlDraft] = useState("");
   const [adding, setAdding] = useState(false);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  // Upload from camera / photo library — every image is compressed before
+  // it's stored (1024px longest edge JPEG), no matter how big the original.
+  async function handleUploadFiles(files: FileList) {
+    const list = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (list.length === 0) return;
+    setUploadingGallery(true);
+    setError(null);
+    const prev = gallery;
+    try {
+      const dataUrls: string[] = [];
+      for (const file of list) {
+        dataUrls.push(await compressImage(file, 1024, 0.7));
+      }
+      const next = [...gallery, ...dataUrls];
+      setGallery(next);
+      await persist(next);
+    } catch (err) {
+      setGallery(prev);
+      setError(
+        err instanceof Error ? err.message : "Could not read one of those images."
+      );
+    } finally {
+      setUploadingGallery(false);
+    }
+  }
 
   async function persist(next: string[]) {
     setError(null);
@@ -1880,12 +1917,33 @@ function PhotosTab({ animal }: { animal: Animal }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="font-bold text-charcoal">Photos</h3>
-        <button
-          onClick={() => setAdding((v) => !v)}
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors"
-        >
-          {adding ? "Cancel" : "+ Add Photo"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => galleryInputRef.current?.click()}
+            disabled={uploadingGallery}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors disabled:opacity-60"
+          >
+            <Camera className="w-4 h-4" />
+            {uploadingGallery ? "Uploading…" : "Upload Photos"}
+          </button>
+          <button
+            onClick={() => setAdding((v) => !v)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-card-border text-charcoal rounded-lg text-sm font-medium hover:bg-cream transition-colors"
+          >
+            {adding ? "Cancel" : "+ Add by Link"}
+          </button>
+        </div>
+        <input
+          ref={galleryInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files) void handleUploadFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
       </div>
 
       {adding && (
