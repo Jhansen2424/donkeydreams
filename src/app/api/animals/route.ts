@@ -47,6 +47,8 @@ export async function GET() {
         behavioralNotes: true,
         traits: true,
         bestFriends: true,
+        parents: true,
+        children: true,
         profileImage: true,
         galleryImages: true,
         nextHoofDue: true,
@@ -103,6 +105,8 @@ export async function POST(req: NextRequest) {
 const EDITABLE: Array<
   | "galleryImages"
   | "bestFriends"
+  | "parents"
+  | "children"
   | "behavioralNotes"
   | "status"
   | "sex"
@@ -121,6 +125,10 @@ const EDITABLE: Array<
 > = [
   "galleryImages",
   "bestFriends",
+  // Family links are seeded from the adoption sheet but editable in-app —
+  // relationships change (births, bonding, departures).
+  "parents",
+  "children",
   "behavioralNotes",
   "status",
   // sex / size / color added to the writable list so the profile edit UI's

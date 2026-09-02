@@ -154,7 +154,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="hidden md:flex flex-col w-64 bg-sidebar text-cream min-h-screen fixed left-0 top-0 z-40">
+    <aside className="hidden md:flex print:hidden flex-col w-64 bg-sidebar text-cream min-h-screen fixed left-0 top-0 z-40">
       {/* Logo */}
       <div className="px-6 py-6 border-b border-white/10">
         <Link href="/app" className="block">

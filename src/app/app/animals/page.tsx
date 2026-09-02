@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   LayoutGrid,
@@ -9,6 +10,7 @@ import {
   Plus,
   ChevronDown,
   ChevronRight,
+  Printer,
   X,
 } from "lucide-react";
 import FilterTabs from "@/components/app/FilterTabs";
@@ -30,12 +32,36 @@ const tableHeaders = [
   "",
 ];
 
+// The list's UI state survives navigating into a profile and back (browser
+// back or the "All Animals" button), so staff return to the herd they had
+// open instead of a fully re-collapsed list.
+const LIST_STATE_KEY = "dd:animals-list-state:v1";
+
+interface StoredListState {
+  collapsed?: string[];
+  filter?: string;
+  view?: "grid" | "table";
+}
+
+function loadListState(): StoredListState {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(sessionStorage.getItem(LIST_STATE_KEY) ?? "{}") as StoredListState;
+  } catch {
+    return {};
+  }
+}
+
 export default function AnimalsPage() {
   const router = useRouter();
   // Live roster: CSV base + DB overlay (herd moves, edits, new animals).
   const { animals, herds } = useAnimals();
-  const [view, setView] = useState<"grid" | "table">("grid");
-  const [activeFilter, setActiveFilter] = useState("All Animals");
+  const [view, setView] = useState<"grid" | "table">(
+    () => loadListState().view ?? "grid"
+  );
+  const [activeFilter, setActiveFilter] = useState(
+    () => loadListState().filter ?? "All Animals"
+  );
   const [search, setSearch] = useState("");
 
   const filterTabs = [
@@ -48,9 +74,26 @@ export default function AnimalsPage() {
 
   // Default every herd to collapsed — the user has to tap a herd header
   // to expand its list. (Herds created after first render start expanded.)
-  const [collapsedHerds, setCollapsedHerds] = useState<Set<string>>(
-    () => new Set(herds)
-  );
+  const [collapsedHerds, setCollapsedHerds] = useState<Set<string>>(() => {
+    const stored = loadListState().collapsed;
+    return new Set(stored ?? herds);
+  });
+
+  // Persist the list state so returning from a profile restores it.
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        LIST_STATE_KEY,
+        JSON.stringify({
+          collapsed: Array.from(collapsedHerds),
+          filter: activeFilter,
+          view,
+        } satisfies StoredListState)
+      );
+    } catch {
+      // Storage unavailable (private mode etc.) — state just won't persist.
+    }
+  }, [collapsedHerds, activeFilter, view]);
 
   // We always group by herd so the herd headers stay visible (and clickable)
   // even when a herd filter or search is active. That makes "tap to open"
@@ -131,13 +174,23 @@ export default function AnimalsPage() {
             {animals.length} donkeys · {filtered.length} shown
           </p>
         </div>
-        <button
-          onClick={() => setShowNewAnimal(true)}
-          className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors self-start"
-        >
-          <Plus className="w-4 h-4" />
-          New Animal
-        </button>
+        <div className="flex items-center gap-2 self-start">
+          <Link
+            href="/app/print/animals"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white border border-card-border rounded-lg text-sm font-medium text-charcoal hover:bg-cream transition-colors"
+            title="Printable binder of every animal profile"
+          >
+            <Printer className="w-4 h-4" />
+            Print binder
+          </Link>
+          <button
+            onClick={() => setShowNewAnimal(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            New Animal
+          </button>
+        </div>
       </div>
 
       {showNewAnimal && (

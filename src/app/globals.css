@@ -41,6 +41,24 @@ html {
   scroll-behavior: smooth;
 }
 
+/* ── Print styles ──
+   Hard-copy support (grant requirement): white paper, black text, no link
+   styling, and a .no-print escape hatch for anything the Tailwind `print:`
+   variant can't reach. */
+@media print {
+  body {
+    background: #fff !important;
+    color: #000;
+  }
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
 /* Single donkey walking animation */
 @keyframes walk-donkey {
   0% {

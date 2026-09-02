@@ -17,6 +17,7 @@ import {
   ClipboardCheck,
   ChevronLeft,
   ChevronRight,
+  Printer,
   Repeat,
 } from "lucide-react";
 import {
@@ -32,6 +33,7 @@ import {
 } from "@/lib/sanctuary-data";
 import { volunteers } from "@/lib/volunteer-data";
 import { useSchedule, localToday } from "@/lib/schedule-context";
+import { formatDate } from "@/lib/format-date";
 import { useParkingLot } from "@/lib/parking-lot-context";
 import VolunteerLoadBar from "@/components/app/VolunteerLoadBar";
 import TaskEditModal, { type TaskEditModalMode } from "@/components/app/TaskEditModal";
@@ -176,7 +178,7 @@ function AssignChips({
   const assignees = getAssignees(task);
 
   return (
-    <div className="relative flex items-center gap-1 flex-wrap mt-1.5">
+    <div className="relative flex items-center gap-1 flex-wrap mt-1.5 print:hidden">
       {assignees.map((name) => {
         const member = getMemberByName(name);
         return (
@@ -366,8 +368,18 @@ export default function TasksPage() {
 
   return (
     <div className="space-y-6">
+      {/* Print-only heading — names the viewed day on the hard copy. */}
+      <div className="hidden print:block border-b-2 border-charcoal pb-2">
+        <h1 className="text-2xl font-bold text-charcoal">
+          Daily Routine — {formatDate(currentDate)}
+        </h1>
+        <p className="text-sm text-charcoal mt-0.5">
+          {doneTasks}/{totalTasks} tasks complete
+        </p>
+      </div>
+
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 print:hidden">
         <div>
           <h1 className="text-2xl font-bold text-charcoal">Daily Routine</h1>
           <p className="text-sm text-warm-gray mt-0.5">
@@ -407,6 +419,14 @@ export default function TasksPage() {
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
+          <button
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-card-border rounded-lg text-sm font-medium text-charcoal hover:bg-cream transition-colors"
+            title="Print this day's routine (or save as PDF)"
+          >
+            <Printer className="w-4 h-4" />
+            Print
+          </button>
           <div className="inline-flex bg-white border border-card-border rounded-lg overflow-hidden">
             <button
               onClick={() => setViewMode("time")}
@@ -461,7 +481,7 @@ export default function TasksPage() {
       </div>
 
       {/* Progress bar */}
-      <div className="bg-white rounded-xl border border-card-border p-4">
+      <div className="bg-white rounded-xl border border-card-border p-4 print:hidden">
         <div className="flex items-center justify-between mb-2">
           <p className="text-sm font-medium text-charcoal">
             {viewingToday ? <>Today&apos;s Progress</> : <>Progress for {currentDate}</>}
@@ -477,7 +497,7 @@ export default function TasksPage() {
       </div>
 
       {/* Team legend — click a name to filter by that person */}
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap print:hidden">
         <span className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60">By Human:</span>
         <button
           onClick={() => setHumanFilter("all")}
@@ -514,10 +534,12 @@ export default function TasksPage() {
       </div>
 
       {/* Volunteer workload */}
-      <VolunteerLoadBar schedule={schedule} />
+      <div className="print:hidden">
+        <VolunteerLoadBar schedule={schedule} />
+      </div>
 
       {/* Search + category filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 print:hidden">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-gray/50" />
           <input
@@ -542,7 +564,7 @@ export default function TasksPage() {
           </p>
         )}
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 print:hidden">
         <Filter className="w-4 h-4 text-warm-gray" />
         <FilterPill
           label="All"
@@ -562,7 +584,7 @@ export default function TasksPage() {
 
       {/* ═══ BY TIME VIEW ═══ */}
       {viewMode === "time" && (
-        <div className="grid lg:grid-cols-3 gap-6">
+        <div className="grid lg:grid-cols-3 gap-6 print:grid-cols-1 print:gap-4">
           {filteredSchedule.map((block, _fi) => {
             const origIdx = schedule.findIndex((b) => b.name === block.name);
             const isDropTarget = dropTargetBlock === origIdx && dragSource && dragSource.blockIdx !== origIdx;
@@ -599,13 +621,13 @@ export default function TasksPage() {
                   isDropTarget ? "border-sidebar ring-2 ring-sidebar/30" : "border-card-border"
                 }`}
               >
-                <div className="bg-sidebar px-5 py-3">
+                <div className="bg-sidebar px-5 py-3 print:bg-transparent print:border-b-2 print:border-charcoal print:px-0">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="font-bold text-white">{block.name}</h2>
-                      <p className="text-cream/60 text-xs">{block.time}</p>
+                      <h2 className="font-bold text-white print:text-charcoal">{block.name}</h2>
+                      <p className="text-cream/60 text-xs print:text-charcoal">{block.time}</p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 print:hidden">
                       {/* Bulk assign button */}
                       <div className="relative">
                         <button
@@ -700,7 +722,7 @@ export default function TasksPage() {
                   )}
                   <button
                     onClick={() => openAdd(block.name)}
-                    className="mt-1 w-full inline-flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-sidebar border-2 border-dashed border-card-border rounded-lg hover:border-sidebar hover:bg-sidebar/5 transition-colors"
+                    className="print:hidden mt-1 w-full inline-flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-sidebar border-2 border-dashed border-card-border rounded-lg hover:border-sidebar hover:bg-sidebar/5 transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Add to {block.name}
@@ -724,9 +746,9 @@ export default function TasksPage() {
                   key={group.animal}
                   className="bg-white rounded-xl border border-card-border overflow-hidden"
                 >
-                  <div className="bg-sidebar px-5 py-3 flex items-center justify-between">
-                    <h2 className="font-bold text-white">{group.animal}</h2>
-                    <span className="text-cream/70 text-sm font-medium">
+                  <div className="bg-sidebar px-5 py-3 flex items-center justify-between print:bg-transparent print:border-b-2 print:border-charcoal print:px-0">
+                    <h2 className="font-bold text-white print:text-charcoal">{group.animal}</h2>
+                    <span className="text-cream/70 text-sm font-medium print:text-charcoal">
                       {done}/{total}
                     </span>
                   </div>
@@ -788,7 +810,7 @@ export default function TasksPage() {
               const total = items.length;
               return (
                 <div key={name} className="bg-white rounded-xl border border-card-border overflow-hidden">
-                  <div className="bg-sidebar px-5 py-3 flex items-center justify-between">
+                  <div className="bg-sidebar px-5 py-3 flex items-center justify-between print:bg-transparent print:border-b-2 print:border-charcoal print:px-0">
                     <div className="flex items-center gap-2">
                       <span
                         className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white ${
@@ -797,9 +819,9 @@ export default function TasksPage() {
                       >
                         {member?.initials || name.slice(0, 2)}
                       </span>
-                      <h2 className="font-bold text-white">{name}</h2>
+                      <h2 className="font-bold text-white print:text-charcoal">{name}</h2>
                     </div>
-                    <span className="text-cream/70 text-sm font-medium">
+                    <span className="text-cream/70 text-sm font-medium print:text-charcoal">
                       {done}/{total}
                     </span>
                   </div>
@@ -839,10 +861,12 @@ export default function TasksPage() {
       )}
 
       {/* Upcoming (future-dated) tasks */}
-      <UpcomingTasksCard />
+      <div className="print:hidden">
+        <UpcomingTasksCard />
+      </div>
 
       {/* Info cards row */}
-      <div className="grid sm:grid-cols-2 gap-4">
+      <div className="grid sm:grid-cols-2 gap-4 print:hidden">
         <div className="bg-white rounded-xl border border-card-border p-5">
           <h3 className="font-bold text-charcoal mb-3 flex items-center gap-2">
             <RotateCcw className="w-4 h-4 text-sky" />
@@ -1167,7 +1191,7 @@ function TaskRow({
       onDragEnd={() => onDragEnd?.()}
       onDragOver={onDragOverRow}
       onDrop={onDropRow}
-      className={`group relative flex items-start gap-3 p-3 rounded-lg transition-all text-left ${
+      className={`group relative flex items-start gap-3 p-3 rounded-lg transition-all text-left break-inside-avoid ${
         draggable ? "cursor-grab active:cursor-grabbing" : ""
       } ${
         isDropTarget ? "ring-2 ring-sidebar/40 " : ""
@@ -1177,9 +1201,14 @@ function TaskRow({
           : "bg-cream/30 border border-card-border hover:border-sand"
       }`}
     >
+      {/* Print-only done marker — the styled checkbox relies on background
+          colors that don't print. */}
+      <span className="hidden print:inline-block shrink-0 mt-0.5 text-base leading-5 font-bold text-charcoal">
+        {task.done ? "✓" : "☐"}
+      </span>
       <button
         onClick={onToggle}
-        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
+        className={`print:hidden w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
           task.done
             ? "bg-emerald-500 border-emerald-500"
             : "border-card-border hover:border-sand"
@@ -1235,6 +1264,12 @@ function TaskRow({
         {task.note && (
           <p className="text-[11px] text-warm-gray mt-0.5 italic">
             {task.note}
+          </p>
+        )}
+        {/* Print-only assignee names (the colored chips don't print) */}
+        {getAssignees(task).length > 0 && (
+          <p className="hidden print:block text-[11px] text-charcoal mt-0.5">
+            Assigned: {getAssignees(task).join(", ")}
           </p>
         )}
         {/* Assign chips */}

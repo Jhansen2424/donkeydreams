@@ -783,7 +783,7 @@ export const importedVaccinationEntries: MedicalEntry[] = [
 
 // Dated observations from the checklist's Notes column.
 export const checklistNoteEntries: MedicalEntry[] = [
-  { id: "med-note-0", animal: "Amira", type: "Condition", title: "Note", date: "2026-08-27", description: "Needs Rabies Vax", urgent: false },
+  { id: "med-note-0", animal: "Amira", type: "Condition", title: "Note", date: "2026-09-02", description: "Needs Rabies Vax", urgent: false },
   { id: "med-note-1", animal: "Asher", type: "Condition", title: "Note", date: "2025-11-10", description: "Visual of small round worms in herd manure", urgent: false },
   { id: "med-note-2", animal: "Danny Boy", type: "Condition", title: "Note", date: "2025-11-10", description: "Visual of small round worms in herd manure", urgent: false },
   { id: "med-note-3", animal: "Finn", type: "Condition", title: "Note", date: "2025-11-10", description: "Visual of small round worms in herd manure", urgent: false },
@@ -793,7 +793,7 @@ export const checklistNoteEntries: MedicalEntry[] = [
   { id: "med-note-7", animal: "Merida", type: "Condition", title: "Note", date: "2025-11-10", description: "Visual of small round worms in herd manure", urgent: false },
   { id: "med-note-8", animal: "Ophelia", type: "Condition", title: "Note", date: "2025-11-10", description: "Visual of small round worms in herd manure", urgent: false },
   { id: "med-note-9", animal: "Seraphina", type: "Condition", title: "Note", date: "2025-11-10", description: "Visual of small round worms in herd manure", urgent: false },
-  { id: "med-note-10", animal: "Star", type: "Condition", title: "Note", date: "2026-08-27", description: "Needs Booster 7/19/26", urgent: false },
+  { id: "med-note-10", animal: "Star", type: "Condition", title: "Note", date: "2026-09-02", description: "Needs Booster 7/19/26", urgent: false },
   { id: "med-note-11", animal: "Gracie", type: "Condition", title: "Note", date: "2025-11-10", description: "Visual of small round worms in herd manure", urgent: false },
   { id: "med-note-12", animal: "Elanora", type: "Condition", title: "Note", date: "2025-11-10", description: "Visual of small round worms in herd manure", urgent: false },
 ];
@@ -808,10 +808,7 @@ export interface YardWideDeworming {
 // Yard-wide dosing schedule (dashboard widget). Per-donkey doses live in each
 // donkey's own history above, so these are NOT expanded into per-animal rows.
 export const yardWideDewormings: YardWideDeworming[] = [
-  { id: "yard-0", date: "2025-12-24", drug: "Ivermectin", dose: "Single Dose (0.2 mg/kg)" },
-  { id: "yard-1", date: "2025-10-25", drug: "Fenbendazole", dose: "5-day Power Pack (5 mg/kg/day)" },
-  { id: "yard-2", date: "2025-08-26", drug: "Moxidectin", dose: "Single Dose (0.2 mg/kg)" },
-  { id: "yard-3", date: "2025-06-27", drug: "Pyrantel Pamoate", dose: "Single Dose (6.6 mg/kg)" },
+
 ];
 
 // ── Next-vaccination dates per donkey (Next Vaccination column) ──

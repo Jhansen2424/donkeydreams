@@ -63,9 +63,9 @@ export default async function AppLayout({
               <AnimalsProvider>
               <div className="min-h-screen bg-cream">
                 <Sidebar />
-                <div className="md:ml-64 flex flex-col min-h-screen">
+                <div className="md:ml-64 print:ml-0 flex flex-col min-h-screen">
                   <TopBar firstName={firstName} />
-                  <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
+                  <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6 print:p-0">
                     {children}
                   </main>
                 </div>

@@ -42,6 +42,10 @@ model Animal {
   galleryImages   String[] @default([])
   traits          String[] @default([])
   bestFriends     String[] @default([])
+  // Family links (donkey names). Seeded from the adoption sheet's
+  // Relationships column; editable in-app since relationships change.
+  parents         String[] @default([])
+  children        String[] @default([])
   // Next scheduled care dates — set by hoof/dental logging + Joshy voice commands.
   nextHoofDue     String?
   nextDentalDue   String?

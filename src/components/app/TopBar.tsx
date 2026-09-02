@@ -66,14 +66,14 @@ export default function TopBar({ firstName }: { firstName?: string }) {
 
   return (
     <>
-      <header className="bg-white border-b border-card-border px-4 sm:px-6 lg:px-8 py-4">
+      <header className="print:hidden bg-white border-b border-card-border px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h2 className="text-2xl sm:text-3xl font-bold text-charcoal">
               {greetingLine} 👋
             </h2>
             <p className="text-warm-gray text-sm mt-0.5">
-              {format(today, "EEEE, MMMM d, yyyy")} · Scenic, AZ
+              {format(today, "EEEE, MMMM d, yyyy")} · Kingman, AZ
             </p>
           </div>
 
@@ -147,7 +147,7 @@ export default function TopBar({ firstName }: { firstName?: string }) {
       {/* Mobile floating action button */}
       <button
         onClick={() => setQuickInputOpen(true)}
-        className="md:hidden fixed bottom-20 right-4 z-30 w-14 h-14 bg-sidebar text-white rounded-full shadow-lg flex items-center justify-center hover:bg-sidebar-light transition-colors active:scale-95"
+        className="md:hidden print:hidden fixed bottom-20 right-4 z-30 w-14 h-14 bg-sidebar text-white rounded-full shadow-lg flex items-center justify-center hover:bg-sidebar-light transition-colors active:scale-95"
         aria-label="Add Note"
       >
         <Mic className="w-6 h-6" />

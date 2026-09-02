@@ -45,6 +45,8 @@ async function main() {
           intakeDate: p.intakeDate ?? "",
           adoptedFrom: p.adoptedFrom,
           bestFriends: p.bondedWith,
+          parents: p.parents,
+          children: p.children,
         },
       });
     }

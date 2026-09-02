@@ -43,7 +43,7 @@ export default function MobileNav() {
     <>
       {/* More menu overlay */}
       {moreOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
+        <div className="fixed inset-0 z-50 md:hidden print:hidden">
           <div
             className="absolute inset-0 bg-black/40"
             onClick={() => setMoreOpen(false)}
@@ -64,7 +64,7 @@ export default function MobileNav() {
       )}
 
       {/* Bottom tab bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white border-t border-card-border">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden print:hidden bg-white border-t border-card-border">
         <div className="flex items-center justify-around h-16">
           {tabs.map((tab) => {
             const isMore = tab.href === "#more";

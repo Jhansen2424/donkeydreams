@@ -44,6 +44,8 @@ interface ApiAnimal {
   behavioralNotes: string;
   traits: string[];
   bestFriends: string[];
+  parents: string[];
+  children: string[];
   profileImage: string | null;
   galleryImages: string[];
   nextHoofDue: string | null;
@@ -63,6 +65,8 @@ export type AnimalPatch = Partial<
     | "traits"
     | "story"
     | "bestFriends"
+    | "parents"
+    | "children"
     | "behavioralNotes"
     | "sponsorable"
     | "profileImage"
@@ -109,6 +113,8 @@ function overlay(base: Animal, row: ApiAnimal): Animal {
     traits: row.traits,
     story: row.story,
     bestFriends: row.bestFriends,
+    parents: row.parents,
+    children: row.children,
     behavioralNotes: row.behavioralNotes,
     sponsorable: row.sponsorable,
     profileImage: row.profileImage ?? base.profileImage,
@@ -132,6 +138,8 @@ function fromDbOnly(row: ApiAnimal): Animal {
     tags: [],
     traits: row.traits,
     bestFriends: row.bestFriends,
+    parents: row.parents,
+    children: row.children,
     profileImage: row.profileImage ?? undefined,
     galleryImages: row.galleryImages,
     tagline: row.tagline,

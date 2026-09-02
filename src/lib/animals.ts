@@ -61,6 +61,30 @@ function slug(name: string) {
     .replace(/[^a-z0-9-]/g, "");
 }
 
+// Age computed from the birth date at load time, NOT the age string baked in
+// at import time — so donkeys tick over on their birthdays without waiting
+// for the next spreadsheet import. Falls back to the imported string when no
+// birth date is on file.
+function liveAge(birthDateIso: string | null | undefined, fallback: string): string {
+  if (!birthDateIso) return fallback;
+  const birth = new Date(birthDateIso + "T00:00:00");
+  if (Number.isNaN(birth.getTime())) return fallback;
+  const today = new Date();
+  let years = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    years--;
+  }
+  if (years < 1) {
+    const months = Math.max(
+      1,
+      Math.round((today.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24 * 30))
+    );
+    return `${months} mo old`;
+  }
+  return `${years} yr old`;
+}
+
 // Upcoming medical events (for dashboard).
 // 2026-08-24: blank slate — the hardcoded placeholder events were removed.
 // The dashboard falls back to this array only when the DB has no upcoming
@@ -121,7 +145,7 @@ function makeDonkey(
   const base: Animal = {
     name,
     slug: slug(name),
-    age: profile?.age ?? "",
+    age: liveAge(profile?.birthDate, profile?.age ?? ""),
     sex: profile?.sex ?? "",
     origin: profile?.origin ?? "",
     status,

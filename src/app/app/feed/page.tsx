@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, AlertCircle, Plus, X, Check, Trash2, Pencil } from "lucide-react";
+import { Search, AlertCircle, Plus, X, Check, Trash2, Pencil, Printer } from "lucide-react";
 import type { FeedSchedule } from "@/lib/sanctuary-data";
 import { useAnimals } from "@/lib/animals-context";
 import { useParkingLot } from "@/lib/parking-lot-context";
+import { formatDate } from "@/lib/format-date";
 
 const noteStyles: Record<string, { bg: string; border: string; text: string; icon: string }> = {
   daily: { bg: "bg-sky/5", border: "border-sky/20", text: "text-charcoal", icon: "text-sky" },
@@ -147,8 +148,18 @@ export default function FeedPage() {
 
   return (
     <div className="space-y-6">
+      {/* Print-only heading */}
+      <div className="hidden print:block border-b-2 border-charcoal pb-2">
+        <h1 className="text-2xl font-bold text-charcoal">
+          Feed Plans — {formatDate(new Date())}
+        </h1>
+        <p className="text-sm text-charcoal mt-0.5">
+          {schedules.length} donkeys with custom feed plans
+        </p>
+      </div>
+
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 print:hidden">
         <div>
           <h1 className="text-2xl font-bold text-charcoal">
             Daily Feed Plans
@@ -158,6 +169,14 @@ export default function FeedPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-card-border rounded-lg text-sm font-medium text-charcoal hover:bg-cream transition-colors"
+            title="Print the feed plans (or save as PDF)"
+          >
+            <Printer className="w-4 h-4" />
+            Print
+          </button>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-gray/50" />
             <input
@@ -188,7 +207,7 @@ export default function FeedPage() {
       />
 
       {/* Herd filter chips */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1.5 print:hidden">
         <button
           onClick={() => setHerdFilter("all")}
           className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
@@ -236,7 +255,7 @@ export default function FeedPage() {
                     {items.length > 0 ? `${items.length} donkey plan${items.length === 1 ? "" : "s"}` : ""}
                   </span>
                 </div>
-                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 print:grid-cols-2 print:gap-3">
                   {herdPlan && (
                     <FeedCard
                       key={`herd-${herd}`}
@@ -276,7 +295,7 @@ export default function FeedPage() {
           })}
         </div>
       ) : (
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 print:grid-cols-2 print:gap-3">
           {filtered.map((schedule) => (
             <FeedCard
               key={schedule.animal}
@@ -381,12 +400,27 @@ function FeedCard({
     { label: "PM", items: schedule.plan.pm, color: "bg-purple-500" },
   ];
   const rows = getItemRows(schedule, herdPlan ?? null);
+  // Link the card title to the donkey's profile (herd cards have none).
+  const { animals } = useAnimals();
+  const profileSlug = isHerd
+    ? null
+    : animals.find((a) => a.name === schedule.animal)?.slug ?? null;
 
   return (
-    <div className="group bg-white rounded-xl border border-card-border overflow-hidden">
-      <div className={`${isHerd ? "bg-sky" : "bg-sidebar"} px-4 py-3 flex items-center justify-between`}>
-        <h3 className="font-bold text-white">{schedule.animal}</h3>
-        <div className="flex items-center gap-2">
+    <div className="group bg-white rounded-xl border border-card-border overflow-hidden break-inside-avoid">
+      <div className={`${isHerd ? "bg-sky" : "bg-sidebar"} px-4 py-3 flex items-center justify-between print:bg-transparent print:border-b-2 print:border-charcoal`}>
+        {profileSlug ? (
+          <a
+            href={`/app/animals/${profileSlug}`}
+            className="font-bold text-white hover:underline print:text-charcoal"
+            title={`Open ${schedule.animal}'s profile`}
+          >
+            {schedule.animal}
+          </a>
+        ) : (
+          <h3 className="font-bold text-white print:text-charcoal">{schedule.animal}</h3>
+        )}
+        <div className="flex items-center gap-2 print:hidden">
           <div className="flex gap-1">
             {meals.map((m) => (
               <span
@@ -572,7 +606,7 @@ function FeedPlanModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 print:hidden"
       onClick={onClose}
     >
       <div
@@ -796,7 +830,7 @@ function FeedNotesSection({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-3 flex-wrap print:hidden">
         <span className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60">Legend:</span>
         {Object.entries(noteStyles).map(([key, style]) => (
           <span key={key} className="inline-flex items-center gap-1.5 text-xs text-warm-gray">
@@ -832,7 +866,7 @@ function FeedNotesSection({
       })}
 
       {/* Add note */}
-      <div className="flex items-center gap-2 p-2 bg-white border border-card-border rounded-lg">
+      <div className="flex items-center gap-2 p-2 bg-white border border-card-border rounded-lg print:hidden">
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

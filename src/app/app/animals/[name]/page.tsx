@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -16,6 +16,7 @@ import {
   Handshake,
   Mail,
   Trash2,
+  Printer,
 } from "lucide-react";
 import { type Animal } from "@/lib/animals";
 import { useAnimals } from "@/lib/animals-context";
@@ -39,6 +40,7 @@ import { getTrimProfile, type TrimProfile } from "@/lib/trimming-data";
 import { getDewormingDosage } from "@/lib/power-pack-data";
 import { getDonkeyWeight } from "@/lib/scheduled-and-events-data";
 import TrimPhotos from "@/components/app/TrimPhotos";
+import { compressImage } from "@/lib/trim-photos";
 import {
   getSponsorsForAnimal,
   tierMeta,
@@ -83,14 +85,20 @@ export default function AnimalProfilePage() {
     story: string; // newline-joined for the textarea
     traits: string; // comma-joined
     bestFriends: string; // comma-joined
+    parents: string; // comma-joined
+    children: string; // comma-joined
     // Identity dropdown fields. Empty string = "no selection / clear value".
     sex: string;
     size: string;
     color: string;
     herd: string;
+    pen: string;
+    adoptedFrom: string;
   };
   const [draft, setDraft] = useState<ProfileDraft | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const { toastSuccess: profileToastSuccess, toastError: profileToastError } = useToast();
 
   // Keep `activeTab` in sync with URL changes (e.g. back/forward navigation).
@@ -129,6 +137,16 @@ export default function AnimalProfilePage() {
           All Animals
         </button>
         <div className="flex items-center gap-2">
+          {!editing && (
+            <a
+              href={`/app/print/animals?animal=${animal.slug}`}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-white border border-card-border text-charcoal hover:bg-cream transition-colors"
+              title="Print this profile / save as PDF"
+            >
+              <Printer className="w-4 h-4" />
+              Print
+            </a>
+          )}
           {editing && (
             <button
               onClick={() => {
@@ -151,10 +169,14 @@ export default function AnimalProfilePage() {
                   story: (animal.story ?? []).join("\n\n"),
                   traits: (animal.traits ?? []).join(", "),
                   bestFriends: (animal.bestFriends ?? []).join(", "),
+                  parents: (animal.parents ?? []).join(", "),
+                  children: (animal.children ?? []).join(", "),
                   sex: animal.sex ?? "",
                   size: animal.size ?? "",
                   color: animal.color ?? "",
                   herd: animal.herd ?? "",
+                  pen: animal.pen ?? "",
+                  adoptedFrom: animal.adoptedFrom ?? "",
                 });
                 setEditing(true);
                 return;
@@ -183,6 +205,12 @@ export default function AnimalProfilePage() {
                   nextFriends.join("|") !== (animal.bestFriends ?? []).join("|")
                 )
                   payload.bestFriends = nextFriends;
+                const nextParents = splitList(draft.parents);
+                if (nextParents.join("|") !== (animal.parents ?? []).join("|"))
+                  payload.parents = nextParents;
+                const nextChildren = splitList(draft.children);
+                if (nextChildren.join("|") !== (animal.children ?? []).join("|"))
+                  payload.children = nextChildren;
                 const nextStory = splitStory(draft.story);
                 if (nextStory.join("|") !== (animal.story ?? []).join("|"))
                   payload.story = nextStory;
@@ -198,6 +226,10 @@ export default function AnimalProfilePage() {
                   payload.color = draft.color;
                 if (draft.herd !== (animal.herd ?? ""))
                   payload.herd = draft.herd;
+                if (draft.pen !== (animal.pen ?? ""))
+                  payload.pen = draft.pen;
+                if (draft.adoptedFrom !== (animal.adoptedFrom ?? ""))
+                  payload.adoptedFrom = draft.adoptedFrom;
                 if (Object.keys(payload).length <= 1) {
                   // No changes to save — just exit edit mode.
                   setEditing(false);
@@ -244,7 +276,7 @@ export default function AnimalProfilePage() {
       <div className="bg-white rounded-xl border border-card-border overflow-hidden">
         <div className="md:flex">
           {/* Photo */}
-          <div className="md:w-80 shrink-0 aspect-square md:aspect-auto bg-cream overflow-hidden">
+          <div className="relative md:w-80 shrink-0 aspect-square md:aspect-auto bg-cream overflow-hidden">
             {animal.profileImage ? (
               <img
                 src={animal.profileImage}
@@ -256,6 +288,41 @@ export default function AnimalProfilePage() {
                 <span className="text-7xl">🫏</span>
               </div>
             )}
+            {/* Profile-pic picker — on phones accept="image/*" opens the
+                native Take Photo / Photo Library sheet. The image is
+                compressed client-side to a small JPEG so the roster payload
+                stays light. */}
+            <button
+              onClick={() => photoInputRef.current?.click()}
+              disabled={uploadingPhoto}
+              className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 px-3 py-2 bg-black/60 text-white text-xs font-semibold rounded-lg hover:bg-black/75 transition-colors disabled:opacity-60 print:hidden"
+              title="Set profile photo"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              {uploadingPhoto ? "Saving…" : animal.profileImage ? "Change photo" : "Add photo"}
+            </button>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (!file) return;
+                setUploadingPhoto(true);
+                try {
+                  const dataUrl = await compressImage(file, 640, 0.6);
+                  const ok = await updateAnimal(animal.name, { profileImage: dataUrl });
+                  if (ok) profileToastSuccess(`Updated ${animal.name}'s profile photo.`);
+                  else profileToastError("Could not save the photo. Try again.");
+                } catch {
+                  profileToastError("Could not read that image file.");
+                } finally {
+                  setUploadingPhoto(false);
+                }
+              }}
+            />
           </div>
 
           {/* Info */}
@@ -306,7 +373,12 @@ export default function AnimalProfilePage() {
                 allowNew="New herd…"
                 onChange={(next) => draft && setDraft({ ...draft, herd: next })}
               />
-              <InfoItem label="Enclosure" value={animal.pen} editing={editing} />
+              <InfoItem
+                label="Enclosure"
+                value={editing && draft ? draft.pen : animal.pen}
+                editing={editing}
+                onChange={(next) => draft && setDraft({ ...draft, pen: next })}
+              />
               <InfoItem
                 label="Intake Date"
                 // ISO date strings get formatted MM-DD-YYYY for display;
@@ -319,7 +391,12 @@ export default function AnimalProfilePage() {
                 }
                 editing={editing}
               />
-              <InfoItem label="Adopted From" value={animal.adoptedFrom} editing={editing} />
+              <InfoItem
+                label="Adopted From"
+                value={editing && draft ? draft.adoptedFrom : animal.adoptedFrom}
+                editing={editing}
+                onChange={(next) => draft && setDraft({ ...draft, adoptedFrom: next })}
+              />
             </div>
 
             {/* Hoof / Dental at-a-glance summary */}
@@ -471,23 +548,29 @@ function InfoItem({
   label,
   value,
   editing,
+  onChange,
 }: {
   label: string;
   value: string;
   editing: boolean;
+  /** When provided, the field is editable in edit mode (controlled input).
+      Without it the value renders as plain text even while editing — a
+      dead input that silently discards typing is worse than no input. */
+  onChange?: (next: string) => void;
 }) {
   return (
     <div>
       <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">
         {label}
       </p>
-      {editing ? (
+      {editing && onChange ? (
         <input
-          defaultValue={value}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
           className="w-full px-2 py-1 text-sm border border-card-border rounded-md text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
         />
       ) : (
-        <p className="text-sm font-medium text-charcoal">{value}</p>
+        <p className="text-sm font-medium text-charcoal">{value || "—"}</p>
       )}
     </div>
   );
@@ -559,12 +642,16 @@ type ProfileDraftShape = {
   story: string;
   traits: string;
   bestFriends: string;
+  parents: string;
+  children: string;
   // Identity dropdown fields (Sex / Size / Color / Herd). Empty string means
   // unset — keeps the value off the PATCH payload.
   sex: string;
   size: string;
   color: string;
   herd: string;
+  pen: string;
+  adoptedFrom: string;
 };
 
 function OverviewTab({
@@ -660,37 +747,53 @@ function OverviewTab({
           )}
         </div>
 
-        {/* Relationships — three groups: Parents, Children, Friends. Replaces */}
-        {/* the old "Best Friends" card. Parents and Children come from the    */}
-        {/* adoption CSV's parsed Notes (read-only here — they reflect family  */}
-        {/* tree from the source data). Friends is the editable list (was the  */}
-        {/* `bestFriends` field) and uses the comma-separated input on edit.  */}
+        {/* Relationships — three groups: Parents, Children, Friends. All
+            three are editable (relationships change: births, bonding,
+            departures) via chip editors backed by parents/children/
+            bestFriends on the Animal row. Relationship notes from the
+            Relationships tab surface here too. */}
         <div className="bg-white rounded-xl border border-card-border p-5 space-y-3">
           <h3 className="font-bold text-charcoal">Relationships</h3>
 
-          {animal.parents && animal.parents.length > 0 && (
+          {(editing || (animal.parents && animal.parents.length > 0)) && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1.5">
-                Parent{animal.parents.length > 1 ? "s" : ""}
+                Parents
               </p>
-              <div className="flex flex-wrap gap-1.5">
-                {animal.parents.map((p) => (
-                  <FamilyChip key={p} name={p} />
-                ))}
-              </div>
+              {editing && draft ? (
+                <ChipListEditor
+                  value={draft.parents}
+                  onChange={(next) => patchDraft({ parents: next })}
+                  placeholder="Add parent…"
+                />
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {(animal.parents ?? []).map((p) => (
+                    <FamilyChip key={p} name={p} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          {animal.children && animal.children.length > 0 && (
+          {(editing || (animal.children && animal.children.length > 0)) && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1.5">
-                {animal.children.length === 1 ? "Child" : "Children"}
+                Children
               </p>
-              <div className="flex flex-wrap gap-1.5">
-                {animal.children.map((c) => (
-                  <FamilyChip key={c} name={c} />
-                ))}
-              </div>
+              {editing && draft ? (
+                <ChipListEditor
+                  value={draft.children}
+                  onChange={(next) => patchDraft({ children: next })}
+                  placeholder="Add child…"
+                />
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {(animal.children ?? []).map((c) => (
+                    <FamilyChip key={c} name={c} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -699,28 +802,23 @@ function OverviewTab({
               Friends
             </p>
             {editing && draft ? (
-              <input
+              <ChipListEditor
                 value={draft.bestFriends}
-                onChange={(e) => patchDraft({ bestFriends: e.target.value })}
-                placeholder="Comma-separated donkey names (Pink, Eli…)"
-                className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+                onChange={(next) => patchDraft({ bestFriends: next })}
+                placeholder="Add friend…"
               />
             ) : animal.bestFriends.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
                 {animal.bestFriends.map((friend) => (
-                  <span
-                    key={friend}
-                    className="inline-flex items-center gap-1.5 text-sm bg-sky/10 text-sky-dark px-3 py-1.5 rounded-full font-medium"
-                  >
-                    <Heart className="w-3 h-3 fill-current" />
-                    {friend}
-                  </span>
+                  <FamilyChip key={friend} name={friend} bonded />
                 ))}
               </div>
             ) : (
               <p className="text-sm text-warm-gray/60 italic">No friends recorded yet.</p>
             )}
           </div>
+
+          <RelationshipNotes animalName={animal.name} />
         </div>
           {/* Sponsor info */}
           <SponsorCard animal={animal} />
@@ -826,6 +924,118 @@ function FamilyChip({ name, bonded = false }: { name: string; bonded?: boolean }
     <span className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-full ${cls} opacity-60`}>
       {name}
     </span>
+  );
+}
+
+/* ── Chip-list editor ──
+   Edits a comma-joined name list (the ProfileDraft representation) as
+   removable chips plus an add box with a datalist of real donkey names, so
+   staff pick actual roster animals instead of free-typing names that the
+   FamilyChip linker can't resolve. */
+function ChipListEditor({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string; // comma-joined
+  onChange: (next: string) => void;
+  placeholder: string;
+}) {
+  const { animals } = useAnimals();
+  const [pending, setPending] = useState("");
+  const names = value.split(",").map((s) => s.trim()).filter(Boolean);
+
+  const add = () => {
+    const n = pending.trim();
+    if (!n) return;
+    if (!names.some((x) => x.toLowerCase() === n.toLowerCase())) {
+      onChange([...names, n].join(", "));
+    }
+    setPending("");
+  };
+
+  return (
+    <div className="space-y-2">
+      {names.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {names.map((n) => (
+            <span
+              key={n}
+              className="inline-flex items-center gap-1 text-sm bg-cream text-charcoal px-2.5 py-1 rounded-full font-medium"
+            >
+              {n}
+              <button
+                onClick={() => onChange(names.filter((x) => x !== n).join(", "))}
+                className="text-warm-gray/60 hover:text-red-500"
+                aria-label={`Remove ${n}`}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-1.5">
+        <input
+          list="chip-editor-animal-list"
+          value={pending}
+          onChange={(e) => setPending(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+          placeholder={placeholder}
+          className="flex-1 px-3 py-1.5 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+        />
+        <button
+          onClick={add}
+          disabled={!pending.trim()}
+          className="px-3 py-1.5 text-sm font-semibold bg-cream text-charcoal rounded-lg hover:bg-sand/30 disabled:opacity-40"
+        >
+          Add
+        </button>
+      </div>
+      <datalist id="chip-editor-animal-list">
+        {animals.map((a) => (
+          <option key={a.slug} value={a.name} />
+        ))}
+      </datalist>
+    </div>
+  );
+}
+
+/* ── Relationship notes ──
+   Notes written on the Relationships tab (parking-lot entries tagged
+   title:"relationship") — surfaced on the overview card too so they're
+   visible where staff actually look. */
+function RelationshipNotes({ animalName }: { animalName: string }) {
+  const { entries } = useParkingLot();
+  const notes = entries.filter(
+    (e) =>
+      e.type === "note" &&
+      !e.resolved &&
+      e.data?.animal === animalName &&
+      e.data?.title === "relationship"
+  );
+  if (notes.length === 0) return null;
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1.5">
+        Notes
+      </p>
+      <div className="space-y-1.5">
+        {notes.map((n) => (
+          <p
+            key={n.id}
+            className="text-sm text-warm-gray leading-relaxed bg-cream/50 rounded-lg px-3 py-2"
+          >
+            {n.text}
+          </p>
+        ))}
+      </div>
+    </div>
   );
 }
 
