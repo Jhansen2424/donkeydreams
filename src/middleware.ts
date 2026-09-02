@@ -82,6 +82,7 @@ export const config = {
     "/api/animals/:path*",
     "/api/calendar/:path*",
     "/api/dental-visits/:path*",
+    "/api/documents/:path*",
     "/api/feed/:path*",
     "/api/hoof-visits/:path*",
     "/api/joshy/:path*",

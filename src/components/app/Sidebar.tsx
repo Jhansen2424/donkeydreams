@@ -20,6 +20,7 @@ import {
   Inbox,
   Sparkles,
   Map as MapIcon,
+  FolderOpen,
 } from "lucide-react";
 import SignOutButton from "@/components/app/SignOutButton";
 import { useParkingLot, type EntryType } from "@/lib/parking-lot-context";
@@ -53,7 +54,7 @@ const navGroups = [
   {
     label: "Operations",
     items: [
-
+      { name: "Documents", href: "/app/documents", icon: FolderOpen },
       { name: "Admin", href: "/app/admin", icon: Users },
       { name: "Donations", href: "/app/donations", icon: DollarSign },
       { name: "Events / Visitors / Schedule", href: "/app/events", icon: CalendarDays },

@@ -344,6 +344,42 @@ model TrimProfileOverride {
   updatedAt DateTime @updatedAt
 }
 
+// ── Documents ──
+//
+// Drive-style file storage: nested folders + files. File bytes live in the
+// DB (bytea) — fine for the PDFs/scans/spreadsheets a sanctuary keeps, with
+// a per-file size cap enforced by the API. Swap `data` for object-storage
+// URLs if large media ever becomes a need.
+
+model DocumentFolder {
+  id       String  @id @default(cuid())
+  name     String
+  parentId String? // null = root
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([parentId])
+}
+
+model Document {
+  id         String @id @default(cuid())
+  name       String
+  folderId   String? // null = root
+  mimeType   String  @default("application/octet-stream")
+  size       Int     @default(0) // decoded byte length
+  // File content as base64 TEXT — deliberate: the Neon HTTP driver
+  // double-encodes Prisma `Bytes` (the base64 transport string lands in the
+  // column verbatim), so we own the encoding explicitly instead.
+  data       String
+  uploadedBy String  @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([folderId])
+}
+
 // ── Map Pens ──
 //
 // Physical pen boundaries drawn on the map page. Each pen belongs to a herd
