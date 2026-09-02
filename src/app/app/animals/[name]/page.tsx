@@ -17,6 +17,8 @@ import {
   Mail,
   Trash2,
   Printer,
+  Footprints,
+  Plus,
 } from "lucide-react";
 import { type Animal } from "@/lib/animals";
 import { useAnimals } from "@/lib/animals-context";
@@ -33,6 +35,7 @@ import {
 } from "@/lib/medical-data";
 import { useMedical } from "@/lib/medical-context";
 import { useParkingLot } from "@/lib/parking-lot-context";
+import { useProviders } from "@/lib/providers-context";
 import { useToast } from "@/lib/toast-context";
 import { formatDate as sharedFormatDate } from "@/lib/format-date";
 import type { CareVisit } from "@/lib/hoof-dental-data";
@@ -50,6 +53,7 @@ import {
 const tabs = [
   { id: "overview", label: "Overview", icon: Heart },
   { id: "medical", label: "Medical", icon: Stethoscope },
+  { id: "hoof", label: "Hoof Care", icon: Footprints },
   { id: "tasks", label: "Daily Care", icon: ClipboardCheck },
   { id: "relationships", label: "Relationships", icon: Users },
   { id: "photos", label: "Photos", icon: Camera },
@@ -408,8 +412,12 @@ export default function AnimalProfilePage() {
               />
             </div>
 
-            {/* Hoof / Dental at-a-glance summary */}
-            <HoofDentalSummary animal={animal} />
+            {/* Hoof / Dental at-a-glance summary — click through to the
+                editable Hoof Care tab */}
+            <HoofDentalSummary
+              animal={animal}
+              onOpen={() => setActiveTab("hoof")}
+            />
 
             {/* Tags + adoption status badges */}
             <div className="flex flex-wrap gap-1.5">
@@ -469,6 +477,7 @@ export default function AnimalProfilePage() {
           />
         )}
         {activeTab === "medical" && <MedicalTab animal={animal} />}
+        {activeTab === "hoof" && <HoofCareTab animal={animal} />}
         {activeTab === "tasks" && <TasksTab animal={animal} />}
         {activeTab === "relationships" && <RelationshipsTab animal={animal} />}
         {activeTab === "photos" && <PhotosTab animal={animal} />}
@@ -1149,13 +1158,12 @@ function MedicalTypeBadge({ type }: { type: MedicalRecordType }) {
 // Re-export so JSX call sites don't need to change.
 const formatRecordDate = sharedFormatDate;
 
-type MedicalSubTab = "all" | "deworming" | "vaccinations" | "hoof-trims" | "fecal-tests" | "other";
+type MedicalSubTab = "all" | "deworming" | "vaccinations" | "fecal-tests" | "other";
 
 const medicalSubTabs: { id: MedicalSubTab; label: string }[] = [
   { id: "all", label: "All" },
   { id: "deworming", label: "Deworming" },
   { id: "vaccinations", label: "Vaccinations" },
-  { id: "hoof-trims", label: "Hoof Trims" },
   { id: "fecal-tests", label: "Fecal Tests" },
   { id: "other", label: "Other" },
 ];
@@ -1327,8 +1335,8 @@ function MedicalTab({ animal }: { animal: Animal }) {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   })();
   // Allow deep-linking to a specific medical sub-tab via `?sub=...` (e.g. the
-  // hoof-dental page links here with `?tab=medical&sub=hoof-trims` so staff
-  // can edit trim protocols without hunting through the UI).
+  // medical dashboard can link straight to a sub-tab; hoof care now has its
+  // own top-level profile tab at ?tab=hoof).
   const initialSubTab = (() => {
     const s = searchParams?.get("sub");
     return s && medicalSubTabs.some((t) => t.id === s)
@@ -1336,7 +1344,6 @@ function MedicalTab({ animal }: { animal: Animal }) {
       : "all";
   })();
   const [subTab, setSubTab] = useState<MedicalSubTab>(initialSubTab);
-  const [showAllTrims, setShowAllTrims] = useState(false);
 
   // Keep `subTab` in sync with URL changes (e.g. back/forward navigation).
   useEffect(() => {
@@ -1369,8 +1376,6 @@ function MedicalTab({ animal }: { animal: Animal }) {
       cancelled = true;
     };
   }, [animal.name]);
-  const trimProfile = getTrimProfile(animal.name);
-  const visibleTrims = showAllTrims ? hoofVisits : hoofVisits.slice(0, 5);
   const dewormingDosage = getDewormingDosage(animal.name);
   const donkeyWeight = getDonkeyWeight(animal.name);
 
@@ -1379,7 +1384,6 @@ function MedicalTab({ animal }: { animal: Animal }) {
     if (subTab === "deworming") return r.type === "Deworming";
     if (subTab === "vaccinations") return r.type === "Vaccination";
     if (subTab === "fecal-tests") return r.type === "Fecal Test";
-    if (subTab === "hoof-trims") return false; // handled separately below
     return (
       r.type !== "Deworming" &&
       r.type !== "Vaccination" &&
@@ -1391,7 +1395,6 @@ function MedicalTab({ animal }: { animal: Animal }) {
     all: records.length,
     deworming: records.filter((r) => r.type === "Deworming").length,
     vaccinations: records.filter((r) => r.type === "Vaccination").length,
-    "hoof-trims": hoofVisits.length,
     "fecal-tests": records.filter((r) => r.type === "Fecal Test").length,
     other: records.filter(
       (r) =>
@@ -1535,86 +1538,7 @@ function MedicalTab({ animal }: { animal: Animal }) {
       )}
 
       {/* ── Hoof Trims sub-tab ── */}
-      {subTab === "hoof-trims" ? (
-        <div className="space-y-4">
-          {/* Most recent trim summary */}
-          {lastTrim && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700/80 mb-1">
-                Most Recent Trim
-              </p>
-              <p className="text-base font-bold text-charcoal">
-                {formatRecordDate(lastTrim.date)}
-              </p>
-              {lastTrim.notes && (
-                <p className="text-sm text-warm-gray mt-1">{lastTrim.notes}</p>
-              )}
-            </div>
-          )}
-
-          {/* Editable trim profile cards. CSV defaults can be overridden
-              per donkey via /api/trim-profiles. */}
-          <TrimProfileEditor
-            animalName={animal.name}
-            csvProfile={trimProfile}
-          />
-
-          {/* Trim history */}
-          <div className="flex items-center justify-between pt-2">
-            <h4 className="font-semibold text-charcoal text-sm">
-              Trim History
-              <span className="ml-2 text-xs font-normal text-warm-gray">
-                ({hoofVisits.length})
-              </span>
-            </h4>
-            <a
-              href="/app/hoof-dental"
-              className="text-xs text-sky-600 hover:underline"
-            >
-              View hoof care dashboard →
-            </a>
-          </div>
-
-          {hoofVisits.length === 0 ? (
-            <div className="bg-white rounded-xl border border-card-border p-8 text-center">
-              <Stethoscope className="w-8 h-8 text-warm-gray/30 mx-auto mb-3" />
-              <p className="text-warm-gray font-medium">No trim history yet</p>
-            </div>
-          ) : (
-            <>
-              <div className="space-y-2">
-                {visibleTrims.map((visit) => (
-                  <div
-                    key={visit.id}
-                    className="bg-white rounded-lg border border-card-border p-3"
-                  >
-                    <p className="text-xs font-semibold text-charcoal">
-                      {formatRecordDate(visit.date)}
-                    </p>
-                    {visit.notes && visit.notes !== "Hoof trim." && (
-                      <p className="text-xs text-warm-gray mt-0.5 leading-relaxed">
-                        {visit.notes}
-                      </p>
-                    )}
-                    <TrimPhotos visitId={visit.id} />
-                  </div>
-                ))}
-              </div>
-              {hoofVisits.length > 5 && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllTrims((v) => !v)}
-                  className="mt-2 w-full text-center text-xs font-medium text-sky-600 hover:text-sky-700 hover:underline py-2"
-                >
-                  {showAllTrims
-                    ? "Show fewer"
-                    : `Show all ${hoofVisits.length} trims`}
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      ) : filtered.length === 0 ? (
+      {filtered.length === 0 ? (
         <div className="bg-white rounded-xl border border-card-border p-8 text-center">
           <Stethoscope className="w-8 h-8 text-warm-gray/30 mx-auto mb-3" />
           <p className="text-warm-gray font-medium">
@@ -1720,6 +1644,357 @@ function TasksTab({ animal }: { animal: Animal }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Hoof Care Tab ──
+   The donkey's full hoof (and dental) story, editable in place: log new
+   visits, edit or delete any entry, set the next-due dates, and manage the
+   trim/training protocols. Backed by /api/hoof-visits + /api/dental-visits. */
+
+interface VisitDraft {
+  kind: "hoof" | "dental";
+  id: string | null; // null = logging a new visit
+  date: string;
+  provider: string;
+  notes: string;
+}
+
+function HoofCareTab({ animal }: { animal: Animal }) {
+  const { providers } = useProviders();
+  const { toastSuccess, toastError } = useToast();
+  const [hoofVisits, setHoofVisits] = useState<CareVisit[]>([]);
+  const [dentalVisits, setDentalVisits] = useState<CareVisit[]>([]);
+  const [nextHoof, setNextHoof] = useState<string>("");
+  const [nextDental, setNextDental] = useState<string>("");
+  const [draft, setDraft] = useState<VisitDraft | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [showAllTrims, setShowAllTrims] = useState(false);
+
+  const reload = async () => {
+    try {
+      const [hoofRes, dentalRes] = await Promise.all([
+        fetch(`/api/hoof-visits?animal=${encodeURIComponent(animal.name)}`, { cache: "no-store" }),
+        fetch(`/api/dental-visits?animal=${encodeURIComponent(animal.name)}`, { cache: "no-store" }),
+      ]);
+      if (hoofRes.ok) {
+        const data = await hoofRes.json();
+        setHoofVisits(
+          ((data.entries ?? []) as Omit<CareVisit, "type">[])
+            .map((e) => ({ ...e, type: "hoof" as const }))
+            .sort((a, b) => b.date.localeCompare(a.date))
+        );
+        setNextHoof(data?.nextDue?.[animal.name] ?? "");
+      }
+      if (dentalRes.ok) {
+        const data = await dentalRes.json();
+        setDentalVisits(
+          ((data.entries ?? []) as Omit<CareVisit, "type">[])
+            .map((e) => ({ ...e, type: "dental" as const }))
+            .sort((a, b) => b.date.localeCompare(a.date))
+        );
+        setNextDental(data?.nextDue?.[animal.name] ?? "");
+      }
+    } catch {
+      // lists just render empty
+    }
+  };
+
+  useEffect(() => {
+    void reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [animal.name]);
+
+  const endpoint = (kind: "hoof" | "dental") =>
+    kind === "hoof" ? "/api/hoof-visits" : "/api/dental-visits";
+
+  const saveDraft = async () => {
+    if (!draft || !draft.date) return;
+    setSaving(true);
+    try {
+      const res = await fetch(endpoint(draft.kind), {
+        method: draft.id ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          draft.id
+            ? { id: draft.id, date: draft.date, provider: draft.provider, notes: draft.notes }
+            : { animal: animal.name, date: draft.date, provider: draft.provider, notes: draft.notes }
+        ),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Save failed");
+      toastSuccess(draft.id ? "Visit updated." : "Visit logged.");
+      setDraft(null);
+      await reload();
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : "Could not save the visit.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteVisit = async (kind: "hoof" | "dental", id: string, date: string) => {
+    if (!window.confirm(`Delete the ${kind} visit from ${formatRecordDate(date)}?`)) return;
+    const res = await fetch(`${endpoint(kind)}?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (res.ok) {
+      toastSuccess("Visit deleted.");
+      await reload();
+    } else toastError("Delete failed.");
+  };
+
+  const saveNextDue = async (kind: "hoof" | "dental", value: string) => {
+    const body =
+      kind === "hoof"
+        ? { animal: animal.name, nextHoofDue: value }
+        : { animal: animal.name, nextDentalDue: value };
+    const res = await fetch(endpoint(kind), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) toastSuccess(`Next ${kind} date saved.`);
+    else toastError("Could not save the date.");
+  };
+
+  const providerOptions = providers.length
+    ? providers
+    : [{ id: "none", name: "", type: "", phone: "" }];
+
+  const visitList = (kind: "hoof" | "dental", visits: CareVisit[], capped: boolean) => {
+    const shown = capped && !showAllTrims ? visits.slice(0, 8) : visits;
+    return (
+      <div className="space-y-2">
+        {shown.map((visit) => (
+          <div key={visit.id} className="group bg-white rounded-lg border border-card-border p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-charcoal">
+                  {formatRecordDate(visit.date)}
+                  {visit.provider && (
+                    <span className="ml-2 font-normal text-warm-gray">{visit.provider}</span>
+                  )}
+                </p>
+                {visit.notes && visit.notes !== "Hoof trim." && (
+                  <p className="text-xs text-warm-gray mt-0.5 leading-relaxed">{visit.notes}</p>
+                )}
+              </div>
+              <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                <button
+                  onClick={() =>
+                    setDraft({
+                      kind,
+                      id: visit.id,
+                      date: visit.date,
+                      provider: visit.provider ?? "",
+                      notes: visit.notes ?? "",
+                    })
+                  }
+                  title="Edit visit"
+                  className="p-1.5 rounded text-warm-gray/60 hover:text-charcoal hover:bg-sand/30"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => void deleteVisit(kind, visit.id, visit.date)}
+                  title="Delete visit"
+                  className="p-1.5 rounded text-warm-gray/60 hover:text-red-600 hover:bg-red-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            </div>
+            {kind === "hoof" && <TrimPhotos visitId={visit.id} />}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="font-bold text-charcoal">Hoof &amp; Dental Care</h3>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() =>
+              setDraft({
+                kind: "hoof",
+                id: null,
+                date: new Date().toLocaleDateString("en-CA"),
+                provider: providers[0]?.name ?? "",
+                notes: "",
+              })
+            }
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Log Trim
+          </button>
+          <button
+            onClick={() =>
+              setDraft({
+                kind: "dental",
+                id: null,
+                date: new Date().toLocaleDateString("en-CA"),
+                provider: "",
+                notes: "",
+              })
+            }
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-card-border text-charcoal rounded-lg text-sm font-medium hover:bg-cream transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Log Dental
+          </button>
+        </div>
+      </div>
+
+      {/* Log / edit form */}
+      {draft && (
+        <div className="bg-white rounded-xl border border-card-border p-5 space-y-3">
+          <p className="text-sm font-bold text-charcoal">
+            {draft.id ? "Edit" : "Log"} {draft.kind === "hoof" ? "trim" : "dental"} visit
+          </p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
+                Date
+              </label>
+              <input
+                type="date"
+                value={draft.date}
+                onChange={(e) => setDraft({ ...draft, date: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
+                Provider
+              </label>
+              <input
+                list="hoof-provider-list"
+                value={draft.provider}
+                onChange={(e) => setDraft({ ...draft, provider: e.target.value })}
+                placeholder="e.g. Edj Fish"
+                className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+              />
+              <datalist id="hoof-provider-list">
+                {providerOptions.map((p) => (
+                  <option key={p.id} value={p.name} />
+                ))}
+              </datalist>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
+              Notes
+            </label>
+            <textarea
+              value={draft.notes}
+              onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+              rows={2}
+              placeholder="Fronts only, used sling, etc."
+              className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setDraft(null)}
+              className="px-4 py-2 text-sm font-medium text-charcoal bg-white border border-card-border rounded-lg hover:bg-cream transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => void saveDraft()}
+              disabled={saving || !draft.date}
+              className="px-4 py-2 text-sm font-bold text-white bg-sidebar rounded-lg hover:bg-sidebar-light disabled:opacity-40 transition-colors"
+            >
+              {saving ? "Saving…" : draft.id ? "Save changes" : "Log visit"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Next-due dates — editable */}
+      <div className="grid sm:grid-cols-2 gap-3">
+        {(
+          [
+            ["hoof", "Next Hoof Trim Due", nextHoof, setNextHoof],
+            ["dental", "Next Dental Due", nextDental, setNextDental],
+          ] as const
+        ).map(([kind, label, value, setValue]) => (
+          <div key={kind} className="bg-white rounded-xl border border-card-border p-4">
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1.5">
+              {label}
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                className="flex-1 px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+              />
+              <button
+                onClick={() => void saveNextDue(kind, value)}
+                disabled={!value}
+                className="px-3 py-2 text-sm font-semibold bg-cream text-charcoal rounded-lg hover:bg-sand/30 disabled:opacity-40 transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Trim & training protocols — editable */}
+      <TrimProfileEditor animalName={animal.name} csvProfile={getTrimProfile(animal.name)} />
+
+      {/* Trim history */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="font-semibold text-charcoal text-sm">
+            Trim History
+            <span className="ml-2 text-xs font-normal text-warm-gray">({hoofVisits.length})</span>
+          </h4>
+          <a href="/app/hoof-dental" className="text-xs text-sky-600 hover:underline">
+            View hoof care dashboard →
+          </a>
+        </div>
+        {hoofVisits.length === 0 ? (
+          <div className="bg-white rounded-xl border border-card-border p-8 text-center">
+            <Footprints className="w-8 h-8 text-warm-gray/30 mx-auto mb-3" />
+            <p className="text-warm-gray font-medium">No trim history yet</p>
+            <p className="text-sm text-warm-gray/60 mt-1">Use “Log Trim” to add the first one.</p>
+          </div>
+        ) : (
+          <>
+            {visitList("hoof", hoofVisits, true)}
+            {hoofVisits.length > 8 && (
+              <button
+                type="button"
+                onClick={() => setShowAllTrims((v) => !v)}
+                className="mt-2 w-full text-center text-xs font-medium text-sky-600 hover:text-sky-700 hover:underline py-2"
+              >
+                {showAllTrims ? "Show fewer" : `Show all ${hoofVisits.length} trims`}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Dental history */}
+      <div>
+        <h4 className="font-semibold text-charcoal text-sm mb-2">
+          Dental History
+          <span className="ml-2 text-xs font-normal text-warm-gray">({dentalVisits.length})</span>
+        </h4>
+        {dentalVisits.length === 0 ? (
+          <p className="text-sm text-warm-gray/60 italic">
+            No dental visits recorded — use “Log Dental” above.
+          </p>
+        ) : (
+          visitList("dental", dentalVisits, false)
+        )}
+      </div>
     </div>
   );
 }
@@ -2106,7 +2381,13 @@ function NotesTab({ animal }: { animal: Animal }) {
 // ══════════════════════════════════════════
 // ── Hoof & Dental at-a-glance summary (on the profile header)
 // ══════════════════════════════════════════
-function HoofDentalSummary({ animal }: { animal: Animal }) {
+function HoofDentalSummary({
+  animal,
+  onOpen,
+}: {
+  animal: Animal;
+  onOpen?: () => void;
+}) {
   // All visits live in the DB now (imported sheet rows were migrated to
   // HoofVisit rows), so last-visit AND next-due both come from the API.
   const [lastHoof, setLastHoof] = useState<string | null>(null);
@@ -2170,12 +2451,14 @@ function HoofDentalSummary({ animal }: { animal: Animal }) {
         lastDate={lastHoof}
         nextDate={nextHoof}
         daysUntil={hoofDays}
+        onClick={onOpen}
       />
       <SummaryTile
         label="Dental"
         lastDate={lastDental}
         nextDate={nextDental}
         daysUntil={dentalDays}
+        onClick={onOpen}
       />
     </div>
   );
@@ -2186,18 +2469,25 @@ function SummaryTile({
   lastDate,
   nextDate,
   daysUntil,
+  onClick,
 }: {
   label: string;
   lastDate: string | null;
   nextDate: string | null;
   daysUntil: number | null;
+  onClick?: () => void;
 }) {
   const overdue = daysUntil !== null && daysUntil < 0;
   const dueSoon = daysUntil !== null && daysUntil >= 0 && daysUntil <= 14;
 
   return (
     <div
-      className={`rounded-lg border p-3 ${
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      title={onClick ? "Open Hoof Care" : undefined}
+      className={`rounded-lg border p-3 text-left ${
+        onClick ? "cursor-pointer hover:ring-2 hover:ring-sand/60 transition-shadow" : ""
+      } ${
         overdue
           ? "bg-red-50 border-red-200"
           : dueSoon

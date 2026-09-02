@@ -1072,7 +1072,7 @@ function TrimProfileBlock({ animalName }: { animalName: string }) {
   const { animals: rosterAnimals } = useAnimals();
   const slug = rosterAnimals.find((a) => a.name === animalName)?.slug;
   const editHref = slug
-    ? `/app/animals/${slug}?tab=medical&sub=hoof-trims`
+    ? `/app/animals/${slug}?tab=hoof`
     : null;
 
   if (!hasTrimInfo && !hasTraining) {
