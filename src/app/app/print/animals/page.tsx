@@ -21,6 +21,7 @@ import { ArrowLeft, Printer } from "lucide-react";
 import type { Animal } from "@/lib/animals";
 import { useAnimals } from "@/lib/animals-context";
 import { useMedical } from "@/lib/medical-context";
+import { useParkingLot } from "@/lib/parking-lot-context";
 import { getRecordsForAnimal, type MedicalRecord } from "@/lib/medical-data";
 import { getDonkeyProfile } from "@/lib/donkey-profiles-data";
 import { getNextVaccinationDue } from "@/lib/deworming-vaccination-data";
@@ -177,6 +178,24 @@ function ProfileSheet({
   const profile = getDonkeyProfile(animal.name);
   const nextVaccination = getNextVaccinationDue(animal.name);
 
+  // Per-donkey notes: the profile Notes tab (general) + Relationships-tab
+  // notes, same filters those tabs use.
+  const { entries: parkingEntries } = useParkingLot();
+  const generalNotes = parkingEntries.filter(
+    (e) =>
+      e.type === "note" &&
+      !e.resolved &&
+      e.data?.animal === animal.name &&
+      e.data?.title !== "relationship"
+  );
+  const relationshipNotes = parkingEntries.filter(
+    (e) =>
+      e.type === "note" &&
+      !e.resolved &&
+      e.data?.animal === animal.name &&
+      e.data?.title === "relationship"
+  );
+
   // Merge DB medical entries over the seeded CSV history — dedupe by id,
   // DB entries win (same contract as the animal profile page).
   const records = useMemo(() => {
@@ -242,6 +261,11 @@ function ProfileSheet({
           <h2 className="text-3xl font-bold text-charcoal leading-tight">
             {animal.name}
           </h2>
+          {animal.tagline && (
+            <p className="text-sm italic text-charcoal mt-0.5">
+              “{animal.tagline}”
+            </p>
+          )}
           <p className="text-sm text-warm-gray print:text-black mt-1">
             {animal.herd}
             {animal.pen ? ` · ${animal.pen}` : ""}
@@ -255,7 +279,7 @@ function ProfileSheet({
           <img
             src={animal.profileImage}
             alt={animal.name}
-            className="h-24 w-24 object-cover rounded shrink-0"
+            className="h-32 w-32 object-cover rounded-lg shrink-0 border border-card-border print:border-black"
           />
         )}
       </div>
@@ -286,13 +310,37 @@ function ProfileSheet({
         </div>
       )}
 
+      {/* Personality traits */}
+      {animal.traits.length > 0 && (
+        <div className="mt-4 break-inside-avoid">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray print:text-black mb-1">
+            Personality Traits
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {animal.traits.map((t) => (
+              <span
+                key={t}
+                className="inline-flex items-center px-2.5 py-0.5 rounded-full border border-charcoal/40 text-xs text-charcoal"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Relationships */}
-      {relationships.length > 0 && (
+      {(relationships.length > 0 || relationshipNotes.length > 0) && (
         <div className="mt-4 space-y-1 break-inside-avoid">
           {relationships.map((g) => (
             <p key={g.label} className="text-sm text-charcoal">
               <span className="font-semibold">{g.label}:</span>{" "}
               {g.names.join(", ")}
+            </p>
+          ))}
+          {relationshipNotes.map((n) => (
+            <p key={n.id} className="text-sm text-charcoal leading-snug">
+              <span className="font-semibold">Relationship note:</span> {n.text}
             </p>
           ))}
         </div>
@@ -321,6 +369,39 @@ function ProfileSheet({
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Notes (from the profile's Notes tab) */}
+      {generalNotes.length > 0 && (
+        <div className="mt-4 break-inside-avoid">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray print:text-black mb-1">
+            Notes
+          </p>
+          <ul className="space-y-1">
+            {generalNotes.map((n) => (
+              <li key={n.id} className="text-sm text-charcoal leading-snug">
+                • {n.text}
+                {n.data?.date ? ` (${formatDate(n.data.date)})` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Origin story */}
+      {animal.story.length > 0 && (
+        <div className="mt-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray print:text-black mb-1">
+            Origin Story
+          </p>
+          <div className="space-y-2">
+            {animal.story.map((paragraph, i) => (
+              <p key={i} className="text-sm text-charcoal leading-snug">
+                {paragraph}
+              </p>
+            ))}
+          </div>
         </div>
       )}
 
