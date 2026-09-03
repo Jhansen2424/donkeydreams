@@ -56,6 +56,9 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
   // "custom" = the weekdays selected in customDays.
   const [repeat, setRepeat] = useState<"once" | "daily" | "custom">("once");
   const [customDays, setCustomDays] = useState<number[]>([]);
+  // Editing a repeating task: apply changes to the whole series (default —
+  // what people expect from "the routine") or just the day being viewed.
+  const [applyScope, setApplyScope] = useState<"series" | "day">("series");
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -76,7 +79,9 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
       setDate(currentDate);
       setRepeat("once");
       setCustomDays([]);
+      setApplyScope("series");
     } else {
+      setApplyScope("series");
       setText(mode.task.task);
       setAssignees(splitAssignees(mode.task.assignedTo));
       setAnimal(mode.task.animalSpecific ?? "");
@@ -124,13 +129,18 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
                 : customDays,
         });
       } else {
-        await editTask(mode.blockIdx, mode.taskIdx, {
-          task: text.trim(),
-          assignedTo: assignedTo ?? "",
-          animalSpecific: animal,
-          note: note.trim(),
-          blockName: block,
-        });
+        await editTask(
+          mode.blockIdx,
+          mode.taskIdx,
+          {
+            task: text.trim(),
+            assignedTo: assignedTo ?? "",
+            animalSpecific: animal,
+            note: note.trim(),
+            blockName: block,
+          },
+          { applyToSeries: applyScope === "series" }
+        );
       }
       onClose();
     } finally {
@@ -262,11 +272,29 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
 
           {/* Recurring-task controls (edit mode) */}
           {mode.kind === "edit" && mode.task.templateId && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-sky/5 border border-sky/20">
+            <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-sky/5 border border-sky/20">
               <Repeat className="w-4 h-4 text-sky shrink-0" />
-              <span className="text-xs text-charcoal flex-1">
-                Repeating task — edits here change this day only.
-              </span>
+              <span className="text-xs text-charcoal">Repeating task — apply changes to:</span>
+              <div className="flex gap-1">
+                {(
+                  [
+                    ["series", "Every day"],
+                    ["day", "Only today"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    onClick={() => setApplyScope(value)}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-full border transition-colors ${
+                      applyScope === value
+                        ? "bg-sky text-white border-sky"
+                        : "bg-white text-warm-gray border-card-border hover:bg-cream"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <button
                 onClick={async () => {
                   if (!mode.task.templateId) return;

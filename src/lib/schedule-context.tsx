@@ -48,7 +48,16 @@ interface ScheduleContextValue {
   assignTask: (blockIdx: number, taskIdx: number, memberName: string) => Promise<void>;
   bulkAssign: (blockIdx: number, memberName: string) => Promise<void>;
   addTask: (input: NewTaskInput) => Promise<void>;
-  editTask: (blockIdx: number, taskIdx: number, updates: EditTaskInput) => Promise<void>;
+  editTask: (
+    blockIdx: number,
+    taskIdx: number,
+    updates: EditTaskInput,
+    opts?: {
+      /** For repeating tasks: also write the changes to the template so
+          every future day inherits them (the default in the edit modal). */
+      applyToSeries?: boolean;
+    }
+  ) => Promise<void>;
   deleteTask: (blockIdx: number, taskIdx: number) => Promise<void>;
   reorderTask: (blockIdx: number, fromIdx: number, toIdx: number) => Promise<void>;
   /** Deactivate a recurring template — future days stop getting the task. */
@@ -362,9 +371,15 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     }
   }, [schedule, refresh]);
 
-  const editTask = useCallback(async (blockIdx: number, taskIdx: number, updates: EditTaskInput) => {
+  const editTask = useCallback(async (
+    blockIdx: number,
+    taskIdx: number,
+    updates: EditTaskInput,
+    opts?: { applyToSeries?: boolean }
+  ) => {
     const ids = resolveIds(blockIdx, taskIdx);
     if (!ids) return;
+    const templateId = (schedule[blockIdx]?.tasks[taskIdx] as TaskWithId | undefined)?.templateId;
     const moving = updates.blockName && updates.blockName !== ids.blockName;
 
     // Optimistic patch locally
@@ -404,6 +419,25 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify(patchBody),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Failed to edit");
+
+      // Repeating task + "apply to every day": write the same changes to the
+      // template so tomorrow's materialized copy carries them too. (Without
+      // this, notes edited on one day silently reverted the next morning.)
+      if (opts?.applyToSeries && templateId) {
+        const templatePatch: Record<string, unknown> = { id: templateId };
+        if (updates.task !== undefined) templatePatch.task = updates.task;
+        if (updates.note !== undefined) templatePatch.note = updates.note || null;
+        if (updates.assignedTo !== undefined) templatePatch.assignedTo = updates.assignedTo || null;
+        if (updates.animalSpecific !== undefined) templatePatch.animalSpecific = updates.animalSpecific || null;
+        if (moving && updates.blockName) templatePatch.block = updates.blockName;
+        if (Object.keys(templatePatch).length > 1) {
+          await fetch("/api/tasks/templates", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(templatePatch),
+          }).catch(() => {});
+        }
+      }
 
       if (moving && updates.blockName) {
         setTaskBlocks((prev) => {
