@@ -255,6 +255,35 @@ export default function NotesPage() {
                   </div>
                   <p className="text-sm text-charcoal leading-snug whitespace-pre-line">{entry.text}</p>
 
+                  {/* Attached screenshots/docs — deleted automatically when
+                      the note is resolved or removed. */}
+                  {entry.data?.attachments && entry.data.attachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {entry.data.attachments.map((id) => (
+                        <a
+                          key={id}
+                          href={`/api/documents/${id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Open attachment"
+                          className="block"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={`/api/documents/${id}`}
+                            alt="Attachment"
+                            className="h-20 w-20 object-cover rounded-lg border border-card-border hover:opacity-90"
+                            onError={(e) => {
+                              // Non-image attachment (e.g. PDF) — show a tile.
+                              const el = e.currentTarget;
+                              el.outerHTML = `<span class="inline-flex items-center justify-center h-20 w-20 rounded-lg border border-card-border bg-cream text-[10px] font-semibold text-warm-gray">📎 File</span>`;
+                            }}
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+
                   {entry.data && (
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {entry.data.animal && (

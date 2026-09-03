@@ -194,7 +194,7 @@ export default function DashboardTaskList({ schedule, onToggle, onEdit, onAdd }:
                         {item.task.task}
                       </p>
                       {item.task.note && (
-                        <p className="text-[11px] text-warm-gray mt-0.5 italic">
+                        <p className="text-[11px] text-warm-gray mt-0.5 italic whitespace-pre-line">
                           {item.task.note}
                         </p>
                       )}

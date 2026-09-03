@@ -70,6 +70,17 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// Attachments (Document row ids in data.attachments) exist only to support
+// the note — delete them when the note is resolved or removed so screenshots
+// don't accumulate.
+async function deleteAttachments(data: unknown): Promise<void> {
+  const ids = (data as { attachments?: unknown } | null)?.attachments;
+  if (!Array.isArray(ids) || ids.length === 0) return;
+  const valid = ids.filter((x): x is string => typeof x === "string");
+  if (valid.length === 0) return;
+  await db.document.deleteMany({ where: { id: { in: valid } } }).catch(() => {});
+}
+
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
@@ -89,6 +100,18 @@ export async function PATCH(req: NextRequest) {
       where: { id },
       data: update as Parameters<typeof db.parkingLotEntry.update>[0]["data"],
     });
+
+    // Resolving a note is "done with it" — free its attachments and drop the
+    // references so the UI doesn't render dead thumbnails.
+    if (resolved === true) {
+      await deleteAttachments(row.data);
+      const d = row.data as { attachments?: unknown } | null;
+      if (d && Array.isArray(d.attachments)) {
+        const { attachments: _gone, ...rest } = d;
+        await db.parkingLotEntry.update({ where: { id }, data: { data: rest } });
+        row.data = rest;
+      }
+    }
     return NextResponse.json({ entry: toApi(row) });
   } catch (error) {
     console.error("PATCH /api/parking-lot failed:", error);
@@ -105,7 +128,8 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Missing 'id' query param" }, { status: 400 });
     }
 
-    await db.parkingLotEntry.delete({ where: { id } });
+    const row = await db.parkingLotEntry.delete({ where: { id } });
+    await deleteAttachments(row.data);
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("DELETE /api/parking-lot failed:", error);

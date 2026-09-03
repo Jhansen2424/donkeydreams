@@ -1262,7 +1262,7 @@ function TaskRow({
           </p>
         )}
         {task.note && (
-          <p className="text-[11px] text-warm-gray mt-0.5 italic">
+          <p className="text-[11px] text-warm-gray mt-0.5 italic whitespace-pre-line">
             {task.note}
           </p>
         )}

@@ -6,6 +6,7 @@ import type { FeedSchedule } from "@/lib/sanctuary-data";
 import { useAnimals } from "@/lib/animals-context";
 import { useParkingLot } from "@/lib/parking-lot-context";
 import { formatDate } from "@/lib/format-date";
+import ExpandableText from "@/components/app/ExpandableText";
 
 const noteStyles: Record<string, { bg: string; border: string; text: string; icon: string }> = {
   daily: { bg: "bg-sky/5", border: "border-sky/20", text: "text-charcoal", icon: "text-sky" },
@@ -488,7 +489,11 @@ function FeedCard({
 
         {schedule.notes && (
           <div className="mt-3 p-2.5 bg-cream/50 rounded-lg">
-            <p className="text-xs text-warm-gray leading-relaxed">{schedule.notes}</p>
+            <ExpandableText
+              text={schedule.notes}
+              className="text-xs text-warm-gray leading-relaxed"
+              clampChars={280}
+            />
           </div>
         )}
       </div>

@@ -38,6 +38,9 @@ export interface ParkingLotEntry {
     sourcePath?: string;
     /** Human label for sourcePath, e.g. "Gabriel's profile". */
     sourceLabel?: string;
+    /** Attached screenshots/docs — Document row ids. Deleted with the note
+        (or when it's resolved) so they don't accumulate. */
+    attachments?: string[];
   };
 }
 

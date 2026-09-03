@@ -44,6 +44,7 @@ import { getTrimProfile, type TrimProfile } from "@/lib/trimming-data";
 import { getDewormingDosage } from "@/lib/power-pack-data";
 import { getDonkeyWeight } from "@/lib/scheduled-and-events-data";
 import TrimPhotos from "@/components/app/TrimPhotos";
+import ExpandableText from "@/components/app/ExpandableText";
 import { compressImage } from "@/lib/trim-photos";
 import {
   getSponsorsForAnimal,
@@ -1073,38 +1074,6 @@ function FamilyChip({ name, bonded = false }: { name: string; bonded?: boolean }
   );
 }
 
-/* ── Expandable long text ──
-   Preserves the line breaks / blank lines exactly as typed or pasted
-   (whitespace-pre-line) and collapses very long text behind "Read more". */
-function ExpandableText({
-  text,
-  className = "",
-  clampChars = 400,
-}: {
-  text: string;
-  className?: string;
-  clampChars?: number;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const isLong = text.length > clampChars;
-  const shown =
-    expanded || !isLong ? text : text.slice(0, clampChars).trimEnd() + "…";
-  return (
-    <div>
-      <p className={`whitespace-pre-line ${className}`}>{shown}</p>
-      {isLong && (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="mt-1 text-xs font-medium text-sky-600 hover:text-sky-700 hover:underline"
-        >
-          {expanded ? "Show less" : "Read more"}
-        </button>
-      )}
-    </div>
-  );
-}
-
 /* ── Chip-list editor ──
    Edits a comma-joined name list (the ProfileDraft representation) as
    removable chips plus an add box with a datalist of real donkey names, so
@@ -2015,7 +1984,9 @@ function HoofCareTab({ animal }: { animal: Animal }) {
                   )}
                 </p>
                 {visit.notes && visit.notes !== "Hoof trim." && (
-                  <p className="text-xs text-warm-gray mt-0.5 leading-relaxed">{visit.notes}</p>
+                  <p className="text-xs text-warm-gray mt-0.5 leading-relaxed whitespace-pre-line">
+                    {visit.notes}
+                  </p>
                 )}
               </div>
               <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
