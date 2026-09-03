@@ -1,9 +1,16 @@
 /**
  * Syncs DB Animal rows from the generated donkeyProfiles map (adoption CSV).
- * Updates identity columns only — never touches photos, care dates, or
- * relations. Rows whose name isn't in the CSV are left untouched.
  *
- * Run: npx tsx scripts/sync-animals-from-profiles.ts [--apply]
+ * By default only CSV-owned IDENTITY columns sync (age, sex, size, color,
+ * origin, herd, intake, adopted-from). Relationship lists and status flags
+ * are APP-EDITABLE — staff change them on profiles — so the sheet must not
+ * silently overwrite them; pass --include-relationships only on a deliberate
+ * fresh-sheet re-import where the sheet should win.
+ *
+ * Never touches: photos, tagline, story, traits, behavioral notes, status,
+ * care dates, or relations. Rows whose name isn't in the CSV are untouched.
+ *
+ * Run: npx tsx scripts/sync-animals-from-profiles.ts [--apply] [--include-relationships]
  */
 import { readFileSync } from "fs";
 import { join } from "path";
@@ -19,6 +26,7 @@ const adapter = new PrismaNeonHttp(dbUrl, {});
 const prisma = new PrismaClient({ adapter });
 
 const apply = process.argv.includes("--apply");
+const includeRelationships = process.argv.includes("--include-relationships");
 
 async function main() {
   const dbAnimals = await prisma.animal.findMany({ select: { name: true } });
@@ -44,13 +52,18 @@ async function main() {
           herd: p.herd,
           intakeDate: p.intakeDate ?? "",
           adoptedFrom: p.adoptedFrom,
-          bestFriends: p.bondedWith,
-          parents: p.parents,
-          children: p.children,
-          momBabyCount: p.momBabyCount,
-          isBondedPair: p.isBondedPair,
-          isSpecialNeeds: p.isSpecialNeeds,
-          needsChip: p.needsChip,
+          // App-editable fields — sheet wins only on explicit opt-in.
+          ...(includeRelationships
+            ? {
+                bestFriends: p.bondedWith,
+                parents: p.parents,
+                children: p.children,
+                momBabyCount: p.momBabyCount,
+                isBondedPair: p.isBondedPair,
+                isSpecialNeeds: p.isSpecialNeeds,
+                needsChip: p.needsChip,
+              }
+            : {}),
         },
       });
     }

@@ -354,7 +354,7 @@ function ProfileSheet({
               <p className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray print:text-black">
                 Special Needs / Medical
               </p>
-              <p className="text-sm text-charcoal leading-snug">
+              <p className="text-sm text-charcoal leading-snug whitespace-pre-line">
                 {profile.specialNeedsDetail}
               </p>
             </div>
@@ -364,7 +364,7 @@ function ProfileSheet({
               <p className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray print:text-black">
                 Behavioral Notes
               </p>
-              <p className="text-sm text-charcoal leading-snug">
+              <p className="text-sm text-charcoal leading-snug whitespace-pre-line">
                 {animal.behavioralNotes}
               </p>
             </div>
@@ -397,7 +397,7 @@ function ProfileSheet({
           </p>
           <div className="space-y-2">
             {animal.story.map((paragraph, i) => (
-              <p key={i} className="text-sm text-charcoal leading-snug">
+              <p key={i} className="text-sm text-charcoal leading-snug whitespace-pre-line">
                 {paragraph}
               </p>
             ))}

@@ -92,6 +92,7 @@ export default function AnimalProfilePage() {
     bestFriends: string; // comma-joined
     parents: string; // comma-joined
     children: string; // comma-joined
+    status: string;
     // Status-badge flags (Senior / Under 3 are automatic from birth date)
     momBabyCount: number;
     isBondedPair: boolean;
@@ -181,6 +182,7 @@ export default function AnimalProfilePage() {
                   bestFriends: (animal.bestFriends ?? []).join(", "),
                   parents: (animal.parents ?? []).join(", "),
                   children: (animal.children ?? []).join(", "),
+                  status: animal.status || "Active",
                   momBabyCount: animal.momBabyCount ?? 0,
                   isBondedPair: animal.isBondedPair ?? false,
                   isSpecialNeeds: animal.isSpecialNeedsFlag ?? false,
@@ -244,6 +246,8 @@ export default function AnimalProfilePage() {
                   payload.pen = draft.pen;
                 if (draft.adoptedFrom !== (animal.adoptedFrom ?? ""))
                   payload.adoptedFrom = draft.adoptedFrom;
+                if (draft.status !== (animal.status || "Active"))
+                  payload.status = draft.status;
                 if (draft.momBabyCount !== (animal.momBabyCount ?? 0))
                   payload.momBabyCount = draft.momBabyCount;
                 if (draft.isBondedPair !== (animal.isBondedPair ?? false))
@@ -362,17 +366,37 @@ export default function AnimalProfilePage() {
               <h1 className="text-3xl font-bold text-charcoal">
                 {animal.name}
               </h1>
-              <span
-                className={`text-xs font-semibold px-3 py-1 rounded-full ${
-                  animal.status === "Active"
-                    ? "bg-emerald-100 text-emerald-700"
-                    : animal.status === "Special Needs"
-                      ? "bg-red-100 text-red-700"
-                      : "bg-amber-100 text-amber-700"
-                }`}
-              >
-                {animal.status}
-              </span>
+              {editing && draft ? (
+                <select
+                  value={draft.status}
+                  onChange={(e) => setDraft({ ...draft, status: e.target.value })}
+                  className="text-xs font-semibold px-2 py-1 rounded-lg border border-card-border bg-white text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+                  title="Status"
+                >
+                  {["Active", "Deceased", "Adopted"].map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                  {!["Active", "Deceased", "Adopted"].includes(draft.status) && (
+                    <option value={draft.status}>{draft.status}</option>
+                  )}
+                </select>
+              ) : (
+                <span
+                  className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                    animal.status === "Active"
+                      ? "bg-emerald-100 text-emerald-700"
+                      : animal.status === "Deceased"
+                        ? "bg-gray-200 text-gray-600"
+                        : animal.status === "Special Needs"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-amber-100 text-amber-700"
+                  }`}
+                >
+                  {animal.status}
+                </span>
+              )}
             </div>
             {editing && draft ? (
               <input
@@ -762,6 +786,7 @@ type ProfileDraftShape = {
   herd: string;
   pen: string;
   adoptedFrom: string;
+  status: string;
   momBabyCount: number;
   isBondedPair: boolean;
   isSpecialNeeds: boolean;
@@ -813,7 +838,9 @@ function OverviewTab({
         ) : (
           <div className="space-y-3 text-sm text-warm-gray leading-relaxed">
             {animal.story.map((p, i) => (
-              <p key={i}>{p}</p>
+              <p key={i} className="whitespace-pre-line">
+                {p}
+              </p>
             ))}
           </div>
         )}
@@ -854,9 +881,14 @@ function OverviewTab({
               placeholder="Likes ears scratched, scared of side-by-sides, etc."
               className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal leading-relaxed focus:outline-none focus:ring-2 focus:ring-sand/50"
             />
+          ) : animal.behavioralNotes ? (
+            <ExpandableText
+              text={animal.behavioralNotes}
+              className="text-sm text-warm-gray leading-relaxed"
+            />
           ) : (
             <p className="text-sm text-warm-gray leading-relaxed">
-              {animal.behavioralNotes || "No behavioral notes yet."}
+              No behavioral notes yet.
             </p>
           )}
         </div>
@@ -1041,6 +1073,38 @@ function FamilyChip({ name, bonded = false }: { name: string; bonded?: boolean }
   );
 }
 
+/* ── Expandable long text ──
+   Preserves the line breaks / blank lines exactly as typed or pasted
+   (whitespace-pre-line) and collapses very long text behind "Read more". */
+function ExpandableText({
+  text,
+  className = "",
+  clampChars = 400,
+}: {
+  text: string;
+  className?: string;
+  clampChars?: number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = text.length > clampChars;
+  const shown =
+    expanded || !isLong ? text : text.slice(0, clampChars).trimEnd() + "…";
+  return (
+    <div>
+      <p className={`whitespace-pre-line ${className}`}>{shown}</p>
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-1 text-xs font-medium text-sky-600 hover:text-sky-700 hover:underline"
+        >
+          {expanded ? "Show less" : "Read more"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 /* ── Chip-list editor ──
    Edits a comma-joined name list (the ProfileDraft representation) as
    removable chips plus an add box with a datalist of real donkey names, so
@@ -1143,7 +1207,7 @@ function RelationshipNotes({ animalName }: { animalName: string }) {
         {notes.map((n) => (
           <p
             key={n.id}
-            className="text-sm text-warm-gray leading-relaxed bg-cream/50 rounded-lg px-3 py-2"
+            className="text-sm text-warm-gray leading-relaxed bg-cream/50 rounded-lg px-3 py-2 whitespace-pre-line"
           >
             {n.text}
           </p>
@@ -1377,9 +1441,13 @@ function MedicalRecordCard({ record }: { record: MedicalRecord }) {
               {formatRecordDate(record.date)}
             </p>
             {record.description && (
-              <p className="text-sm text-warm-gray mt-2 leading-relaxed">
-                {record.description}
-              </p>
+              <div className="mt-2">
+                <ExpandableText
+                  text={record.description}
+                  className="text-sm text-warm-gray leading-relaxed"
+                  clampChars={350}
+                />
+              </div>
             )}
             {/* Photos for x-rays, injury pics, etc. The same TrimPhotos
                 component (it's keyed by any string id, not specifically a
