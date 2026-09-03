@@ -253,7 +253,7 @@ export default function NotesPage() {
                       {formatTime(entry.timestamp)}
                     </span>
                   </div>
-                  <p className="text-sm text-charcoal leading-snug">{entry.text}</p>
+                  <p className="text-sm text-charcoal leading-snug whitespace-pre-line">{entry.text}</p>
 
                   {entry.data && (
                     <div className="flex flex-wrap gap-1.5 mt-2">
@@ -261,6 +261,15 @@ export default function NotesPage() {
                         <span className="text-[11px] font-medium text-sky-dark bg-sky/10 px-2 py-0.5 rounded-lg">
                           {entry.data.animal}
                         </span>
+                      )}
+                      {entry.data.sourcePath && (
+                        <a
+                          href={entry.data.sourcePath}
+                          title="Jump to where this note was written"
+                          className="text-[11px] font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded-lg hover:bg-purple-100"
+                        >
+                          📍 {entry.data.sourceLabel ?? entry.data.sourcePath}
+                        </a>
                       )}
                       {entry.data.timeBlock && (
                         <span className="text-[11px] font-medium text-warm-gray bg-cream px-2 py-0.5 rounded-lg">

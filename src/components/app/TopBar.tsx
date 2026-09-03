@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Ear, EarOff, Mic, Inbox } from "lucide-react";
 import { format } from "date-fns";
 import QuickInput from "@/components/app/QuickInput";
+import QuickNoteSheet from "@/components/app/QuickNoteSheet";
 import WakeWordListener from "@/components/app/WakeWordListener";
 import { useParkingLot } from "@/lib/parking-lot-context";
 
@@ -21,6 +22,7 @@ export default function TopBar({ firstName }: { firstName?: string }) {
   const greetingLine = firstName ? `${greeting}, ${firstName}` : greeting;
 
   const [quickInputOpen, setQuickInputOpen] = useState(false);
+  const [quickNoteOpen, setQuickNoteOpen] = useState(false);
   const [autoVoice, setAutoVoice] = useState(false);
   const [wakeTail, setWakeTail] = useState("");
   const [wakeEnabled, setWakeEnabled] = useState(false);
@@ -31,6 +33,27 @@ export default function TopBar({ firstName }: { firstName?: string }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     setWakeEnabled(window.localStorage.getItem(WAKE_PREF_KEY) === "1");
+  }, []);
+
+  // Desktop shortcut: press N anywhere (outside a text field) to jot a note
+  // without leaving the page.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key.toLowerCase() !== "n" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.tagName === "SELECT" ||
+          t.isContentEditable)
+      )
+        return;
+      e.preventDefault();
+      setQuickNoteOpen(true);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, []);
 
   const toggleWake = useCallback(() => {
@@ -114,7 +137,8 @@ export default function TopBar({ firstName }: { firstName?: string }) {
             </Link>
 
             <button
-              onClick={() => setQuickInputOpen(true)}
+              onClick={() => setQuickNoteOpen(true)}
+              title="Jot a note without leaving this page (or press N)"
               className="relative inline-flex items-center gap-1.5 px-4 py-2.5 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors"
             >
               <Mic className="w-4 h-4" />
@@ -136,7 +160,18 @@ export default function TopBar({ firstName }: { firstName?: string }) {
         onError={handleWakeError}
       />
 
-      {/* Add Note Modal */}
+      {/* Quick note sheet — typed notes that never leave the page. */}
+      <QuickNoteSheet
+        open={quickNoteOpen}
+        onClose={() => setQuickNoteOpen(false)}
+        onVoice={() => {
+          setQuickNoteOpen(false);
+          setAutoVoice(true);
+          setQuickInputOpen(true);
+        }}
+      />
+
+      {/* Joshy voice modal (wake word + the sheet's Voice button) */}
       <QuickInput
         open={quickInputOpen}
         onClose={handleModalClose}
@@ -146,7 +181,7 @@ export default function TopBar({ firstName }: { firstName?: string }) {
 
       {/* Mobile floating action button */}
       <button
-        onClick={() => setQuickInputOpen(true)}
+        onClick={() => setQuickNoteOpen(true)}
         className="md:hidden print:hidden fixed bottom-20 right-4 z-30 w-14 h-14 bg-sidebar text-white rounded-full shadow-lg flex items-center justify-center hover:bg-sidebar-light transition-colors active:scale-95"
         aria-label="Add Note"
       >

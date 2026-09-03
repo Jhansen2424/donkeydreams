@@ -34,6 +34,10 @@ export interface ParkingLotEntry {
     date?: string;
     /** Feed-notes sub-category. Only used when `type === "feed"`. */
     category?: "daily" | "ongoing" | "evergreen";
+    /** Where the note was written (app path) — powers "jump back" links. */
+    sourcePath?: string;
+    /** Human label for sourcePath, e.g. "Gabriel's profile". */
+    sourceLabel?: string;
   };
 }
 
