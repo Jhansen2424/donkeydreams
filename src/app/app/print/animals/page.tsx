@@ -26,6 +26,7 @@ import { getRecordsForAnimal, type MedicalRecord } from "@/lib/medical-data";
 import { getDonkeyProfile } from "@/lib/donkey-profiles-data";
 import { getNextVaccinationDue } from "@/lib/deworming-vaccination-data";
 import { formatDate } from "@/lib/format-date";
+import { normalizeParagraphs } from "@/components/app/ExpandableText";
 
 const MEDICAL_CAP = 25;
 const HOOF_CAP = 10;
@@ -355,7 +356,7 @@ function ProfileSheet({
                 Special Needs / Medical
               </p>
               <p className="text-sm text-charcoal leading-snug whitespace-pre-line">
-                {profile.specialNeedsDetail}
+                {normalizeParagraphs(profile.specialNeedsDetail)}
               </p>
             </div>
           )}
@@ -365,7 +366,7 @@ function ProfileSheet({
                 Behavioral Notes
               </p>
               <p className="text-sm text-charcoal leading-snug whitespace-pre-line">
-                {animal.behavioralNotes}
+                {normalizeParagraphs(animal.behavioralNotes)}
               </p>
             </div>
           )}
@@ -398,7 +399,7 @@ function ProfileSheet({
           <div className="space-y-2">
             {animal.story.map((paragraph, i) => (
               <p key={i} className="text-sm text-charcoal leading-snug whitespace-pre-line">
-                {paragraph}
+                {normalizeParagraphs(paragraph)}
               </p>
             ))}
           </div>

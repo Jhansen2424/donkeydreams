@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { ListChecks, Briefcase, Tractor, Heart, Check, Plus, Hammer, LayoutList } from "lucide-react";
 import type { ScheduleBlock, ScheduleTask, TaskCategory } from "@/lib/sanctuary-data";
+import { normalizeParagraphs } from "@/components/app/ExpandableText";
 
 type Bucket = "all" | "admin" | "care" | "projects" | "ranch";
 
@@ -195,7 +196,7 @@ export default function DashboardTaskList({ schedule, onToggle, onEdit, onAdd }:
                       </p>
                       {item.task.note && (
                         <p className="text-[11px] text-warm-gray mt-0.5 italic whitespace-pre-line">
-                          {item.task.note}
+                          {normalizeParagraphs(item.task.note)}
                         </p>
                       )}
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">

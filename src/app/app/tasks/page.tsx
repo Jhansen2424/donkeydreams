@@ -37,6 +37,7 @@ import { formatDate } from "@/lib/format-date";
 import { useParkingLot } from "@/lib/parking-lot-context";
 import VolunteerLoadBar from "@/components/app/VolunteerLoadBar";
 import TaskEditModal, { type TaskEditModalMode } from "@/components/app/TaskEditModal";
+import { normalizeParagraphs } from "@/components/app/ExpandableText";
 import { Trash2 } from "lucide-react";
 
 type ViewMode = "time" | "animal" | "human";
@@ -1263,7 +1264,7 @@ function TaskRow({
         )}
         {task.note && (
           <p className="text-[11px] text-warm-gray mt-0.5 italic whitespace-pre-line">
-            {task.note}
+            {normalizeParagraphs(task.note)}
           </p>
         )}
         {/* Print-only assignee names (the colored chips don't print) */}

@@ -6,6 +6,14 @@
 
 import { useState } from "react";
 
+// Pasted text often carries runs of 3-4 blank lines between paragraphs
+// (copy artifacts from docs/notes apps). Collapse any run down to ONE blank
+// line so paragraphs read with normal spacing, while single line breaks stay
+// exactly as typed.
+export function normalizeParagraphs(text: string): string {
+  return text.replace(/[ \t]*\r?\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export default function ExpandableText({
   text,
   className = "",
@@ -16,9 +24,10 @@ export default function ExpandableText({
   clampChars?: number;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const isLong = text.length > clampChars;
+  const normalized = normalizeParagraphs(text);
+  const isLong = normalized.length > clampChars;
   const shown =
-    expanded || !isLong ? text : text.slice(0, clampChars).trimEnd() + "…";
+    expanded || !isLong ? normalized : normalized.slice(0, clampChars).trimEnd() + "…";
   return (
     <div>
       <p className={`whitespace-pre-line ${className}`}>{shown}</p>

@@ -44,7 +44,7 @@ import { getTrimProfile, type TrimProfile } from "@/lib/trimming-data";
 import { getDewormingDosage } from "@/lib/power-pack-data";
 import { getDonkeyWeight } from "@/lib/scheduled-and-events-data";
 import TrimPhotos from "@/components/app/TrimPhotos";
-import ExpandableText from "@/components/app/ExpandableText";
+import ExpandableText, { normalizeParagraphs } from "@/components/app/ExpandableText";
 import { compressImage } from "@/lib/trim-photos";
 import {
   getSponsorsForAnimal,
@@ -840,7 +840,7 @@ function OverviewTab({
           <div className="space-y-3 text-sm text-warm-gray leading-relaxed">
             {animal.story.map((p, i) => (
               <p key={i} className="whitespace-pre-line">
-                {p}
+                {normalizeParagraphs(p)}
               </p>
             ))}
           </div>
@@ -1178,7 +1178,7 @@ function RelationshipNotes({ animalName }: { animalName: string }) {
             key={n.id}
             className="text-sm text-warm-gray leading-relaxed bg-cream/50 rounded-lg px-3 py-2 whitespace-pre-line"
           >
-            {n.text}
+            {normalizeParagraphs(n.text)}
           </p>
         ))}
       </div>
@@ -1833,7 +1833,7 @@ function TasksTab({ animal }: { animal: Animal }) {
                     <div className="ml-9 bg-cream/60 rounded-lg px-3 py-2.5">
                       {task.note ? (
                         <p className="text-sm text-charcoal leading-relaxed whitespace-pre-line">
-                          {task.note}
+                          {normalizeParagraphs(task.note)}
                         </p>
                       ) : (
                         <p className="text-sm text-warm-gray/60 italic">
@@ -1985,7 +1985,7 @@ function HoofCareTab({ animal }: { animal: Animal }) {
                 </p>
                 {visit.notes && visit.notes !== "Hoof trim." && (
                   <p className="text-xs text-warm-gray mt-0.5 leading-relaxed whitespace-pre-line">
-                    {visit.notes}
+                    {normalizeParagraphs(visit.notes)}
                   </p>
                 )}
               </div>
@@ -2278,7 +2278,7 @@ function RelationshipsTab({ animal }: { animal: Animal }) {
               key={n.id}
               className="bg-white rounded-xl border border-card-border p-4 flex items-start gap-3 group"
             >
-              <p className="text-sm text-charcoal flex-1 whitespace-pre-line">{n.text}</p>
+              <p className="text-sm text-charcoal flex-1 whitespace-pre-line">{normalizeParagraphs(n.text)}</p>
               <button
                 onClick={() => removeEntry(n.id)}
                 title="Delete note"
@@ -2569,7 +2569,7 @@ function NotesTab({ animal }: { animal: Animal }) {
               className="bg-white rounded-xl border border-card-border p-4 flex items-start gap-3 group"
             >
               <div className="flex-1">
-                <p className="text-sm text-charcoal whitespace-pre-line">{n.text}</p>
+                <p className="text-sm text-charcoal whitespace-pre-line">{normalizeParagraphs(n.text)}</p>
                 <p className="text-[11px] text-warm-gray/60 mt-1">
                   {sharedFormatDate(n.timestamp)}
                 </p>

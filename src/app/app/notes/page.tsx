@@ -22,6 +22,7 @@ import { useSchedule } from "@/lib/schedule-context";
 import { useMedical } from "@/lib/medical-context";
 import { useToast } from "@/lib/toast-context";
 import { categoryMeta, type TaskCategory } from "@/lib/sanctuary-data";
+import { normalizeParagraphs } from "@/components/app/ExpandableText";
 
 const typeConfig: Record<
   EntryType,
@@ -253,7 +254,7 @@ export default function NotesPage() {
                       {formatTime(entry.timestamp)}
                     </span>
                   </div>
-                  <p className="text-sm text-charcoal leading-snug whitespace-pre-line">{entry.text}</p>
+                  <p className="text-sm text-charcoal leading-snug whitespace-pre-line">{normalizeParagraphs(entry.text)}</p>
 
                   {/* Attached screenshots/docs — deleted automatically when
                       the note is resolved or removed. */}

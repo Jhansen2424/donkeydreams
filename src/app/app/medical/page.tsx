@@ -29,6 +29,7 @@ import { useMedical } from "@/lib/medical-context";
 import { useAnimals } from "@/lib/animals-context";
 import { yardWideDewormings } from "@/lib/deworming-vaccination-data";
 import ProviderPanel, { type ProviderType } from "@/components/app/ProviderPanel";
+import { normalizeParagraphs } from "@/components/app/ExpandableText";
 import { useProviders } from "@/lib/providers-context";
 import { volunteers } from "@/lib/volunteer-data";
 import { formatDate as sharedFormatDate } from "@/lib/format-date";
@@ -115,7 +116,7 @@ function RecordCard({
         </p>
         {record.description && (
           <p className="text-sm text-warm-gray mt-2 leading-relaxed whitespace-pre-line">
-            {record.description}
+            {normalizeParagraphs(record.description)}
           </p>
         )}
       </div>
