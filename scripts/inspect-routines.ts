@@ -32,7 +32,7 @@ async function main() {
       console.log(`\n--- ${c.date} ---`);
     }
     console.log(
-      `  [${c.id.slice(0, 8)}] tmpl=${c.templateId ? c.templateId.slice(0, 8) : "NONE"} "${(c.task ?? "").slice(0, 55)}" block=${c.block} done=${c.completed} animal=${c.animalSpecific ?? "-"} note=${c.note ? c.note.length + "ch" : "-"}`
+      `  [${c.id.slice(0, 8)}] tmpl=${c.templateId ? c.templateId.slice(0, 8) : "NONE"} "${(c.task ?? "").slice(0, 55)}" block=${c.block} done=${c.done} note=${c.note ? c.note.length + "ch" : "-"}`
     );
   }
   await prisma.$disconnect();

@@ -44,6 +44,83 @@ interface HoofData {
   nextDue: Record<string, string | null>;
 }
 
+// Feed plan shapes, matching /api/feed and /api/feed/herd.
+interface FeedPlanBlocks {
+  am: { item: string; amount: string }[];
+  mid: { item: string; amount: string }[];
+  pm: { item: string; amount: string }[];
+}
+interface FeedEntryRow {
+  id: string;
+  animal: string;
+  notes: string;
+  plan: FeedPlanBlocks;
+}
+interface HerdFeedPlanRow {
+  id: string;
+  herd: string;
+  notes: string;
+  plan: FeedPlanBlocks;
+}
+
+// Recurring routine templates from /api/tasks/templates.
+interface RoutineTemplateRow {
+  id: string;
+  task: string;
+  block: string;
+  animalSpecific: string | null;
+  defaultAssignee: string | null;
+  note: string | null;
+  active: boolean;
+  repeatDays: number[];
+  sortOrder: number;
+}
+
+// Same merge the feed page uses: herd plan fills the base, the donkey's own
+// row wins per item.
+interface FeedItemRow {
+  item: string;
+  am: string;
+  mid: string;
+  pm: string;
+  source: "herd" | "donkey";
+}
+function mergeFeedRows(
+  donkeyPlan: FeedPlanBlocks | null,
+  herdPlan: FeedPlanBlocks | null
+): FeedItemRow[] {
+  const items = new Map<string, FeedItemRow>();
+  const fill = (plan: FeedPlanBlocks, source: "herd" | "donkey") => {
+    for (const block of ["am", "mid", "pm"] as const) {
+      for (const entry of plan[block]) {
+        const key = entry.item.trim().toLowerCase();
+        let row = items.get(key);
+        if (!row || (row.source === "herd" && source === "donkey")) {
+          row = { item: entry.item, am: "", mid: "", pm: "", source };
+          items.set(key, row);
+        }
+        if (row.source === source) row[block] = entry.amount;
+      }
+    }
+  };
+  if (herdPlan) fill(herdPlan, "herd");
+  if (donkeyPlan) fill(donkeyPlan, "donkey");
+  return Array.from(items.values());
+}
+
+const WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function repeatLabel(repeatDays: number[]): string {
+  if (repeatDays.length === 0 || repeatDays.length === 7) return "Every day";
+  return [...repeatDays].sort().map((d) => WEEKDAY_NAMES[d] ?? "").join(", ");
+}
+
+const BLOCK_LABELS: Record<string, string> = {
+  AM: "Morning",
+  Mid: "Midday",
+  PM: "Evening",
+};
+const BLOCK_ORDER: Record<string, number> = { AM: 0, Mid: 1, PM: 2 };
+
 export default function PrintAnimalsPage() {
   return (
     <Suspense fallback={null}>
@@ -94,6 +171,62 @@ function PrintAnimalsInner() {
       cancelled = true;
     };
   }, []);
+
+  // Feed plans (per-donkey + herd-level) and recurring routine templates —
+  // one fetch each; looked up per donkey below.
+  const [feedEntries, setFeedEntries] = useState<FeedEntryRow[]>([]);
+  const [herdFeedPlans, setHerdFeedPlans] = useState<HerdFeedPlanRow[]>([]);
+  const [routineTemplates, setRoutineTemplates] = useState<RoutineTemplateRow[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/feed", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { entries?: FeedEntryRow[] } | null) => {
+        if (!cancelled && data?.entries) setFeedEntries(data.entries);
+      })
+      .catch(() => {});
+    fetch("/api/feed/herd", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { entries?: HerdFeedPlanRow[] } | null) => {
+        if (!cancelled && data?.entries) setHerdFeedPlans(data.entries);
+      })
+      .catch(() => {});
+    fetch("/api/tasks/templates", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { templates?: RoutineTemplateRow[] } | null) => {
+        if (!cancelled && data?.templates) setRoutineTemplates(data.templates);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const feedByAnimal = useMemo(
+    () => new Map(feedEntries.map((e) => [e.animal, e])),
+    [feedEntries]
+  );
+  const herdFeedByHerd = useMemo(
+    () => new Map(herdFeedPlans.map((p) => [p.herd, p])),
+    [herdFeedPlans]
+  );
+  const routinesByAnimal = useMemo(() => {
+    const m = new Map<string, RoutineTemplateRow[]>();
+    for (const t of routineTemplates) {
+      if (!t.active || !t.animalSpecific) continue;
+      const arr = m.get(t.animalSpecific) ?? [];
+      arr.push(t);
+      m.set(t.animalSpecific, arr);
+    }
+    for (const arr of m.values()) {
+      arr.sort(
+        (a, b) =>
+          (BLOCK_ORDER[a.block] ?? 9) - (BLOCK_ORDER[b.block] ?? 9) ||
+          a.sortOrder - b.sortOrder
+      );
+    }
+    return m;
+  }, [routineTemplates]);
 
   // Sorted roster: herd (in the app's herd order, unknown herds last),
   // then name. `?animal=<slug>` narrows to a single donkey.
@@ -156,6 +289,9 @@ function PrintAnimalsInner() {
             dbMedicalEntries={dbMedicalEntries}
             hoofVisits={hoofData.byAnimal.get(animal.name) ?? []}
             nextHoofDue={hoofData.nextDue[animal.name] ?? null}
+            feedEntry={feedByAnimal.get(animal.name) ?? null}
+            herdFeedPlan={herdFeedByHerd.get(animal.herd) ?? null}
+            routines={routinesByAnimal.get(animal.name) ?? []}
           />
         ))
       )}
@@ -170,11 +306,17 @@ function ProfileSheet({
   dbMedicalEntries,
   hoofVisits,
   nextHoofDue,
+  feedEntry,
+  herdFeedPlan,
+  routines,
 }: {
   animal: Animal;
   dbMedicalEntries: MedicalRecord[];
   hoofVisits: HoofVisitRow[];
   nextHoofDue: string | null;
+  feedEntry: FeedEntryRow | null;
+  herdFeedPlan: HerdFeedPlanRow | null;
+  routines: RoutineTemplateRow[];
 }) {
   const profile = getDonkeyProfile(animal.name);
   const nextVaccination = getNextVaccinationDue(animal.name);
@@ -212,6 +354,11 @@ function ProfileSheet({
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [dbMedicalEntries, animal.name]);
+
+  const feedRows = useMemo(
+    () => mergeFeedRows(feedEntry?.plan ?? null, herdFeedPlan?.plan ?? null),
+    [feedEntry, herdFeedPlan]
+  );
 
   const visibleRecords = records.slice(0, MEDICAL_CAP);
   const hiddenRecordCount = records.length - visibleRecords.length;
@@ -370,6 +517,81 @@ function ProfileSheet({
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Daily feed plan: herd base plan merged with the donkey's own
+          overrides — same effective plan the Feed page shows. */}
+      {(feedRows.length > 0 || feedEntry?.notes || herdFeedPlan?.notes) && (
+        <div className="mt-5 break-inside-avoid">
+          <h3 className="text-sm font-bold text-charcoal uppercase tracking-wider border-b border-charcoal pb-1 mb-2">
+            Daily Feed Plan
+          </h3>
+          {feedRows.length > 0 && (
+            <table className="w-full text-left text-xs mb-2">
+              <thead>
+                <tr className="border-b border-charcoal/40">
+                  <th className="py-1 pr-2 font-semibold text-charcoal">Item</th>
+                  <th className="py-1 pr-2 font-semibold text-charcoal w-24">Morning</th>
+                  <th className="py-1 pr-2 font-semibold text-charcoal w-24">Midday</th>
+                  <th className="py-1 font-semibold text-charcoal w-24">Evening</th>
+                </tr>
+              </thead>
+              <tbody>
+                {feedRows.map((row) => (
+                  <tr key={row.item} className="border-b border-charcoal/15 align-top">
+                    <td className="py-1 pr-2 text-charcoal">
+                      {row.item}
+                      {row.source === "herd" ? " (herd plan)" : ""}
+                    </td>
+                    <td className="py-1 pr-2 text-charcoal">{row.am || "—"}</td>
+                    <td className="py-1 pr-2 text-charcoal">{row.mid || "—"}</td>
+                    <td className="py-1 text-charcoal">{row.pm || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {herdFeedPlan?.notes && (
+            <p className="text-xs text-charcoal leading-snug whitespace-pre-line">
+              <span className="font-semibold">Herd notes:</span>{" "}
+              {normalizeParagraphs(herdFeedPlan.notes)}
+            </p>
+          )}
+          {feedEntry?.notes && (
+            <p className="text-xs text-charcoal leading-snug whitespace-pre-line mt-1">
+              {normalizeParagraphs(feedEntry.notes)}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Daily routine: this donkey's recurring care tasks with their full
+          instructions (the standing plan, not one day's checkboxes). */}
+      {routines.length > 0 && (
+        <div className="mt-5">
+          <h3 className="text-sm font-bold text-charcoal uppercase tracking-wider border-b border-charcoal pb-1 mb-2">
+            Daily Routine
+          </h3>
+          <div className="space-y-3">
+            {routines.map((t) => (
+              <div key={t.id} className="break-inside-avoid">
+                <p className="text-sm text-charcoal">
+                  <span className="font-semibold">{t.task}</span>
+                  <span className="text-xs">
+                    {" "}
+                    · {BLOCK_LABELS[t.block] ?? t.block} · {repeatLabel(t.repeatDays)}
+                    {t.defaultAssignee ? ` · ${t.defaultAssignee}` : ""}
+                  </span>
+                </p>
+                {t.note && (
+                  <p className="text-xs text-charcoal leading-snug whitespace-pre-line mt-0.5">
+                    {normalizeParagraphs(t.note)}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
