@@ -1735,6 +1735,8 @@ function MedicalTab({ animal }: { animal: Animal }) {
    here, and checking one off here checks it off there too. */
 function TasksTab({ animal }: { animal: Animal }) {
   const { schedule, toggleTask, currentDate } = useSchedule();
+  // Rows whose full details (care instructions) are expanded.
+  const [openDetails, setOpenDetails] = useState<Set<string>>(new Set());
 
   // This donkey's tasks across all time blocks, keeping the (blockIdx,
   // taskIdx) coordinates the schedule mutations need.
@@ -1744,6 +1746,14 @@ function TasksTab({ animal }: { animal: Animal }) {
       .filter(({ task }) => task.animalSpecific === animal.name)
   );
   const doneCount = mine.filter(({ task }) => task.done).length;
+
+  const toggleDetails = (key: string) =>
+    setOpenDetails((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   return (
     <div className="space-y-6">
@@ -1784,62 +1794,94 @@ function TasksTab({ animal }: { animal: Animal }) {
         </div>
       ) : (
         <div className="space-y-2">
-          {mine.map(({ block, blockIdx, task, taskIdx }) => (
-            <button
-              key={task.serverId ?? `${blockIdx}-${taskIdx}`}
-              onClick={() => void toggleTask(blockIdx, taskIdx)}
-              className={`w-full flex items-center gap-3 bg-white rounded-xl border p-4 transition-all text-left ${
-                task.done
-                  ? "border-emerald-200 bg-emerald-50/50"
-                  : "border-card-border hover:border-sand"
-              }`}
-            >
+          {mine.map(({ block, blockIdx, task, taskIdx }) => {
+            const key = task.serverId ?? `${blockIdx}-${taskIdx}`;
+            const open = openDetails.has(key);
+            return (
               <div
-                className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
+                key={key}
+                className={`bg-white rounded-xl border transition-all ${
                   task.done
-                    ? "bg-emerald-500 border-emerald-500"
-                    : "border-card-border"
+                    ? "border-emerald-200 bg-emerald-50/50"
+                    : "border-card-border hover:border-sand"
                 }`}
               >
-                {task.done && (
-                  <svg
-                    className="w-3 h-3 text-white"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                <div className="flex items-start gap-3 p-4">
+                  {/* Checkbox toggles done — ONLY the checkbox, so tapping
+                      the task itself opens its care instructions instead of
+                      accidentally completing it. */}
+                  <button
+                    onClick={() => void toggleTask(blockIdx, taskIdx)}
+                    title={task.done ? "Mark not done" : "Mark done"}
+                    className={`w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
+                      task.done
+                        ? "bg-emerald-500 border-emerald-500"
+                        : "border-card-border hover:border-emerald-400"
+                    }`}
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={3}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
+                    {task.done && (
+                      <svg
+                        className="w-3.5 h-3.5 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={3}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => toggleDetails(key)}
+                    className="flex-1 min-w-0 text-left"
+                    title={open ? "Hide details" : "Show how to do this task"}
+                  >
+                    <p
+                      className={`text-sm font-medium ${
+                        task.done ? "text-warm-gray line-through" : "text-charcoal"
+                      }`}
+                    >
+                      {task.task}
+                      {task.templateId && (
+                        <span className="ml-2 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                          Repeats
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-warm-gray/60 mt-0.5">
+                      {block.name}
+                      {task.assignedTo ? ` · ${task.assignedTo}` : ""}
+                      {task.note && !open ? " · tap for instructions" : ""}
+                    </p>
+                  </button>
+                </div>
+                {open && (
+                  <div className="px-4 pb-4 pl-13">
+                    <div className="ml-9 bg-cream/60 rounded-lg px-3 py-2.5">
+                      {task.note ? (
+                        <p className="text-sm text-charcoal leading-relaxed whitespace-pre-line">
+                          {task.note}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-warm-gray/60 italic">
+                          No instructions on this task yet — add a note to it on
+                          the{" "}
+                          <a href="/app/tasks" className="text-sky-600 hover:underline">
+                            Daily Routine
+                          </a>
+                          .
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
-              <div className="flex-1 min-w-0">
-                <p
-                  className={`text-sm font-medium ${
-                    task.done ? "text-warm-gray line-through" : "text-charcoal"
-                  }`}
-                >
-                  {task.task}
-                  {task.templateId && (
-                    <span className="ml-2 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
-                      Repeats
-                    </span>
-                  )}
-                </p>
-                <p className="text-xs text-warm-gray/60 mt-0.5">
-                  {block.name}
-                  {task.assignedTo ? ` · ${task.assignedTo}` : ""}
-                </p>
-                {task.note && (
-                  <p className="text-[11px] text-warm-gray mt-0.5 italic">{task.note}</p>
-                )}
-              </div>
-            </button>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

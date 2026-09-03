@@ -141,6 +141,58 @@ function RecordCard({
   );
 }
 
+/* ── Save-new-provider hint ──
+   When "Performed by" holds a name that isn't a known provider or active
+   staff member, offer to save it to the provider list (with a type) so it
+   shows in the dropdown for every future entry. */
+function SaveProviderHint({ name }: { name: string }) {
+  const { providers, add } = useProviders();
+  const [type, setType] = useState("Vet");
+  const [saving, setSaving] = useState(false);
+  const trimmed = name.trim();
+  const known =
+    !trimmed ||
+    providers.some((p) => p.name.toLowerCase() === trimmed.toLowerCase()) ||
+    volunteers.some(
+      (v) => v.status === "active" && v.name.toLowerCase() === trimmed.toLowerCase()
+    );
+  if (known) return null;
+  return (
+    <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-warm-gray">
+      <span>
+        Save <span className="font-semibold text-charcoal">“{trimmed}”</span> to the
+        provider list as
+      </span>
+      <select
+        value={type}
+        onChange={(e) => setType(e.target.value)}
+        className="px-1.5 py-0.5 border border-card-border rounded bg-white text-charcoal text-[11px] focus:outline-none"
+      >
+        {["Vet", "Farrier", "Equine Dentist"].map((t) => (
+          <option key={t} value={t}>
+            {t}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        disabled={saving}
+        onClick={async () => {
+          setSaving(true);
+          try {
+            await add({ name: trimmed, type });
+          } finally {
+            setSaving(false);
+          }
+        }}
+        className="px-2 py-0.5 bg-sky/10 text-sky-dark font-semibold rounded hover:bg-sky/20 disabled:opacity-50"
+      >
+        {saving ? "Saving…" : "Add"}
+      </button>
+    </div>
+  );
+}
+
 function EditRecordModal({
   record,
   onClose,
@@ -273,6 +325,7 @@ function EditRecordModal({
               placeholder="Vet, farrier, or dentist name..."
               className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
             />
+            <SaveProviderHint name={provider} />
           </div>
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
@@ -684,6 +737,7 @@ function MedicalDashboardPage() {
               placeholder="Staff name, vet, farrier, or dentist..."
               className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
             />
+            <SaveProviderHint name={formProvider} />
             {/* Combined list of providers (vets/farriers/dentists from the */}
             {/* providers DB) and active staff (volunteers with status      */}
             {/* "active") so users can pick whoever actually performed the  */}
