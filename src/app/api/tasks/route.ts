@@ -7,7 +7,8 @@ interface ApiTask {
   id: string;
   task: string;
   block: string;           // "AM" | "Mid" | "PM"
-  category: string;
+  category: string;        // legacy — tags[0]
+  tags: string[];
   date: string;            // ISO YYYY-MM-DD
   assignedTo: string | null;
   done: boolean;
@@ -15,6 +16,7 @@ interface ApiTask {
   animalSpecific: string | null;
   templateId: string | null;
   sortOrder: number;
+  sticky: boolean;
   createdAt: string;
 }
 
@@ -23,12 +25,14 @@ function toApi(row: {
   task: string;
   block: string;
   category: string;
+  tags: string[];
   date: string;
   assignedTo: string | null;
   done: boolean;
   note: string | null;
   templateId: string | null;
   sortOrder: number;
+  sticky: boolean;
   createdAt: Date;
 }, animalSpecific: string | null): ApiTask {
   return {
@@ -36,6 +40,7 @@ function toApi(row: {
     task: row.task,
     block: row.block,
     category: row.category,
+    tags: row.tags.length > 0 ? row.tags : row.category ? [row.category] : [],
     date: row.date,
     assignedTo: row.assignedTo,
     done: row.done,
@@ -43,8 +48,16 @@ function toApi(row: {
     animalSpecific,
     templateId: row.templateId,
     sortOrder: row.sortOrder,
+    sticky: row.sticky,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+// Sanitize a client-provided tags payload down to a clean string array.
+function cleanTags(v: unknown): string[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const tags = v.filter((t): t is string => typeof t === "string" && t.length > 0 && t.length < 40);
+  return tags.slice(0, 10);
 }
 
 // `TaskCompletion` has no `animalSpecific` column, so we encode it inside the
@@ -98,6 +111,7 @@ async function materializeTemplates(date: string): Promise<void> {
           task: t.task,
           block: t.block,
           category: t.category,
+          tags: t.tags.length > 0 ? t.tags : t.category ? [t.category] : [],
           date,
           assignedTo: t.defaultAssignee,
           note: encodeNote(t.note, t.animalSpecific),
@@ -120,14 +134,21 @@ export async function GET(req: NextRequest) {
 
     // Caller may request either a single date (default: today) or a
     // from/to range (used by the Upcoming Tasks panel).
-    const where: { date?: string | { gte?: string; lte?: string } } = {};
+    let where: Record<string, unknown>;
+    let viewDate: string | undefined;
     if (from || to) {
-      where.date = {};
-      if (from) where.date.gte = from;
-      if (to) where.date.lte = to;
+      const range: { gte?: string; lte?: string } = {};
+      if (from) range.gte = from;
+      if (to) range.lte = to;
+      // Range views (Upcoming panel) exclude sticky tasks — those are
+      // standing items, not scheduled ones.
+      where = { date: range, sticky: false };
     } else {
-      where.date = date || todayIso();
-      await materializeTemplates(where.date);
+      viewDate = date || todayIso();
+      await materializeTemplates(viewDate);
+      // "Until done" tasks appear on EVERY day until checked off; once done
+      // they only show on their own date.
+      where = { OR: [{ date: viewDate }, { sticky: true, done: false }] };
     }
 
     const rows = await db.taskCompletion.findMany({
@@ -138,7 +159,7 @@ export async function GET(req: NextRequest) {
       const { animal, cleanNote } = extractAnimal(r.note);
       return toApi({ ...r, note: cleanNote }, animal);
     });
-    return NextResponse.json({ tasks, date: where.date });
+    return NextResponse.json({ tasks, date: viewDate ?? null });
   } catch (error) {
     console.error("GET /api/tasks failed:", error);
     return NextResponse.json({ error: "Failed to load tasks" }, { status: 500 });
@@ -148,7 +169,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { task, block, category, assignedTo, note, animalSpecific, date, templateId, sortOrder } = body ?? {};
+    const { task, block, category, assignedTo, note, animalSpecific, date, templateId, sortOrder, sticky } = body ?? {};
 
     if (!task || typeof task !== "string") {
       return NextResponse.json({ error: "Missing 'task'" }, { status: 400 });
@@ -157,17 +178,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing 'block'" }, { status: 400 });
     }
 
+    const tags = cleanTags(body?.tags) ?? (category ? [category] : ["routine"]);
     const row = await db.taskCompletion.create({
       data: {
         task,
         block,
-        category: category || "routine",
+        category: tags[0] ?? "routine",
+        tags,
         date: date || todayIso(),
         assignedTo: assignedTo || null,
         note: encodeNote(note, animalSpecific),
         done: false,
         templateId: templateId || null,
         sortOrder: typeof sortOrder === "number" ? sortOrder : 0,
+        sticky: sticky === true,
       },
     });
     const { animal, cleanNote } = extractAnimal(row.note);
@@ -207,18 +231,28 @@ export async function PATCH(req: NextRequest) {
       task?: string;
       block?: string;
       category?: string;
+      tags?: string[];
       assignedTo?: string | null;
       note?: string | null;
       done?: boolean;
       sortOrder?: number;
+      sticky?: boolean;
     } = {};
 
     if (typeof updates.task === "string") patch.task = updates.task;
     if (typeof updates.block === "string") patch.block = updates.block;
-    if (typeof updates.category === "string") patch.category = updates.category;
+    const patchTags = cleanTags(updates.tags);
+    if (patchTags) {
+      patch.tags = patchTags;
+      patch.category = patchTags[0] ?? "routine";
+    } else if (typeof updates.category === "string") {
+      patch.category = updates.category;
+      patch.tags = [updates.category];
+    }
     if (updates.assignedTo !== undefined) patch.assignedTo = updates.assignedTo || null;
     if (typeof updates.done === "boolean") patch.done = updates.done;
     if (typeof updates.sortOrder === "number") patch.sortOrder = updates.sortOrder;
+    if (typeof updates.sticky === "boolean") patch.sticky = updates.sticky;
 
     // To re-encode note+animal we need the current row.
     if (updates.note !== undefined || updates.animalSpecific !== undefined) {

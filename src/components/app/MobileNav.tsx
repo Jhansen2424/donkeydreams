@@ -11,15 +11,18 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+// "Routine" matches the desktop sidebar's "Daily Routine" (same page) so
+// nobody hunts for it under a different name on mobile.
 const tabs = [
   { name: "Home", href: "/app", icon: LayoutDashboard },
   { name: "Animals", href: "/app/animals", icon: Heart },
-  { name: "Tasks", href: "/app/tasks", icon: ClipboardCheck },
+  { name: "Routine", href: "/app/tasks", icon: ClipboardCheck },
   { name: "Medical", href: "/app/medical", icon: Stethoscope },
   { name: "More", href: "#more", icon: Menu },
 ];
 
 const moreLinks = [
+  { name: "Daily Routine", href: "/app/tasks" },
   { name: "Watch List", href: "/app/watch" },
   { name: "Sanctuary Updates", href: "/app/updates" },
   { name: "Feed Plans", href: "/app/feed" },

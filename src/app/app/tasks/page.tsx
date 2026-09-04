@@ -22,8 +22,6 @@ import {
 } from "lucide-react";
 import {
   groupTasksByAnimal,
-  getTaskAnimals,
-  alleyHerdRotation,
   saltsAndMinerals,
   categoryMeta,
   sourceMeta,
@@ -37,7 +35,7 @@ import { formatDate } from "@/lib/format-date";
 import { useParkingLot } from "@/lib/parking-lot-context";
 import VolunteerLoadBar from "@/components/app/VolunteerLoadBar";
 import TaskEditModal, { type TaskEditModalMode } from "@/components/app/TaskEditModal";
-import { normalizeParagraphs } from "@/components/app/ExpandableText";
+import ExpandableText, { normalizeParagraphs } from "@/components/app/ExpandableText";
 import { Trash2 } from "lucide-react";
 
 type ViewMode = "time" | "animal" | "human";
@@ -96,6 +94,11 @@ function shiftDate(iso: string, days: number): string {
   const d = new Date(iso + "T00:00:00");
   d.setDate(d.getDate() + days);
   return d.toLocaleDateString("en-CA");
+}
+
+// A task's tags, falling back to its legacy single category.
+function taskTags(t: ScheduleTask): TaskCategory[] {
+  return t.tags && t.tags.length > 0 ? t.tags : [t.category];
 }
 
 // ── Assign Popover ──
@@ -259,20 +262,40 @@ export default function TasksPage() {
     };
   }, [refresh]);
 
-  const totalTasks = schedule.reduce((s, b) => s + b.tasks.length, 0);
-  const doneTasks = schedule.reduce(
+  // Admin-tagged tasks live on the Admin page only — they never appear in
+  // the daily routine views (or its progress counts).
+  const routineSchedule = useMemo(
+    () =>
+      schedule.map((block) => ({
+        ...block,
+        tasks: block.tasks.filter((t) => !taskTags(t).includes("admin")),
+      })),
+    [schedule]
+  );
+
+  const totalTasks = routineSchedule.reduce((s, b) => s + b.tasks.length, 0);
+  const doneTasks = routineSchedule.reduce(
     (s, b) => s + b.tasks.filter((t) => t.done).length,
     0
   );
-  const totalMinutes = schedule.reduce(
+  const totalMinutes = routineSchedule.reduce(
     (s, b) => s + b.tasks.reduce((ts, t) => ts + (t.estimatedMinutes ?? 0), 0),
     0
   );
-  const autoGenCount = schedule.reduce(
+  const autoGenCount = routineSchedule.reduce(
     (s, b) => s + b.tasks.filter((t) => t.source !== "base").length,
     0
   );
   const pct = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+
+  // Filter chips render only the tags actually in use today, so the row
+  // stays uncluttered and always matches what's on the list.
+  const tagsInUse = useMemo(() => {
+    const set = new Set<TaskCategory>();
+    for (const b of routineSchedule) for (const t of b.tasks) for (const tag of taskTags(t)) set.add(tag);
+    const order = Object.keys(categoryMeta) as TaskCategory[];
+    return order.filter((c) => set.has(c) && c !== "admin");
+  }, [routineSchedule]);
 
   const taskMatchesSearch = (t: ScheduleTask) => {
     if (!search) return true;
@@ -282,16 +305,17 @@ export default function TasksPage() {
       (t.animalSpecific?.toLowerCase().includes(q) ?? false) ||
       (t.note?.toLowerCase().includes(q) ?? false) ||
       (t.assignedTo?.toLowerCase().includes(q) ?? false) ||
-      categoryMeta[t.category].label.toLowerCase().includes(q) ||
+      taskTags(t).some((tag) => categoryMeta[tag]?.label.toLowerCase().includes(q)) ||
       sourceMeta[t.source].label.toLowerCase().includes(q)
     );
   };
 
   const filteredSchedule = useMemo(() => {
-    return schedule.map((block) => ({
+    return routineSchedule.map((block) => ({
       ...block,
       tasks: block.tasks.filter((t) => {
-        if (categoryFilter !== "all" && t.category !== categoryFilter) return false;
+        // A task matches a filter chip when ANY of its tags matches.
+        if (categoryFilter !== "all" && !taskTags(t).includes(categoryFilter)) return false;
         if (humanFilter !== "all") {
           const assignees = getAssignees(t);
           if (!assignees.includes(humanFilter)) return false;
@@ -300,7 +324,7 @@ export default function TasksPage() {
       }),
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schedule, categoryFilter, humanFilter, search]);
+  }, [routineSchedule, categoryFilter, humanFilter, search]);
 
   const animalGroups = useMemo(
     () => groupTasksByAnimal(filteredSchedule),
@@ -572,12 +596,12 @@ export default function TasksPage() {
           active={categoryFilter === "all"}
           onClick={() => setCategoryFilter("all")}
         />
-        {(Object.keys(categoryMeta) as TaskCategory[]).map((cat) => (
+        {tagsInUse.map((cat) => (
           <FilterPill
             key={cat}
             label={categoryMeta[cat].label}
             active={categoryFilter === cat}
-            onClick={() => setCategoryFilter(cat)}
+            onClick={() => setCategoryFilter((cur) => (cur === cat ? "all" : cat))}
             dotColor={categoryMeta[cat].color}
           />
         ))}
@@ -589,6 +613,12 @@ export default function TasksPage() {
           {filteredSchedule.map((block, _fi) => {
             const origIdx = schedule.findIndex((b) => b.name === block.name);
             const isDropTarget = dropTargetBlock === origIdx && dragSource && dragSource.blockIdx !== origIdx;
+            // Highlight the block that matches the current time of day, so
+            // the crew works AM before Mid before PM.
+            const isNow =
+              viewingToday &&
+              block.name ===
+                (new Date().getHours() < 10 ? "AM" : new Date().getHours() < 16 ? "Mid" : "PM");
             return (
               <div
                 key={block.name}
@@ -619,13 +649,24 @@ export default function TasksPage() {
                   setDragSource(null);
                 }}
                 className={`bg-white rounded-xl border overflow-hidden transition-colors ${
-                  isDropTarget ? "border-sidebar ring-2 ring-sidebar/30" : "border-card-border"
+                  isDropTarget
+                    ? "border-sidebar ring-2 ring-sidebar/30"
+                    : isNow
+                      ? "border-sky ring-2 ring-sky/25"
+                      : "border-card-border"
                 }`}
               >
                 <div className="bg-sidebar px-5 py-3 print:bg-transparent print:border-b-2 print:border-charcoal print:px-0">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="font-bold text-white print:text-charcoal">{block.name}</h2>
+                      <h2 className="font-bold text-white print:text-charcoal flex items-center gap-2">
+                        {block.name}
+                        {isNow && (
+                          <span className="print:hidden inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-sky text-white uppercase tracking-wide">
+                            Now
+                          </span>
+                        )}
+                      </h2>
                       <p className="text-cream/60 text-xs print:text-charcoal">{block.time}</p>
                     </div>
                     <div className="flex items-center gap-2 print:hidden">
@@ -866,28 +907,9 @@ export default function TasksPage() {
         <UpcomingTasksCard />
       </div>
 
-      {/* Info cards row */}
+      {/* Reminders — the old Alley Herd Rotation card was removed (no
+          rotation at the new property, per Amber). */}
       <div className="grid sm:grid-cols-2 gap-4 print:hidden">
-        <div className="bg-white rounded-xl border border-card-border p-5">
-          <h3 className="font-bold text-charcoal mb-3 flex items-center gap-2">
-            <RotateCcw className="w-4 h-4 text-sky" />
-            Alley Herd Rotation
-          </h3>
-          <div className="space-y-2">
-            {alleyHerdRotation.map((r) => (
-              <div
-                key={r.date}
-                className="flex items-center justify-between py-1.5 border-b border-card-border last:border-0"
-              >
-                <span className="text-sm font-medium text-charcoal">
-                  {r.date}
-                </span>
-                <span className="text-sm text-warm-gray">{r.herd}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
         <RemindersCard />
       </div>
 
@@ -971,24 +993,28 @@ function saveDismissedSeedReminders(ids: Set<string>) {
 }
 
 function RemindersCard() {
-  const { entries, addEntry, removeEntry } = useParkingLot();
+  const { entries, addEntry, removeEntry, resolveEntry, unresolveEntry } = useParkingLot();
   const { addTask } = useSchedule();
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
-  const [dismissedSeeds, setDismissedSeeds] = useState<Set<string>>(new Set());
+  const [crossedSeeds, setCrossedSeeds] = useState<Set<string>>(new Set());
 
-  // Hydrate dismissed-seed-reminders from localStorage on mount.
+  // Hydrate crossed-out seed reminders from localStorage on mount. (This
+  // reuses the old "dismissed" key, so previously dismissed seeds come back
+  // crossed out instead of gone.)
   useEffect(() => {
-    setDismissedSeeds(loadDismissedSeedReminders());
+    setCrossedSeeds(loadDismissedSeedReminders());
   }, []);
 
-  const userReminders = entries.filter((e) => e.type === "reminder" && !e.resolved);
-  const visibleSeeds = SEED_REMINDERS.filter((s) => !dismissedSeeds.has(s.id));
+  // Crossed-out (resolved) reminders stay visible with a strikethrough —
+  // clicking again un-crosses them. Nothing is deleted by accident.
+  const userReminders = entries.filter((e) => e.type === "reminder");
 
-  function dismissSeed(id: string) {
-    setDismissedSeeds((prev) => {
+  function toggleSeed(id: string) {
+    setCrossedSeeds((prev) => {
       const next = new Set(prev);
-      next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       saveDismissedSeedReminders(next);
       return next;
     });
@@ -1030,45 +1056,67 @@ function RemindersCard() {
         Reminders
       </h3>
       <div className="space-y-3">
-        {/* Seed reminders — useful defaults that don't live in the DB. */}
-        {visibleSeeds.map((seed) => (
-          <div
-            key={seed.id}
-            className={`p-3 border rounded-lg flex items-start gap-2 ${seed.className}`}
-          >
-            <div className="flex-1">{seed.render}</div>
-            <button
-              onClick={() => dismissSeed(seed.id)}
-              className="text-warm-gray/50 hover:text-red-500 transition-colors shrink-0 mt-0.5"
-              title="Dismiss this reminder"
+        {/* Seed reminders — useful defaults that don't live in the DB.
+            Clicking the X crosses them out; clicking again restores them. */}
+        {SEED_REMINDERS.map((seed) => {
+          const crossed = crossedSeeds.has(seed.id);
+          return (
+            <div
+              key={seed.id}
+              className={`p-3 border rounded-lg flex items-start gap-2 ${seed.className} ${
+                crossed ? "opacity-50" : ""
+              }`}
             >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ))}
+              <div className={`flex-1 ${crossed ? "line-through" : ""}`}>{seed.render}</div>
+              <button
+                onClick={() => toggleSeed(seed.id)}
+                className="text-warm-gray/50 hover:text-charcoal transition-colors shrink-0 mt-0.5"
+                title={crossed ? "Restore this reminder" : "Cross out this reminder"}
+              >
+                {crossed ? <RotateCcw className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          );
+        })}
 
-        {/* User-added reminders */}
+        {/* User-added reminders. X crosses out (reversible); the trash icon
+            only appears on crossed-out reminders for permanent cleanup. */}
         {userReminders.map((r) => (
           <div
             key={r.id}
-            className="p-3 bg-cream/60 border border-card-border rounded-lg flex items-start gap-2 group"
+            className={`p-3 bg-cream/60 border border-card-border rounded-lg flex items-start gap-2 group ${
+              r.resolved ? "opacity-50" : ""
+            }`}
           >
-            <p className="text-sm text-charcoal flex-1">{r.text}</p>
+            <p className={`text-sm text-charcoal flex-1 ${r.resolved ? "line-through" : ""}`}>
+              {r.text}
+            </p>
             <div className="flex items-center gap-1 shrink-0">
+              {!r.resolved && (
+                <button
+                  onClick={() => void promoteReminderToTask(r.id, r.text)}
+                  className="text-warm-gray/50 hover:text-sky transition-colors opacity-0 group-hover:opacity-100"
+                  title="Promote to task on today's schedule"
+                >
+                  <ClipboardCheck className="w-3.5 h-3.5" />
+                </button>
+              )}
               <button
-                onClick={() => void promoteReminderToTask(r.id, r.text)}
-                className="text-warm-gray/50 hover:text-sky transition-colors opacity-0 group-hover:opacity-100"
-                title="Promote to task on today's schedule"
+                onClick={() => (r.resolved ? unresolveEntry(r.id) : resolveEntry(r.id))}
+                className="text-warm-gray/50 hover:text-charcoal transition-colors"
+                title={r.resolved ? "Restore reminder" : "Cross out reminder"}
               >
-                <ClipboardCheck className="w-3.5 h-3.5" />
+                {r.resolved ? <RotateCcw className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
               </button>
-              <button
-                onClick={() => removeEntry(r.id)}
-                className="text-warm-gray/50 hover:text-red-500 transition-colors"
-                title="Remove reminder"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
+              {r.resolved && (
+                <button
+                  onClick={() => removeEntry(r.id)}
+                  className="text-warm-gray/50 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                  title="Delete permanently"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -1175,7 +1223,6 @@ function TaskRow({
   onDropRow?: (e: React.DragEvent<HTMLDivElement>) => void;
   isDropTarget?: boolean;
 }) {
-  const meta = categoryMeta[task.category];
   const source = sourceMeta[task.source];
   const draggable = Boolean(onDragStart);
 
@@ -1230,11 +1277,26 @@ function TaskRow({
           >
             {task.task}
           </button>
-          <span
-            className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${meta.color} ${meta.bg}`}
-          >
-            {meta.label}
-          </span>
+          {taskTags(task).map((tag) => {
+            const meta = categoryMeta[tag];
+            if (!meta) return null;
+            return (
+              <span
+                key={tag}
+                className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${meta.color} ${meta.bg}`}
+              >
+                {meta.label}
+              </span>
+            );
+          })}
+          {task.sticky && (
+            <span
+              title="Stays on the list every day until checked off"
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200"
+            >
+              Until done
+            </span>
+          )}
           {task.estimatedMinutes && (
             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium text-warm-gray bg-cream border border-card-border">
               <Clock className="w-2.5 h-2.5" />
@@ -1263,7 +1325,17 @@ function TaskRow({
           </p>
         )}
         {task.note && (
-          <p className="text-[11px] text-warm-gray mt-0.5 italic whitespace-pre-line">
+          <div className="mt-0.5 print:hidden">
+            <ExpandableText
+              text={task.note}
+              className="text-[11px] text-warm-gray italic"
+              clampChars={180}
+            />
+          </div>
+        )}
+        {/* Print keeps the full note (no Read more on paper). */}
+        {task.note && (
+          <p className="hidden print:block text-[11px] text-warm-gray mt-0.5 italic whitespace-pre-line">
             {normalizeParagraphs(task.note)}
           </p>
         )}

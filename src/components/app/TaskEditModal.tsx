@@ -8,13 +8,14 @@ import { categoryMeta, type TaskCategory, type ScheduleTask } from "@/lib/sanctu
 import { useSchedule } from "@/lib/schedule-context";
 
 const BLOCKS: Array<"AM" | "Mid" | "PM"> = ["AM", "Mid", "PM"];
-const CATEGORIES: TaskCategory[] = [
+// Selectable tags. "weight" is intentionally absent (weight lives in Weight
+// Tracking, not the task list) but stays valid on tasks that already have it.
+const TAG_OPTIONS: TaskCategory[] = [
   "routine",
   "feeding",
   "treatment",
   "special-needs",
   "hoof-dental",
-  "weight",
   "sponsor",
   "projects",
   "admin",
@@ -50,11 +51,12 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
   const [assignees, setAssignees] = useState<string[]>([]);
   const [animal, setAnimal] = useState("");
   const [note, setNote] = useState("");
-  const [category, setCategory] = useState<TaskCategory>("routine");
+  const [tags, setTags] = useState<TaskCategory[]>(["routine"]);
   const [date, setDate] = useState<string>(currentDate);
   // Recurrence: "once" = a normal one-day task; "daily" = every day;
-  // "custom" = the weekdays selected in customDays.
-  const [repeat, setRepeat] = useState<"once" | "daily" | "custom">("once");
+  // "custom" = the weekdays selected in customDays; "sticky" = stays on
+  // every day's list until checked off ("until done").
+  const [repeat, setRepeat] = useState<"once" | "daily" | "custom" | "sticky">("once");
   const [customDays, setCustomDays] = useState<number[]>([]);
   // Editing a repeating task: apply changes to the whole series (default —
   // what people expect from "the routine") or just the day being viewed.
@@ -73,7 +75,7 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
       setAssignees([]);
       setAnimal("");
       setNote("");
-      setCategory("routine");
+      setTags(["routine"]);
       // Default to the date the schedule is showing (local, not UTC), so
       // adding while viewing tomorrow schedules for tomorrow.
       setDate(currentDate);
@@ -86,7 +88,11 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
       setAssignees(splitAssignees(mode.task.assignedTo));
       setAnimal(mode.task.animalSpecific ?? "");
       setNote(mode.task.note ?? "");
-      setCategory(mode.task.category);
+      setTags(
+        mode.task.tags && mode.task.tags.length > 0
+          ? mode.task.tags
+          : [mode.task.category]
+      );
       // Find the block name — the caller already has block context, but we
       // need to infer from the defaultBlock passed alongside `blockIdx`. We
       // accept the caller wrapping this component; for edit mode we read the
@@ -110,6 +116,7 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
     setSaving(true);
     try {
       const assignedTo = assignees.join(", ") || undefined;
+      const chosenTags = tags.length > 0 ? tags : (["routine"] as TaskCategory[]);
       if (mode.kind === "add") {
         await addTask({
           task: text.trim(),
@@ -117,12 +124,15 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
           assignedTo,
           animalSpecific: animal || undefined,
           note: note.trim() || undefined,
-          category,
+          category: chosenTags[0],
+          tags: chosenTags,
           date,
-          // "once" stays a one-day task; otherwise create a recurring
-          // template ([] = every day, else selected weekdays).
+          // "once" stays a one-day task; "sticky" stays until checked off;
+          // otherwise create a recurring template ([] = every day, else
+          // selected weekdays).
+          sticky: repeat === "sticky" || undefined,
           repeatDays:
-            repeat === "once"
+            repeat === "once" || repeat === "sticky"
               ? undefined
               : repeat === "daily"
                 ? []
@@ -138,6 +148,7 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
             animalSpecific: animal,
             note: note.trim(),
             blockName: block,
+            tags: chosenTags,
           },
           { applyToSeries: applyScope === "series" }
         );
@@ -201,11 +212,12 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
               <label className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1 block">
                 Repeat
               </label>
-              <div className="flex gap-1.5">
+              <div className="flex gap-1.5 flex-wrap">
                 {([
                   ["once", "One day"],
                   ["daily", "Every day"],
                   ["custom", "Specific days"],
+                  ["sticky", "Until done"],
                 ] as const).map(([value, label]) => (
                   <button
                     key={value}
@@ -242,12 +254,17 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
                   })}
                 </div>
               )}
-              {repeat !== "once" && (
+              {repeat === "sticky" ? (
+                <p className="text-[11px] text-warm-gray/70 mt-1">
+                  Stays on the list every day until someone checks it off.
+                  Good for standing items like &ldquo;Create succession plan&rdquo;.
+                </p>
+              ) : repeat !== "once" ? (
                 <p className="text-[11px] text-warm-gray/70 mt-1">
                   Appears on every matching day automatically until you stop it.
                   Checking it off only affects that day.
                 </p>
-              )}
+              ) : null}
             </div>
           )}
 
@@ -396,22 +413,41 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
             />
           </div>
 
-          {/* Category */}
+          {/* Tags — a task can carry several; the filter chips match any. */}
           <div>
             <label className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1 block">
-              Category
+              Tags
             </label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value as TaskCategory)}
-              className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal bg-white focus:outline-none focus:ring-2 focus:ring-sand/50"
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {categoryMeta[c].label}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-wrap gap-1.5">
+              {/* Include any tag already on the task even if it isn't in the
+                  standard options (e.g. legacy "weight"). */}
+              {[...TAG_OPTIONS, ...tags.filter((t) => !TAG_OPTIONS.includes(t))].map((c) => {
+                const selected = tags.includes(c);
+                return (
+                  <button
+                    key={c}
+                    onClick={() =>
+                      setTags((prev) =>
+                        prev.includes(c) ? prev.filter((t) => t !== c) : [...prev, c]
+                      )
+                    }
+                    className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                      selected
+                        ? "bg-sky text-white border-sky"
+                        : `bg-white border-card-border hover:bg-cream ${categoryMeta[c]?.color ?? "text-charcoal"}`
+                    }`}
+                  >
+                    {selected && <Check className="w-3 h-3" />}
+                    {categoryMeta[c]?.label ?? c}
+                  </button>
+                );
+              })}
+            </div>
+            {tags.includes("admin") && (
+              <p className="text-[11px] text-warm-gray/70 mt-1">
+                Admin tasks only show on the Admin page, not the daily routine.
+              </p>
+            )}
           </div>
 
           {/* Delete (edit mode only) */}

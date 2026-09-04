@@ -24,6 +24,8 @@ export interface NewTaskInput {
   animalSpecific?: string;
   note?: string;
   category?: TaskCategory;
+  /** Multi-tag taxonomy. Overrides `category` when provided. */
+  tags?: TaskCategory[];
   /** ISO date (YYYY-MM-DD). Defaults to today. Used for scheduling tasks ahead. */
   date?: string;
   /**
@@ -32,6 +34,8 @@ export interface NewTaskInput {
    * The template materializes into each matching day automatically.
    */
   repeatDays?: number[];
+  /** "Until done": the task stays on every day's list until checked off. */
+  sticky?: boolean;
 }
 
 export interface EditTaskInput {
@@ -40,6 +44,7 @@ export interface EditTaskInput {
   animalSpecific?: string;
   note?: string;
   blockName?: string;
+  tags?: TaskCategory[];
 }
 
 interface ScheduleContextValue {
@@ -110,24 +115,29 @@ interface ApiTask {
   task: string;
   block: string;
   category: string;
+  tags?: string[];
   date: string;
   assignedTo: string | null;
   done: boolean;
   note: string | null;
   animalSpecific: string | null;
   templateId: string | null;
+  sticky?: boolean;
   createdAt: string;
 }
 
 function apiToTask(a: ApiTask): TaskWithId {
+  const tags = (a.tags && a.tags.length > 0 ? a.tags : a.category ? [a.category] : ["routine"]) as TaskCategory[];
   return {
     task: a.task,
     assignedTo: a.assignedTo || undefined,
     done: a.done,
     animalSpecific: a.animalSpecific || undefined,
     note: a.note || undefined,
-    category: (a.category as TaskCategory) || "routine",
+    category: tags[0] ?? "routine",
+    tags,
     source: (a.templateId ? "base" : "manual") as TaskSource,
+    sticky: a.sticky === true,
     serverId: a.id,
     templateId: a.templateId,
   };
@@ -321,6 +331,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
             task: input.task,
             block,
             category: input.category ?? "routine",
+            tags: input.tags ?? (input.category ? [input.category] : undefined),
             assignedTo: input.assignedTo,
             animalSpecific: input.animalSpecific,
             note: input.note,
@@ -344,11 +355,13 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
           task: input.task,
           block,
           category: input.category ?? "routine",
+          tags: input.tags ?? (input.category ? [input.category] : undefined),
           assignedTo: input.assignedTo,
           animalSpecific: input.animalSpecific,
           note: input.note,
           date: taskDate,
           sortOrder,
+          sticky: input.sticky === true,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Failed to add");
@@ -392,6 +405,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         assignedTo: updates.assignedTo !== undefined ? updates.assignedTo || undefined : target.assignedTo,
         animalSpecific: updates.animalSpecific !== undefined ? updates.animalSpecific || undefined : target.animalSpecific,
         note: updates.note !== undefined ? updates.note || undefined : target.note,
+        tags: updates.tags ?? target.tags,
+        category: updates.tags ? (updates.tags[0] ?? "routine") : target.category,
       };
       if (!moving) {
         return prev.map((b, bi) =>
@@ -411,6 +426,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       if (updates.assignedTo !== undefined) patchBody.assignedTo = updates.assignedTo || null;
       if (updates.animalSpecific !== undefined) patchBody.animalSpecific = updates.animalSpecific || null;
       if (updates.note !== undefined) patchBody.note = updates.note || null;
+      if (updates.tags !== undefined) patchBody.tags = updates.tags;
       if (moving) patchBody.block = updates.blockName;
 
       const res = await fetch("/api/tasks", {
@@ -429,6 +445,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         if (updates.note !== undefined) templatePatch.note = updates.note || null;
         if (updates.assignedTo !== undefined) templatePatch.assignedTo = updates.assignedTo || null;
         if (updates.animalSpecific !== undefined) templatePatch.animalSpecific = updates.animalSpecific || null;
+        if (updates.tags !== undefined) templatePatch.tags = updates.tags;
         if (moving && updates.blockName) templatePatch.block = updates.blockName;
         if (Object.keys(templatePatch).length > 1) {
           await fetch("/api/tasks/templates", {

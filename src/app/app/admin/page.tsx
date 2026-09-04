@@ -34,6 +34,14 @@ import {
   type UserRole,
 } from "@/lib/volunteer-data";
 import { formatDate } from "@/lib/format-date";
+import { useSchedule } from "@/lib/schedule-context";
+import { type ScheduleTask, type TaskCategory } from "@/lib/sanctuary-data";
+import ExpandableText from "@/components/app/ExpandableText";
+
+// A task's tags, falling back to its legacy single category.
+function taskTags(t: ScheduleTask): TaskCategory[] {
+  return t.tags && t.tags.length > 0 ? t.tags : [t.category];
+}
 
 // ── Admin gate ──
 // Simple client-side role check — not security, just UI visibility.
@@ -181,6 +189,18 @@ function toApiPayload(v: Partial<Volunteer> & { id?: string }): Record<string, u
 
 export default function VolunteersPage() {
   const admin = useAdminAccess();
+  // Admin tasks (tagged "admin") live here — hidden from the daily routine.
+  const { schedule } = useSchedule();
+  const adminTasks = useMemo(() => {
+    const out: { task: ScheduleTask; blockIdx: number; taskIdx: number }[] = [];
+    schedule.forEach((block, blockIdx) => {
+      block.tasks.forEach((task, taskIdx) => {
+        if (taskTags(task).includes("admin")) out.push({ task, blockIdx, taskIdx });
+      });
+    });
+    return out;
+  }, [schedule]);
+  const openAdminTasks = adminTasks.filter((t) => !t.task.done).length;
   const [localVolunteers, setLocalVolunteers] = useState<Volunteer[]>(initialVolunteers);
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -699,12 +719,15 @@ export default function VolunteersPage() {
                 <ClipboardCheck className="w-5 h-5 text-purple-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-purple-600">{stats.openTasks}</p>
-                <p className="text-xs text-warm-gray font-medium">Open Tasks</p>
+                <p className="text-2xl font-bold text-purple-600">{openAdminTasks}</p>
+                <p className="text-xs text-warm-gray font-medium">Open Admin Tasks</p>
               </div>
             </div>
           </div>
         </div>
+
+        {/* ══════ ADMIN TASKS ══════ */}
+        <AdminTasksCard adminTasks={adminTasks} />
 
         {/* ══════ SEARCH + FILTER ══════ */}
         <div className="flex flex-col sm:flex-row gap-3">
@@ -1200,5 +1223,173 @@ export default function VolunteersPage() {
         )}
       </div>
     </AdminGate>
+  );
+}
+
+// ── Admin Tasks Card ──
+// Standing admin work (grant milestones, succession plan, etc). These are
+// real tasks in the shared system, tagged "admin" — which hides them from
+// the Daily Routine and dashboard. New ones default to "until done": they
+// sit here every day until checked off.
+
+function AdminTasksCard({
+  adminTasks,
+}: {
+  adminTasks: { task: ScheduleTask; blockIdx: number; taskIdx: number }[];
+}) {
+  const { addTask, toggleTask, deleteTask } = useSchedule();
+  const [draft, setDraft] = useState("");
+  const [draftNote, setDraftNote] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+
+  async function handleAdd() {
+    const text = draft.trim();
+    if (!text || adding) return;
+    setAdding(true);
+    try {
+      await addTask({
+        task: text,
+        blockName: "AM",
+        tags: ["admin"],
+        category: "admin",
+        note: draftNote.trim() || undefined,
+        sticky: true,
+      });
+      setDraft("");
+      setDraftNote("");
+      setShowForm(false);
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-card-border p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-bold text-charcoal flex items-center gap-2">
+          <ClipboardCheck className="w-4 h-4 text-purple-600" />
+          Admin Tasks
+          <span className="text-xs font-medium text-warm-gray">
+            {adminTasks.filter((t) => !t.task.done).length} open
+          </span>
+        </h3>
+        <button
+          onClick={() => setShowForm((v) => !v)}
+          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-sidebar border border-card-border rounded-md hover:bg-sidebar hover:text-white hover:border-sidebar transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Add
+        </button>
+      </div>
+      <p className="text-xs text-warm-gray/70 mb-3">
+        Only visible here — admin tasks never show on the daily routine. New
+        ones stay on this list every day until checked off.
+      </p>
+
+      {showForm && (
+        <div className="mb-3 space-y-2 p-3 bg-cream/40 rounded-lg border border-card-border">
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void handleAdd();
+              }
+            }}
+            placeholder="e.g. Create succession plan"
+            className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal placeholder:text-warm-gray/50 focus:outline-none focus:ring-2 focus:ring-sand/50"
+          />
+          <textarea
+            value={draftNote}
+            onChange={(e) => setDraftNote(e.target.value)}
+            placeholder="Notes / criteria (optional) — paste the details here so they live with the task"
+            rows={3}
+            className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal placeholder:text-warm-gray/50 focus:outline-none focus:ring-2 focus:ring-sand/50"
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setShowForm(false)}
+              className="px-3 py-1.5 text-xs font-medium text-charcoal bg-white border border-card-border rounded-lg hover:bg-cream"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => void handleAdd()}
+              disabled={!draft.trim() || adding}
+              className="px-3 py-1.5 text-xs font-semibold text-white bg-sidebar rounded-lg hover:bg-sidebar-light disabled:opacity-40"
+            >
+              Add task
+            </button>
+          </div>
+        </div>
+      )}
+
+      {adminTasks.length === 0 ? (
+        <p className="text-sm text-warm-gray/60 py-4 text-center">
+          No admin tasks yet. Add standing items like grant milestones here.
+        </p>
+      ) : (
+        <ul className="space-y-1.5">
+          {adminTasks.map(({ task, blockIdx, taskIdx }) => (
+            <li
+              key={task.serverId ?? `${blockIdx}-${taskIdx}`}
+              className={`flex items-start gap-3 p-2.5 rounded-lg border group ${
+                task.done
+                  ? "bg-cream/40 border-card-border opacity-60"
+                  : "bg-white border-card-border"
+              }`}
+            >
+              <button
+                onClick={() => void toggleTask(blockIdx, taskIdx)}
+                title={task.done ? "Mark incomplete" : "Mark done"}
+                className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
+                  task.done
+                    ? "bg-emerald-500 border-emerald-500"
+                    : "bg-white border-warm-gray/30 hover:border-emerald-400"
+                }`}
+              >
+                {task.done && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+              </button>
+              <div className="flex-1 min-w-0">
+                <p
+                  className={`text-sm font-medium ${
+                    task.done ? "line-through text-warm-gray/60" : "text-charcoal"
+                  }`}
+                >
+                  {task.task}
+                  {task.sticky && !task.done && (
+                    <span className="ml-2 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded">
+                      Until done
+                    </span>
+                  )}
+                </p>
+                {task.assignedTo && (
+                  <p className="text-[11px] text-emerald-700 mt-0.5">{task.assignedTo}</p>
+                )}
+                {task.note && (
+                  <div className="mt-0.5">
+                    <ExpandableText
+                      text={task.note}
+                      className="text-xs text-warm-gray"
+                      clampChars={200}
+                    />
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => void deleteTask(blockIdx, taskIdx)}
+                title="Delete task"
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-warm-gray/50 hover:text-red-500 shrink-0"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

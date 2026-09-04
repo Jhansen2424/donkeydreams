@@ -9,7 +9,8 @@ interface ApiTemplate {
   id: string;
   task: string;
   block: string;
-  category: string;
+  category: string; // legacy — tags[0]
+  tags: string[];
   animalSpecific: string | null;
   defaultAssignee: string | null;
   note: string | null;
@@ -23,6 +24,7 @@ function toApi(row: {
   task: string;
   block: string;
   category: string;
+  tags: string[];
   animalSpecific: string | null;
   defaultAssignee: string | null;
   note: string | null;
@@ -35,6 +37,7 @@ function toApi(row: {
     task: row.task,
     block: row.block,
     category: row.category,
+    tags: row.tags.length > 0 ? row.tags : row.category ? [row.category] : [],
     animalSpecific: row.animalSpecific,
     defaultAssignee: row.defaultAssignee,
     note: row.note,
@@ -47,6 +50,12 @@ function toApi(row: {
 function cleanRepeatDays(v: unknown): number[] {
   if (!Array.isArray(v)) return [];
   return v.filter((d): d is number => typeof d === "number" && d >= 0 && d <= 6);
+}
+
+function cleanTags(v: unknown): string[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const tags = v.filter((t): t is string => typeof t === "string" && t.length > 0 && t.length < 40);
+  return tags.slice(0, 10);
 }
 
 export async function GET() {
@@ -72,11 +81,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing 'block'" }, { status: 400 });
     }
 
+    const tags = cleanTags(body?.tags) ?? (typeof category === "string" && category ? [category] : ["routine"]);
     const row = await db.taskTemplate.create({
       data: {
         task,
         block,
-        category: typeof category === "string" ? category : "routine",
+        category: tags[0] ?? "routine",
+        tags,
         animalSpecific: typeof animalSpecific === "string" && animalSpecific ? animalSpecific : null,
         defaultAssignee: typeof assignedTo === "string" && assignedTo ? assignedTo : null,
         note: typeof note === "string" && note ? note : null,
@@ -102,7 +113,14 @@ export async function PATCH(req: NextRequest) {
     const patch: Record<string, unknown> = {};
     if (typeof updates.task === "string") patch.task = updates.task;
     if (typeof updates.block === "string") patch.block = updates.block;
-    if (typeof updates.category === "string") patch.category = updates.category;
+    const patchTags = cleanTags(updates.tags);
+    if (patchTags) {
+      patch.tags = patchTags;
+      patch.category = patchTags[0] ?? "routine";
+    } else if (typeof updates.category === "string") {
+      patch.category = updates.category;
+      patch.tags = [updates.category];
+    }
     if (updates.animalSpecific !== undefined) patch.animalSpecific = updates.animalSpecific || null;
     if (updates.assignedTo !== undefined) patch.defaultAssignee = updates.assignedTo || null;
     if (updates.note !== undefined) patch.note = updates.note || null;

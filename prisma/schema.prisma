@@ -121,7 +121,10 @@ model TaskTemplate {
   id               String  @id @default(cuid())
   task             String
   block            String  // "AM", "Mid", "PM" (legacy rows: "Breakfast" etc.)
-  category         String  // "routine", "feeding", "treatment", etc.
+  category         String  // legacy single category — kept in sync as tags[0]
+  // Multi-tag taxonomy ("routine", "feeding", "care", ...). A task can carry
+  // several tags; the filter chips match any of them.
+  tags             String[] @default([])
   animalSpecific   String? // donkey name if animal-specific
   estimatedMinutes Int     @default(10)
   defaultAssignee  String?
@@ -143,13 +146,17 @@ model TaskCompletion {
   templateId String?  // links to TaskTemplate if from a template
   task       String
   block      String
-  category   String
+  category   String   // legacy single category — kept in sync as tags[0]
+  tags       String[] @default([])
   date       String   // ISO date
   assignedTo String?
   completedBy String?
   done       Boolean  @default(false)
   note       String?
   sortOrder  Int      @default(0)
+  // "Until done" task: stays on every day's list (regardless of `date`)
+  // until checked off. Used for standing items like grant milestones.
+  sticky     Boolean  @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

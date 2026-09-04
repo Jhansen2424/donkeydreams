@@ -52,6 +52,7 @@ interface ParkingLotContextValue {
     patch: { type?: EntryType; text?: string; data?: ParkingLotEntry["data"] }
   ) => Promise<void>;
   resolveEntry: (id: string) => Promise<void>;
+  unresolveEntry: (id: string) => Promise<void>;
   removeEntry: (id: string) => Promise<void>;
   unresolvedCount: number;
   loading: boolean;
@@ -187,6 +188,23 @@ export function ParkingLotProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Un-cross a resolved entry (the reminders card uses resolve/unresolve as
+  // a cross-out toggle instead of hard-deleting).
+  const unresolveEntry = useCallback(async (id: string) => {
+    setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, resolved: false } : e)));
+    try {
+      const res = await fetch("/api/parking-lot", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, resolved: false }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to update");
+    } catch (e) {
+      setEntries((prev) => prev.map((x) => (x.id === id ? { ...x, resolved: true } : x)));
+      setError(e instanceof Error ? e.message : "Failed to update note");
+    }
+  }, []);
+
   const removeEntry = useCallback(async (id: string) => {
     // Optimistic remove; restore on failure.
     const snapshot = entries;
@@ -206,7 +224,7 @@ export function ParkingLotProvider({ children }: { children: ReactNode }) {
 
   return (
     <ParkingLotContext.Provider
-      value={{ entries, addEntry, updateEntry, resolveEntry, removeEntry, unresolvedCount, loading, error, refresh }}
+      value={{ entries, addEntry, updateEntry, resolveEntry, unresolveEntry, removeEntry, unresolvedCount, loading, error, refresh }}
     >
       {children}
     </ParkingLotContext.Provider>

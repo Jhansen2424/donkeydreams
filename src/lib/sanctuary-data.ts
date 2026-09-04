@@ -296,9 +296,14 @@ export interface ScheduleTask {
   done: boolean;
   animalSpecific?: string;
   note?: string;
+  /** Legacy single category — kept as tags[0] for old call sites. */
   category: TaskCategory;
+  /** Multi-tag taxonomy; the filter chips match ANY of a task's tags. */
+  tags: TaskCategory[];
   source: TaskSource;
   estimatedMinutes?: number;
+  /** "Until done": stays on every day's list until checked off. */
+  sticky?: boolean;
   /** DB row id (TaskCompletion.id) — stable identity for keys and mutations. */
   serverId?: string;
   /** Set when this row was materialized from a recurring TaskTemplate. */
