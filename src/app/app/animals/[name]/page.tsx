@@ -10,6 +10,7 @@ import {
   ClipboardCheck,
   Users,
   Camera,
+  FolderOpen,
   StickyNote,
   Save,
   X,
@@ -59,6 +60,7 @@ const tabs = [
   { id: "tasks", label: "Daily Care", icon: ClipboardCheck },
   { id: "relationships", label: "Relationships", icon: Users },
   { id: "photos", label: "Photos", icon: Camera },
+  { id: "docs", label: "Documents", icon: FolderOpen },
   { id: "notes", label: "Notes", icon: StickyNote },
 ];
 
@@ -515,6 +517,7 @@ export default function AnimalProfilePage() {
         {activeTab === "tasks" && <TasksTab animal={animal} />}
         {activeTab === "relationships" && <RelationshipsTab animal={animal} />}
         {activeTab === "photos" && <PhotosTab animal={animal} />}
+        {activeTab === "docs" && <DocumentsTab animal={animal} />}
         {activeTab === "notes" && <NotesTab animal={animal} />}
       </div>
     </div>
@@ -2311,6 +2314,28 @@ function RelationshipsTab({ animal }: { animal: Animal }) {
           {saving ? "Saving..." : "Save Note"}
         </button>
       </div>
+    </div>
+  );
+}
+
+/* ── Documents Tab ── */
+// Per-donkey files: vet bills, blood work, x-rays — PDFs and photos that
+// belong to THIS donkey and shouldn't live buried in someone's computer.
+// Stored as linked attachments in the Documents system (hidden from the
+// main drive), served inline so PDFs open and print straight from here.
+function DocumentsTab({ animal }: { animal: Animal }) {
+  return (
+    <div className="bg-white rounded-xl border border-card-border p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <FolderOpen className="w-4 h-4 text-sky" />
+        <h3 className="font-bold text-charcoal">{animal.name}&apos;s Documents</h3>
+      </div>
+      <p className="text-xs text-warm-gray mb-3">
+        Vet bills, blood work, x-rays — PDFs and photos. Tap a PDF to open
+        it (you can print or save it from there). Tip: documents can also be
+        attached directly to a medical entry on the Medical tab.
+      </p>
+      <TrimPhotos visitId={`animal-${animal.slug}`} addLabel="Add photos or PDFs" />
     </div>
   );
 }

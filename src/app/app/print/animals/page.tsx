@@ -121,6 +121,25 @@ const BLOCK_LABELS: Record<string, string> = {
 };
 const BLOCK_ORDER: Record<string, number> = { AM: 0, Mid: 1, PM: 2 };
 
+// Printable profile sections. All default ON; the toolbar checklist lets
+// staff uncheck what a particular export doesn't need.
+const SECTION_DEFS = [
+  { id: "photo", label: "Photo" },
+  { id: "identity", label: "Identity" },
+  { id: "flags", label: "Status Flags" },
+  { id: "traits", label: "Personality Traits" },
+  { id: "relationships", label: "Relationships" },
+  { id: "specialNeeds", label: "Special Needs / Behavior" },
+  { id: "feedPlan", label: "Daily Feed Plan" },
+  { id: "routine", label: "Daily Routine" },
+  { id: "notes", label: "Notes" },
+  { id: "story", label: "Origin Story" },
+  { id: "medical", label: "Medical History" },
+  { id: "hoof", label: "Hoof History" },
+] as const;
+type SectionId = (typeof SECTION_DEFS)[number]["id"];
+export type SectionToggles = Record<SectionId, boolean>;
+
 export default function PrintAnimalsPage() {
   return (
     <Suspense fallback={null}>
@@ -134,6 +153,12 @@ function PrintAnimalsInner() {
   const { entries: dbMedicalEntries } = useMedical();
   const searchParams = useSearchParams();
   const slugFilter = searchParams?.get("animal") ?? null;
+
+  // Which profile sections print. Everything defaults ON — staff uncheck
+  // what a given export doesn't need.
+  const [sections, setSections] = useState<SectionToggles>(
+    () => Object.fromEntries(SECTION_DEFS.map((s) => [s.id, true])) as SectionToggles
+  );
 
   // One fetch for all hoof visits; grouped by animal client-side.
   const [hoofData, setHoofData] = useState<HoofData>({
@@ -277,6 +302,44 @@ function PrintAnimalsInner() {
         </div>
       </div>
 
+      {/* Section checklist — choose what goes into the PDF. All checked by
+          default; uncheck what this export doesn't need. */}
+      <div className="print:hidden bg-white rounded-xl border border-card-border p-4 mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60">
+            Sections to include
+          </p>
+          <button
+            onClick={() =>
+              setSections(
+                Object.fromEntries(SECTION_DEFS.map((s) => [s.id, true])) as SectionToggles
+              )
+            }
+            className="text-xs font-medium text-sidebar hover:underline"
+          >
+            Check all
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          {SECTION_DEFS.map((s) => (
+            <label
+              key={s.id}
+              className="inline-flex items-center gap-1.5 text-sm text-charcoal cursor-pointer select-none"
+            >
+              <input
+                type="checkbox"
+                checked={sections[s.id]}
+                onChange={(e) =>
+                  setSections((prev) => ({ ...prev, [s.id]: e.target.checked }))
+                }
+                className="w-4 h-4 rounded border-card-border accent-[#4a5d4a]"
+              />
+              {s.label}
+            </label>
+          ))}
+        </div>
+      </div>
+
       {roster.length === 0 ? (
         <p className="text-sm text-warm-gray py-10 text-center print:hidden">
           No matching donkey found.
@@ -292,6 +355,7 @@ function PrintAnimalsInner() {
             feedEntry={feedByAnimal.get(animal.name) ?? null}
             herdFeedPlan={herdFeedByHerd.get(animal.herd) ?? null}
             routines={routinesByAnimal.get(animal.name) ?? []}
+            show={sections}
           />
         ))
       )}
@@ -309,6 +373,7 @@ function ProfileSheet({
   feedEntry,
   herdFeedPlan,
   routines,
+  show,
 }: {
   animal: Animal;
   dbMedicalEntries: MedicalRecord[];
@@ -317,6 +382,7 @@ function ProfileSheet({
   feedEntry: FeedEntryRow | null;
   herdFeedPlan: HerdFeedPlanRow | null;
   routines: RoutineTemplateRow[];
+  show: SectionToggles;
 }) {
   const profile = getDonkeyProfile(animal.name);
   const nextVaccination = getNextVaccinationDue(animal.name);
@@ -422,7 +488,7 @@ function ProfileSheet({
             Status: {animal.status || "—"}
           </p>
         </div>
-        {animal.profileImage && (
+        {show.photo && animal.profileImage && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={animal.profileImage}
@@ -433,19 +499,21 @@ function ProfileSheet({
       </div>
 
       {/* Identity grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 print:grid-cols-3 gap-x-4 gap-y-3 mt-4 break-inside-avoid">
-        {identity.map((f) => (
-          <div key={f.label}>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray print:text-black">
-              {f.label}
-            </p>
-            <p className="text-sm text-charcoal">{f.value}</p>
-          </div>
-        ))}
-      </div>
+      {show.identity && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 print:grid-cols-3 gap-x-4 gap-y-3 mt-4 break-inside-avoid">
+          {identity.map((f) => (
+            <div key={f.label}>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray print:text-black">
+                {f.label}
+              </p>
+              <p className="text-sm text-charcoal">{f.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Flags */}
-      {flags.length > 0 && (
+      {show.flags && flags.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-4 break-inside-avoid">
           {flags.map((f) => (
             <span
@@ -459,7 +527,7 @@ function ProfileSheet({
       )}
 
       {/* Personality traits */}
-      {animal.traits.length > 0 && (
+      {show.traits && animal.traits.length > 0 && (
         <div className="mt-4 break-inside-avoid">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray print:text-black mb-1">
             Personality Traits
@@ -478,7 +546,7 @@ function ProfileSheet({
       )}
 
       {/* Relationships */}
-      {(relationships.length > 0 || relationshipNotes.length > 0) && (
+      {show.relationships && (relationships.length > 0 || relationshipNotes.length > 0) && (
         <div className="mt-4 space-y-1 break-inside-avoid">
           {relationships.map((g) => (
             <p key={g.label} className="text-sm text-charcoal">
@@ -495,7 +563,7 @@ function ProfileSheet({
       )}
 
       {/* Special needs / behavioral text */}
-      {(profile?.specialNeedsDetail || animal.behavioralNotes) && (
+      {show.specialNeeds && (profile?.specialNeedsDetail || animal.behavioralNotes) && (
         <div className="mt-4 space-y-2 break-inside-avoid">
           {profile?.specialNeedsDetail && (
             <div>
@@ -522,7 +590,7 @@ function ProfileSheet({
 
       {/* Daily feed plan: herd base plan merged with the donkey's own
           overrides — same effective plan the Feed page shows. */}
-      {(feedRows.length > 0 || feedEntry?.notes || herdFeedPlan?.notes) && (
+      {show.feedPlan && (feedRows.length > 0 || feedEntry?.notes || herdFeedPlan?.notes) && (
         <div className="mt-5 break-inside-avoid">
           <h3 className="text-sm font-bold text-charcoal uppercase tracking-wider border-b border-charcoal pb-1 mb-2">
             Daily Feed Plan
@@ -568,7 +636,7 @@ function ProfileSheet({
 
       {/* Daily routine: this donkey's recurring care tasks with their full
           instructions (the standing plan, not one day's checkboxes). */}
-      {routines.length > 0 && (
+      {show.routine && routines.length > 0 && (
         <div className="mt-5">
           <h3 className="text-sm font-bold text-charcoal uppercase tracking-wider border-b border-charcoal pb-1 mb-2">
             Daily Routine
@@ -596,7 +664,7 @@ function ProfileSheet({
       )}
 
       {/* Notes (from the profile's Notes tab) */}
-      {generalNotes.length > 0 && (
+      {show.notes && generalNotes.length > 0 && (
         <div className="mt-4 break-inside-avoid">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray print:text-black mb-1">
             Notes
@@ -613,7 +681,7 @@ function ProfileSheet({
       )}
 
       {/* Origin story */}
-      {animal.story.length > 0 && (
+      {show.story && animal.story.length > 0 && (
         <div className="mt-4">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray print:text-black mb-1">
             Origin Story
@@ -629,7 +697,7 @@ function ProfileSheet({
       )}
 
       {/* Medical history */}
-      {visibleRecords.length > 0 && (
+      {show.medical && visibleRecords.length > 0 && (
         <div className="mt-5">
           <h3 className="text-sm font-bold text-charcoal uppercase tracking-wider border-b border-charcoal pb-1 mb-2">
             Medical History
@@ -670,7 +738,7 @@ function ProfileSheet({
       )}
 
       {/* Hoof visits */}
-      {visibleHoof.length > 0 && (
+      {show.hoof && visibleHoof.length > 0 && (
         <div className="mt-5">
           <h3 className="text-sm font-bold text-charcoal uppercase tracking-wider border-b border-charcoal pb-1 mb-2">
             Hoof Visits

@@ -380,6 +380,11 @@ model Document {
   id         String @id @default(cuid())
   name       String
   folderId   String? // null = root
+  // When set, this file is an ATTACHMENT owned by another record rather than
+  // a drive file: "med-<id>" (medical entry), a hoof-visit id, or
+  // "animal-<slug>" (a donkey's Documents tab). Attachments are hidden from
+  // drive folder listings.
+  linkedTo   String?
   mimeType   String  @default("application/octet-stream")
   size       Int     @default(0) // decoded byte length
   // File content as base64 TEXT — deliberate: the Neon HTTP driver
@@ -392,6 +397,7 @@ model Document {
   updatedAt DateTime @updatedAt
 
   @@index([folderId])
+  @@index([linkedTo])
 }
 
 // ── Map Pens ──

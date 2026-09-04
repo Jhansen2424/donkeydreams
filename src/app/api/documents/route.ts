@@ -8,9 +8,27 @@ export const MAX_FILE_BYTES = 4 * 1024 * 1024; // 4 MB
 
 // GET ?folder=<id> — list one folder (root when omitted). Returns the
 // subfolders, the documents (without their bytes), and the breadcrumb path.
+// GET ?linkedTo=<key> — list the attachments owned by another record
+// (medical entry, hoof visit, or a donkey's Documents tab) instead.
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
+    const linkedTo = searchParams.get("linkedTo");
+    if (linkedTo) {
+      const documents = await db.document.findMany({
+        where: { linkedTo },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          name: true,
+          mimeType: true,
+          size: true,
+          createdAt: true,
+        },
+      });
+      return NextResponse.json({ documents });
+    }
+
     const folderId = searchParams.get("folder") || null;
 
     const [folders, documents] = await Promise.all([
@@ -19,7 +37,9 @@ export async function GET(req: NextRequest) {
         orderBy: { name: "asc" },
       }),
       db.document.findMany({
-        where: { folderId },
+        // Attachments (linkedTo set) belong to their owning record, not the
+        // drive — keep them out of folder listings.
+        where: { folderId, linkedTo: null },
         orderBy: { name: "asc" },
         select: {
           id: true,
@@ -81,6 +101,7 @@ export async function POST(req: NextRequest) {
       data: {
         name,
         folderId: typeof folderId === "string" && folderId ? folderId : null,
+        linkedTo: typeof body.linkedTo === "string" && body.linkedTo ? body.linkedTo : null,
         mimeType: typeof mimeType === "string" && mimeType ? mimeType : "application/octet-stream",
         size: decoded.byteLength,
         data: dataBase64,
