@@ -44,3 +44,7 @@ certificates
 # local data backups (full pre-wipe exports — never commit)
 /backups
 /hoof-care-entries.csv
+
+# Spreadsheet working copies + pre-import backups (data lives in the app)
+src/*.xlsx
+src/lib/data/*.backup-pre-xlsx
