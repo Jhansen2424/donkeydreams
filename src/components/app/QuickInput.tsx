@@ -413,9 +413,37 @@ export default function QuickInput({
   // Build a compact snapshot of today's live state. We preserve original
   // blockIdx/taskIdx values even after filtering out done tasks, so Joshy's
   // returned indices still point at the correct item in the full schedule.
-  const buildLiveContext = useCallback(() => {
+  const buildLiveContext = useCallback((utterance?: string) => {
+    // The global `medical` array is capped at 20 entries ACROSS ALL animals,
+    // so a specific donkey's history (e.g. "when was Gabriel last
+    // vaccinated?") is usually outside the window. When the utterance names
+    // animals, include each one's own recent entries as read-only context.
+    const mentioned: string[] = [];
+    if (utterance) {
+      const lower = utterance.toLowerCase();
+      for (const a of animals) {
+        if (mentioned.length >= 3) break;
+        if (lower.includes(a.name.toLowerCase())) mentioned.push(a.name);
+      }
+    }
+    const animalMedical = mentioned.map((name) => ({
+      animal: name,
+      entries: medicalEntries
+        .filter((m) => m.animal === name)
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 15)
+        .map((m) => ({
+          type: m.type,
+          title: m.title,
+          date: m.date,
+          description: m.description?.slice(0, 120) ?? "",
+        })),
+    }));
     return {
       now: new Date().toISOString(),
+      // Read-only per-animal history for animals named in the utterance —
+      // use for answering questions; has no medIdx (not editable via Joshy).
+      ...(animalMedical.length > 0 ? { animalMedical } : {}),
       schedule: schedule.map((block, blockIdx) => ({
         blockIdx,
         block: block.name,
@@ -494,7 +522,7 @@ export default function QuickInput({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: fullText,
-          ...(shouldSendContext ? { context: buildLiveContext() } : {}),
+          ...(shouldSendContext ? { context: buildLiveContext(fullText) } : {}),
         }),
       });
 
@@ -523,7 +551,7 @@ export default function QuickInput({
         const retry = await fetch("/api/joshy", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: fullText, context: buildLiveContext() }),
+          body: JSON.stringify({ text: fullText, context: buildLiveContext(fullText) }),
         });
         if (retry.ok) {
           setAiResult(await retry.json());
@@ -569,6 +597,8 @@ export default function QuickInput({
           "feeding",
           "treatment",
           "special-needs",
+          "hoof",
+          "dental",
           "hoof-dental",
           "weight",
           "sponsor",

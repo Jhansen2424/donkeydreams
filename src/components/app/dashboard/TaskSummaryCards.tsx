@@ -20,7 +20,7 @@ const filterLabels: Record<DashboardFilter, string> = {
 
 const filterCategories: Record<DashboardFilter, TaskCategory[] | null> = {
   all: null,
-  care: ["feeding", "treatment", "special-needs", "hoof-dental", "weight"],
+  care: ["feeding", "treatment", "special-needs", "hoof", "dental", "hoof-dental", "weight"],
   ranch: ["routine"],
   admin: ["sponsor"],
 };

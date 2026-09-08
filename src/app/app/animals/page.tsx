@@ -116,7 +116,11 @@ export default function AnimalsPage() {
     }
   }, [activeFilter, herds]);
 
-  const filtered = animals.filter((a) => {
+  // Deceased donkeys are hidden from the main listings — they live in the
+  // memorial section on the Admin page (their profiles stay reachable).
+  const living = animals.filter((a) => a.status !== "Deceased");
+
+  const filtered = living.filter((a) => {
     const q = search.toLowerCase();
     const matchesSearch =
       !q ||
@@ -130,7 +134,7 @@ export default function AnimalsPage() {
     if (activeFilter === "Special Needs")
       return a.tags.some((t) => t.label === "Special Needs");
     if (activeFilter === "Senior")
-      return a.tags.some((t) => t.label === "Senior Care");
+      return a.tags.some((t) => t.label === "Senior");
     if (activeFilter === "Sponsor Available") return a.sponsorable;
     // Herd filter
     return a.herd === activeFilter;
@@ -171,7 +175,7 @@ export default function AnimalsPage() {
         <div>
           <h1 className="text-2xl font-bold text-charcoal">Animals</h1>
           <p className="text-sm text-warm-gray mt-0.5">
-            {animals.length} donkeys · {filtered.length} shown
+            {living.length} donkeys · {filtered.length} shown
           </p>
         </div>
         <div className="flex items-center gap-2 self-start">

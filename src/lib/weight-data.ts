@@ -58,7 +58,7 @@ export const bcsGuide: { score: BCSScore; label: string; description: string; vi
 function getDefaultConfig(animalName: string): WeightConfig {
   const onWatchList = watchList.some((w) => w.animal === animalName);
   const animal = animals.find((a) => a.name === animalName);
-  const isSenior = animal?.tags.some((t) => t.label === "Senior Care") ?? false;
+  const isSenior = animal?.tags.some((t) => t.label === "Senior") ?? false;
   const isSpecialNeeds = animal?.status === "Special Needs";
 
   return {

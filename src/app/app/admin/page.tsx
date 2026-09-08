@@ -35,8 +35,10 @@ import {
 } from "@/lib/volunteer-data";
 import { formatDate } from "@/lib/format-date";
 import { useSchedule } from "@/lib/schedule-context";
+import { useAnimals } from "@/lib/animals-context";
 import { type ScheduleTask, type TaskCategory } from "@/lib/sanctuary-data";
 import ExpandableText from "@/components/app/ExpandableText";
+import Link from "next/link";
 
 // A task's tags, falling back to its legacy single category.
 function taskTags(t: ScheduleTask): TaskCategory[] {
@@ -729,6 +731,9 @@ export default function VolunteersPage() {
         {/* ══════ ADMIN TASKS ══════ */}
         <AdminTasksCard adminTasks={adminTasks} />
 
+        {/* ══════ DECEASED (MEMORIAL) ══════ */}
+        <DeceasedCard />
+
         {/* ══════ SEARCH + FILTER ══════ */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
@@ -1390,6 +1395,44 @@ function AdminTasksCard({
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+// ── Deceased (Memorial) Card ──
+// Donkeys with status "Deceased" are hidden from the main Animals listings;
+// this admin-only section is where their records live on. Profiles stay
+// intact and reachable from here.
+
+function DeceasedCard() {
+  const { animals } = useAnimals();
+  const deceased = animals.filter((a) => a.status === "Deceased");
+  if (deceased.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-card-border p-5">
+      <h3 className="font-bold text-charcoal mb-1">In Memoriam</h3>
+      <p className="text-xs text-warm-gray/70 mb-3">
+        Deceased donkeys are hidden from the main Animals page but their full
+        records are kept. Open a profile to view or update their history.
+      </p>
+      <ul className="divide-y divide-card-border">
+        {deceased.map((a) => (
+          <li key={a.slug}>
+            <Link
+              href={`/app/animals/${a.slug}`}
+              className="flex items-center justify-between py-2.5 group"
+            >
+              <span className="text-sm font-medium text-charcoal group-hover:underline">
+                {a.name}
+              </span>
+              <span className="text-xs text-warm-gray">
+                {a.herd || "No herd"}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

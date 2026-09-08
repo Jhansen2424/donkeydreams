@@ -15,7 +15,8 @@ const TAG_OPTIONS: TaskCategory[] = [
   "feeding",
   "treatment",
   "special-needs",
-  "hoof-dental",
+  "hoof",
+  "dental",
   "sponsor",
   "projects",
   "admin",
@@ -105,6 +106,23 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
 
   if (!open) return null;
 
+  // Unsaved-work guard: with edits in progress, a stray tap on the backdrop
+  // is ignored and the X/Cancel ask before discarding (same protection as
+  // the feed plan modal — long notes are too expensive to lose).
+  const isDirty =
+    mode.kind === "add"
+      ? text.trim().length > 0 || note.trim().length > 0
+      : text !== mode.task.task ||
+        note !== (mode.task.note ?? "") ||
+        animal !== (mode.task.animalSpecific ?? "") ||
+        assignees.join(", ") !== (mode.task.assignedTo ?? "") ||
+        block !== (mode.defaultBlock ?? "AM");
+  const requestClose = () => {
+    if (!isDirty || window.confirm("Discard your unsaved changes to this task?")) {
+      onClose();
+    }
+  };
+
   const toggleAssignee = (name: string) => {
     setAssignees((prev) =>
       prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
@@ -175,7 +193,9 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
   return (
     <div
       className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
-      onClick={onClose}
+      onClick={() => {
+        if (!isDirty) onClose();
+      }}
     >
       <div
         className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl overflow-hidden shadow-xl max-h-[90vh] flex flex-col"
@@ -184,7 +204,7 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
         {/* Header */}
         <div className="bg-sidebar px-5 py-4 flex items-center justify-between shrink-0">
           <h2 className="font-bold text-white text-lg">{title}</h2>
-          <button onClick={onClose} className="text-cream/60 hover:text-white p-1">
+          <button onClick={requestClose} className="text-cream/60 hover:text-white p-1">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -487,7 +507,7 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
         {/* Footer */}
         <div className="px-5 py-4 border-t border-card-border flex items-center justify-end gap-2 shrink-0">
           <button
-            onClick={onClose}
+            onClick={requestClose}
             className="px-4 py-2 text-sm font-medium text-charcoal bg-white border border-card-border rounded-lg hover:bg-cream transition-colors"
           >
             Cancel

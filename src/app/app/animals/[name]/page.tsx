@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -11,6 +11,7 @@ import {
   Users,
   Camera,
   FolderOpen,
+  UtensilsCrossed,
   StickyNote,
   Save,
   X,
@@ -58,6 +59,7 @@ const tabs = [
   { id: "medical", label: "Medical", icon: Stethoscope },
   { id: "hoof", label: "Hoof Care", icon: Footprints },
   { id: "tasks", label: "Daily Care", icon: ClipboardCheck },
+  { id: "feed", label: "Feed Plan", icon: UtensilsCrossed },
   { id: "relationships", label: "Relationships", icon: Users },
   { id: "photos", label: "Photos", icon: Camera },
   { id: "docs", label: "Documents", icon: FolderOpen },
@@ -515,6 +517,7 @@ export default function AnimalProfilePage() {
         {activeTab === "medical" && <MedicalTab animal={animal} />}
         {activeTab === "hoof" && <HoofCareTab animal={animal} />}
         {activeTab === "tasks" && <TasksTab animal={animal} />}
+        {activeTab === "feed" && <FeedPlanTab animal={animal} />}
         {activeTab === "relationships" && <RelationshipsTab animal={animal} />}
         {activeTab === "photos" && <PhotosTab animal={animal} />}
         {activeTab === "docs" && <DocumentsTab animal={animal} />}
@@ -621,10 +624,9 @@ function AdoptionStatusBadges({
   }
   if (animal.isOver20) {
     badges.push({
-      label: "Senior Care",
+      label: "Senior",
       cls: "bg-amber-100 text-amber-700 border border-amber-200",
-      tooltip:
-        "20 years or older. Senior donkeys often need softer feed, more frequent dental care, and gentler handling.",
+      tooltip: "20 years or older.",
     });
   }
   if (animal.isBondedPair) {
@@ -658,13 +660,9 @@ function AdoptionStatusBadges({
       tooltip: "This donkey is missing a microchip ID and is on the list to be chipped at the next vet visit.",
     });
   }
-  if (badges.length === 0) {
-    badges.push({
-      label: "Available for Adoption",
-      cls: "bg-emerald-100 text-emerald-700 border border-emerald-200",
-      tooltip: "No special-care flags — this donkey is generally healthy and available for standard adoption or sponsorship.",
-    });
-  }
+  // No fallback badge: a donkey with zero flags just shows none. (The old
+  // auto "Available for Adoption" badge wasn't a real toggle and confused
+  // staff — it appeared on profiles but not in the edit screen.)
 
   return (
     <>
@@ -2314,6 +2312,159 @@ function RelationshipsTab({ animal }: { animal: Animal }) {
           {saving ? "Saving..." : "Save Note"}
         </button>
       </div>
+    </div>
+  );
+}
+
+/* ── Feed Plan Tab ── */
+// The donkey's effective feed plan: the herd's base plan merged with their
+// own overrides (donkey wins per item) — same math as the Feed Plans page
+// and the print binder. Read-only here; edits happen on the Feed page.
+interface FeedPlanBlocks {
+  am: { item: string; amount: string }[];
+  mid: { item: string; amount: string }[];
+  pm: { item: string; amount: string }[];
+}
+function FeedPlanTab({ animal }: { animal: Animal }) {
+  const [entry, setEntry] = useState<{ notes: string; plan: FeedPlanBlocks } | null>(null);
+  const [herdPlan, setHerdPlan] = useState<{ notes: string; plan: FeedPlanBlocks } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [res, herdRes] = await Promise.all([
+          fetch("/api/feed", { cache: "no-store" }),
+          fetch("/api/feed/herd", { cache: "no-store" }),
+        ]);
+        if (res.ok) {
+          const body = (await res.json()) as {
+            entries: { animal: string; notes: string; plan: FeedPlanBlocks }[];
+          };
+          if (!cancelled) setEntry(body.entries.find((e) => e.animal === animal.name) ?? null);
+        }
+        if (herdRes.ok) {
+          const body = (await herdRes.json()) as {
+            entries: { herd: string; notes: string; plan: FeedPlanBlocks }[];
+          };
+          if (!cancelled) setHerdPlan(body.entries.find((e) => e.herd === animal.herd) ?? null);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [animal.name, animal.herd]);
+
+  // Merge: herd plan fills the base, the donkey's own entries win per item.
+  const rows = useMemo(() => {
+    const items = new Map<
+      string,
+      { item: string; am: string; mid: string; pm: string; source: "herd" | "donkey" }
+    >();
+    const fill = (plan: FeedPlanBlocks, source: "herd" | "donkey") => {
+      for (const block of ["am", "mid", "pm"] as const) {
+        for (const e of plan[block]) {
+          const key = e.item.trim().toLowerCase();
+          let row = items.get(key);
+          if (!row || (row.source === "herd" && source === "donkey")) {
+            row = { item: e.item, am: "", mid: "", pm: "", source };
+            items.set(key, row);
+          }
+          if (row.source === source) row[block] = e.amount;
+        }
+      }
+    };
+    if (herdPlan) fill(herdPlan.plan, "herd");
+    if (entry) fill(entry.plan, "donkey");
+    return Array.from(items.values());
+  }, [entry, herdPlan]);
+
+  return (
+    <div className="bg-white rounded-xl border border-card-border p-5">
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2">
+          <UtensilsCrossed className="w-4 h-4 text-sky" />
+          <h3 className="font-bold text-charcoal">{animal.name}&apos;s Feed Plan</h3>
+        </div>
+        <a
+          href="/app/feed"
+          className="text-xs font-semibold text-sidebar hover:underline"
+        >
+          Edit on Feed Plans page →
+        </a>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-warm-gray/60 py-4">Loading feed plan…</p>
+      ) : rows.length === 0 && !entry?.notes && !herdPlan?.notes ? (
+        <p className="text-sm text-warm-gray/60 py-4">
+          No feed plan yet for {animal.name}
+          {animal.herd ? ` or the ${animal.herd} herd` : ""}. Add one on the
+          Feed Plans page.
+        </p>
+      ) : (
+        <>
+          {rows.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm mb-3">
+                <thead>
+                  <tr className="border-b border-card-border">
+                    <th className="py-1.5 pr-2 text-xs font-semibold uppercase tracking-wider text-warm-gray/60">Item</th>
+                    <th className="py-1.5 pr-2 text-xs font-semibold uppercase tracking-wider text-warm-gray/60">Morning</th>
+                    <th className="py-1.5 pr-2 text-xs font-semibold uppercase tracking-wider text-warm-gray/60">Midday</th>
+                    <th className="py-1.5 text-xs font-semibold uppercase tracking-wider text-warm-gray/60">Evening</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.item} className="border-b border-card-border/50 align-top">
+                      <td className="py-1.5 pr-2 text-charcoal">
+                        {row.item}
+                        {row.source === "herd" && (
+                          <span className="ml-1.5 text-[10px] font-semibold text-sky-dark bg-sky/10 px-1.5 py-0.5 rounded">
+                            herd plan
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-1.5 pr-2 text-warm-gray">{row.am || "—"}</td>
+                      <td className="py-1.5 pr-2 text-warm-gray">{row.mid || "—"}</td>
+                      <td className="py-1.5 text-warm-gray">{row.pm || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {herdPlan?.notes && (
+            <div className="mb-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">
+                {animal.herd} herd notes
+              </p>
+              <ExpandableText
+                text={herdPlan.notes}
+                className="text-sm text-warm-gray leading-relaxed"
+                clampChars={300}
+              />
+            </div>
+          )}
+          {entry?.notes && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-0.5">
+                {animal.name}&apos;s notes
+              </p>
+              <ExpandableText
+                text={entry.notes}
+                className="text-sm text-charcoal leading-relaxed"
+                clampChars={400}
+              />
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

@@ -287,7 +287,9 @@ export interface FeedNote {
 export const feedNotes: FeedNote[] = [];
 
 // ── Daily Schedule ──
-export type TaskCategory = "routine" | "feeding" | "treatment" | "special-needs" | "hoof-dental" | "weight" | "sponsor" | "projects" | "admin" | "care" | "ranch";
+// "hoof" and "dental" replaced the combined "hoof-dental" as separate tags
+// (client request 9/6); "hoof-dental" stays valid for legacy rows.
+export type TaskCategory = "routine" | "feeding" | "treatment" | "special-needs" | "hoof" | "dental" | "hoof-dental" | "weight" | "sponsor" | "projects" | "admin" | "care" | "ranch";
 export type TaskSource = "base" | "watch-list" | "feed-schedule" | "hoof-dental" | "weight" | "sponsor" | "manual";
 
 export interface ScheduleTask {
@@ -477,7 +479,8 @@ function _unusedScheduleEngine(): ScheduleBlock[] {
             task: label,
             done: false,
             animalSpecific: care.animal,
-            category: "hoof-dental",
+            category: "hoof",
+            tags: ["hoof"],
             source: "hoof-dental",
             estimatedMinutes: 5,
           });
@@ -495,7 +498,8 @@ function _unusedScheduleEngine(): ScheduleBlock[] {
             task: label,
             done: false,
             animalSpecific: care.animal,
-            category: "hoof-dental",
+            category: "dental",
+            tags: ["dental"],
             source: "hoof-dental",
             estimatedMinutes: 5,
           });
@@ -647,6 +651,8 @@ export const categoryMeta: Record<TaskCategory, { label: string; color: string; 
   feeding: { label: "Feed", color: "text-amber-700", bg: "bg-amber-50" },
   treatment: { label: "Treatment", color: "text-sky-dark", bg: "bg-sky/10" },
   "special-needs": { label: "Special", color: "text-red-700", bg: "bg-red-50" },
+  hoof: { label: "Hoof", color: "text-purple-700", bg: "bg-purple-50" },
+  dental: { label: "Dental", color: "text-fuchsia-700", bg: "bg-fuchsia-50" },
   "hoof-dental": { label: "Hoof/Dental", color: "text-purple-700", bg: "bg-purple-50" },
   weight: { label: "Weight", color: "text-sky-700", bg: "bg-sky-50" },
   sponsor: { label: "Sponsor", color: "text-pink-700", bg: "bg-pink-50" },

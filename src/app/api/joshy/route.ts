@@ -307,7 +307,8 @@ update_animal examples:
 
 EDIT / DELETE examples for existing records — all HARD deletes are irreversible, so confirm carefully. When LIVE STATE shows the record, round-trip the index:
 
-LIVE STATE's 'medical' array is sorted newest-first and capped at 20 entries. medIdx is the 0-based position in that array.
+LIVE STATE's 'medical' array is sorted newest-first and capped at 20 entries ACROSS ALL ANIMALS. medIdx is the 0-based position in that array.
+When LIVE STATE has an 'animalMedical' block, it holds the recent history (newest-first) for each animal the user named — USE IT to answer questions like "when was Gabriel last vaccinated?" (find the newest Vaccination-type entry for that animal and answer with its title and date). It is read-only context: entries there have NO medIdx and cannot be edited or deleted. Never answer "no record" for an animal's history question without checking animalMedical first; if it's genuinely absent or empty, say the record may exist but wasn't loaded, and suggest checking the animal's Medical tab.
 
 - "Change Shelley's Bute medication note to 2g instead of 1.5g" — LIVE STATE shows Shelley's Bute entry at medIdx 3, description "1.5g". Return: action: "edit_medical", medIdx: 3, text: "Bute 2g administered (adjusted dose).", summary: "Update Shelley's Bute entry to 2g."
 - "Fix the date on Edgar's annual exam to April 5" — Edgar's exam at medIdx 1. action: "edit_medical", medIdx: 1, date: "<resolved April 5>"

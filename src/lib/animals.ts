@@ -110,7 +110,9 @@ export function deriveTags(a: {
 }): Animal["tags"] {
   const tags: Animal["tags"] = [];
   if (a.isSpecialNeedsFlag) tags.push({ label: "Special Needs", color: "red" });
-  if (a.isOver20) tags.push({ label: "Senior Care", color: "amber" });
+  // "Senior", not "Senior Care" — not every senior needs extra care (client
+  // request 9/6). Keep the label in sync with the string matches below.
+  if (a.isOver20) tags.push({ label: "Senior", color: "amber" });
   if (a.isUnder3) tags.push({ label: "Under 3", color: "blue" });
   if (a.sponsorable) tags.push({ label: "Sponsor Available", color: "blue" });
   return tags;
@@ -430,7 +432,7 @@ export function getSpecialNeedsAnimals(): Animal[] {
 }
 
 export function getSeniorAnimals(): Animal[] {
-  return animals.filter((a) => a.tags.some((t) => t.label === "Senior Care"));
+  return animals.filter((a) => a.tags.some((t) => t.label === "Senior"));
 }
 
 export function getCareAlerts(): number {

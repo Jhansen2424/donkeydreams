@@ -576,6 +576,26 @@ function FeedPlanModal({
   const [notes, setNotes] = useState((initial ?? initialHerd)?.notes ?? "");
   const [saving, setSaving] = useState(false);
 
+  // Unsaved-work guard: a stray tap/scroll outside the window must never
+  // throw away a half-typed feed plan (it did — client lost Elanora's plan
+  // twice on 9/6). Once anything differs from what the modal opened with,
+  // clicking the backdrop does nothing and the X asks first.
+  const initialSnapshot = useState(() =>
+    JSON.stringify({
+      am: (initial ?? initialHerd)?.plan.am ?? [],
+      mid: (initial ?? initialHerd)?.plan.mid ?? [],
+      pm: (initial ?? initialHerd)?.plan.pm ?? [],
+      notes: (initial ?? initialHerd)?.notes ?? "",
+    })
+  )[0];
+  const isDirty =
+    JSON.stringify({ am, mid, pm, notes }) !== initialSnapshot;
+  const requestClose = () => {
+    if (!isDirty || window.confirm("Discard your unsaved feed plan changes?")) {
+      onClose();
+    }
+  };
+
   // Members of the currently selected herd (live roster from context).
   const { animals } = useAnimals();
   const herdMembers = useMemo(() => {
@@ -612,7 +632,11 @@ function FeedPlanModal({
   return (
     <div
       className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 print:hidden"
-      onClick={onClose}
+      onClick={() => {
+        // Backdrop click only closes a PRISTINE modal — with unsaved edits
+        // it's ignored entirely (no confirm spam from accidental taps).
+        if (!isDirty) onClose();
+      }}
     >
       <div
         className="bg-white w-full max-w-3xl rounded-2xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col"
@@ -626,7 +650,7 @@ function FeedPlanModal({
                 ? "Edit feed plan"
                 : "New feed plan"}
           </h3>
-          <button onClick={onClose} className="text-cream/60 hover:text-white p-1">
+          <button onClick={requestClose} className="text-cream/60 hover:text-white p-1">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -724,7 +748,7 @@ function FeedPlanModal({
         </div>
         <div className="px-5 py-4 border-t border-card-border flex items-center justify-end gap-2">
           <button
-            onClick={onClose}
+            onClick={requestClose}
             className="px-4 py-2 text-sm font-medium text-charcoal bg-white border border-card-border rounded-lg hover:bg-cream transition-colors"
           >
             Cancel
