@@ -83,7 +83,9 @@ function getCurrentTimeBlock(): string {
 }
 
 function todayISO(): string {
-  return new Date().toISOString().split("T")[0];
+  // LOCAL date, not UTC — toISOString() flips to tomorrow at ~5 PM Arizona
+  // time and mis-dates evening entries.
+  return new Date().toLocaleDateString("en-CA");
 }
 
 // When a multi-animal dispatch (log_hoof_visit, log_provider_visit, etc.)
@@ -256,6 +258,10 @@ interface JoshyResult {
     articleLinkedAnimals?: string[] | null;
   };
   clarify?: string | null;
+  /** Multi-action inputs: additional records to create alongside the main
+      action ("Fed Gabriel, changed his sock, and he seemed off" = three).
+      Committed together after one confirmation. */
+  extraActions?: { action: string; data: JoshyResult["data"] }[] | null;
 }
 
 // ── Voice-to-text hook ──
@@ -376,6 +382,16 @@ export default function QuickInput({
   // Used so that follow-up answers from the user are sent back to Joshy
   // along with the original utterance.
   const noteContextRef = useRef("");
+  // Short conversation memory across submissions: the last few exchanges
+  // (user utterance + Joshy's summary), sent with each request so follow-ups
+  // like "what about Tenzel?" resolve against what was just discussed.
+  // Survives sheet close/reopen; entries expire after 10 minutes.
+  const joshyHistoryRef = useRef<{ role: "user" | "joshy"; text: string; at: number }[]>([]);
+  const recentHistory = () => {
+    const cutoff = Date.now() - 10 * 60 * 1000;
+    joshyHistoryRef.current = joshyHistoryRef.current.filter((h) => h.at > cutoff).slice(-8);
+    return joshyHistoryRef.current.map(({ role, text }) => ({ role, text }));
+  };
 
   // Voice
   const { isListening, transcript, supported, startListening, stopListening } =
@@ -413,37 +429,12 @@ export default function QuickInput({
   // Build a compact snapshot of today's live state. We preserve original
   // blockIdx/taskIdx values even after filtering out done tasks, so Joshy's
   // returned indices still point at the correct item in the full schedule.
-  const buildLiveContext = useCallback((utterance?: string) => {
-    // The global `medical` array is capped at 20 entries ACROSS ALL animals,
-    // so a specific donkey's history (e.g. "when was Gabriel last
-    // vaccinated?") is usually outside the window. When the utterance names
-    // animals, include each one's own recent entries as read-only context.
-    const mentioned: string[] = [];
-    if (utterance) {
-      const lower = utterance.toLowerCase();
-      for (const a of animals) {
-        if (mentioned.length >= 3) break;
-        if (lower.includes(a.name.toLowerCase())) mentioned.push(a.name);
-      }
-    }
-    const animalMedical = mentioned.map((name) => ({
-      animal: name,
-      entries: medicalEntries
-        .filter((m) => m.animal === name)
-        .sort((a, b) => b.date.localeCompare(a.date))
-        .slice(0, 15)
-        .map((m) => ({
-          type: m.type,
-          title: m.title,
-          date: m.date,
-          description: m.description?.slice(0, 120) ?? "",
-        })),
-    }));
+  // (Per-animal history/feed/care enrichment now happens SERVER-side in
+  // /api/joshy — the route attaches an `animalData` dossier for any donkey
+  // named in the utterance, so the client no longer bundles it here.)
+  const buildLiveContext = useCallback(() => {
     return {
       now: new Date().toISOString(),
-      // Read-only per-animal history for animals named in the utterance —
-      // use for answering questions; has no medIdx (not editable via Joshy).
-      ...(animalMedical.length > 0 ? { animalMedical } : {}),
       schedule: schedule.map((block, blockIdx) => ({
         blockIdx,
         block: block.name,
@@ -516,13 +507,22 @@ export default function QuickInput({
     // Plain creates don't need it — saves ~1.5k tokens per request.
     const shouldSendContext = retryWithContext || needsLiveContext(fullText);
 
+    const requestExtras = {
+      // Client-local date — the server's UTC clock is a day ahead in the
+      // evening, which mis-dated "today"/"yesterday" entries.
+      localDate: todayISO(),
+      history: recentHistory(),
+    };
+    joshyHistoryRef.current.push({ role: "user", text: t, at: Date.now() });
+
     try {
       const res = await fetch("/api/joshy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: fullText,
-          ...(shouldSendContext ? { context: buildLiveContext(fullText) } : {}),
+          ...requestExtras,
+          ...(shouldSendContext ? { context: buildLiveContext() } : {}),
         }),
       });
 
@@ -532,6 +532,9 @@ export default function QuickInput({
       }
 
       const result: JoshyResult = await res.json();
+      if (result?.summary) {
+        joshyHistoryRef.current.push({ role: "joshy", text: result.summary, at: Date.now() });
+      }
 
       // Safety net: if Joshy returned an edit/delete/query/complete/resolve
       // but we didn't send context (classifier missed it), retry once with
@@ -551,7 +554,7 @@ export default function QuickInput({
         const retry = await fetch("/api/joshy", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: fullText, context: buildLiveContext(fullText) }),
+          body: JSON.stringify({ text: fullText, ...requestExtras, context: buildLiveContext() }),
         });
         if (retry.ok) {
           setAiResult(await retry.json());
@@ -619,6 +622,27 @@ export default function QuickInput({
           animalSpecific: result.data.animal ?? undefined,
           category,
         });
+        return;
+      }
+
+      if (action === "mark_seen") {
+        // Daily roll call by voice: "I saw Winnie and Pete" → one Sighting
+        // row per donkey for today. Herd names expand to their members.
+        const targets = resolveAnimalTargets(result.data, animals);
+        const date = todayISO();
+        void (async () => {
+          for (const name of targets) {
+            try {
+              await fetch("/api/rollcall", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ animal: name, date }),
+              });
+            } catch {
+              // Idempotent — a reload of the dashboard re-syncs.
+            }
+          }
+        })();
         return;
       }
 
@@ -1523,6 +1547,30 @@ export default function QuickInput({
     [addTask, addEntry, addMedicalEntry, editTask, deleteTask, toggleTask, resolveEntry, schedule, entries, updateMedicalEntry, removeMedicalEntry, medicalEntries, updateParkingLotEntry, removeParkingLotEntry, toastError, toastSuccess]
   );
 
+  // Commit the main action plus any extraActions (multi-record utterances
+  // like "Fed Gabriel, changed his sock, and he seemed off") behind the ONE
+  // confirmation the user already gave.
+  const commitJoshyResultAll = useCallback(
+    (result: JoshyResult, originalText: string) => {
+      commitJoshyResult(result, originalText);
+      if (Array.isArray(result.extraActions)) {
+        for (const extra of result.extraActions.slice(0, 5)) {
+          if (!extra || typeof extra.action !== "string" || !extra.data) continue;
+          commitJoshyResult(
+            {
+              action: extra.action,
+              confidence: result.confidence,
+              summary: result.summary,
+              data: extra.data,
+            },
+            originalText
+          );
+        }
+      }
+    },
+    [commitJoshyResult]
+  );
+
   // Speak text aloud, then run a callback when speech ends.
   const speakThen = useCallback((spoken: string, after: () => void) => {
     if (typeof window === "undefined" || !window.speechSynthesis) {
@@ -1756,7 +1804,7 @@ export default function QuickInput({
       setTimeout(() => {
         const result = aiResult;
         if (!result) return;
-        commitJoshyResult(result, text);
+        commitJoshyResultAll(result, text);
         setText("");
         setAiResult(null);
         setVoiceMode(false);
@@ -1769,12 +1817,12 @@ export default function QuickInput({
       setText("");
       setTimeout(() => startListening(), 400);
     }
-  }, [transcript, voiceMode, aiResult, stopListening, startListening, commitJoshyResult, text, onClose]);
+  }, [transcript, voiceMode, aiResult, stopListening, startListening, commitJoshyResultAll, text, onClose]);
 
   // ── Confirm AI result ──
   const handleConfirmAi = () => {
     if (!aiResult) return;
-    commitJoshyResult(aiResult, text);
+    commitJoshyResultAll(aiResult, text);
     setText("");
     setAiResult(null);
     onClose();

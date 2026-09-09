@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { animals } from "@/lib/animals";
 import { volunteers } from "@/lib/volunteer-data";
+import { db } from "@/lib/db";
 
 // Gemini is the primary engine. We lazy-init so a misconfigured deploy fails
 // fast on the first request rather than at module load.
@@ -77,10 +78,13 @@ Action types:
 - "add_article" — add a new knowledge-base article. Requires articleTitle + articleContent (markdown). Optional articleTags and articleLinkedAnimals. Triggers: "Add a knowledge article titled 'Laminitis protocol' with the following content: ...", "Save a new protocol note about sling trimming".
 - "update_article" — update an existing article. Identify by articleTitle (case-insensitive match on the CURRENT title). Use articleNewTitle when renaming. Optional articleContent / articleTags / articleLinkedAnimals. Triggers: "Update the Laminitis protocol article to add: Monitor daily for heat", "Rename 'Sling trim notes' to 'Sling trimming protocol'".
 - "delete_article" — HARD-delete an article. Identify by articleTitle. Triggers: "Delete the old sling trim notes article".
+- "mark_seen" — daily roll call: record that donkeys were laid eyes on today. Accepts a single 'animal' OR an 'animals' array (herd names in the array are expanded by the app). Triggers: "I saw Winnie and Pete", "Mark Gabriel as seen", "Laid eyes on the whole Seniors herd", "Roll call: Blossom, Edgar, Swayze". This is a standalone action — never needs LIVE STATE.
+
+MULTI-ACTION INPUTS: When ONE utterance clearly contains MULTIPLE distinct records ("Fed Gabriel, changed his sock, and he seemed a little off"), return the FIRST/primary action as usual and put each additional one in a top-level "extraActions" array: [{ "action": "...", "data": { ...same data shape... } }, ...]. Write ONE combined summary covering everything ("Log Gabriel's feeding, record the sock change, and add a watch note that he seemed off."). Only split when the parts are genuinely different record types or different animals — a single event with detail stays ONE action with the detail in its text. Never use extraActions for clarifications or queries.
 
 Response format:
 {
-  "action": "task" | "watch" | "medical" | "feed" | "note" | "developer" | "query" | "edit_task" | "delete_task" | "complete_task" | "resolve_watch" | "set_hoof_date" | "set_dental_date" | "set_vaccination_date" | "weight_bcs" | "log_hoof_visit" | "log_dental_visit" | "set_feed_plan" | "update_animal" | "edit_medical" | "delete_medical" | "delete_watch" | "edit_feed" | "delete_feed" | "delete_feed_plan" | "edit_weight_bcs" | "delete_weight_bcs" | "log_temperature" | "log_fecal_test" | "log_provider_visit" | "add_volunteer" | "update_volunteer" | "delete_volunteer" | "add_article" | "update_article" | "delete_article",
+  "action": "task" | "watch" | "medical" | "feed" | "note" | "developer" | "query" | "edit_task" | "delete_task" | "complete_task" | "resolve_watch" | "set_hoof_date" | "set_dental_date" | "set_vaccination_date" | "weight_bcs" | "log_hoof_visit" | "log_dental_visit" | "set_feed_plan" | "update_animal" | "edit_medical" | "delete_medical" | "delete_watch" | "edit_feed" | "delete_feed" | "delete_feed_plan" | "edit_weight_bcs" | "delete_weight_bcs" | "log_temperature" | "log_fecal_test" | "log_provider_visit" | "add_volunteer" | "update_volunteer" | "delete_volunteer" | "add_article" | "update_article" | "delete_article" | "mark_seen",
   "confidence": 0.0 to 1.0,
   "summary": "For create/edit/delete: a brief description of what will happen ('Move Edj to breakfast feeding', 'Delete: Refill water troughs', 'Set Blossom's next trim to April 20, 2026'). For queries: the full natural-language answer.",
   "data": {
@@ -308,7 +312,7 @@ update_animal examples:
 EDIT / DELETE examples for existing records — all HARD deletes are irreversible, so confirm carefully. When LIVE STATE shows the record, round-trip the index:
 
 LIVE STATE's 'medical' array is sorted newest-first and capped at 20 entries ACROSS ALL ANIMALS. medIdx is the 0-based position in that array.
-When LIVE STATE has an 'animalMedical' block, it holds the recent history (newest-first) for each animal the user named — USE IT to answer questions like "when was Gabriel last vaccinated?" (find the newest Vaccination-type entry for that animal and answer with its title and date). It is read-only context: entries there have NO medIdx and cannot be edited or deleted. Never answer "no record" for an animal's history question without checking animalMedical first; if it's genuinely absent or empty, say the record may exist but wasn't loaded, and suggest checking the animal's Medical tab.
+When LIVE STATE has an 'animalData' block, it holds a per-animal dossier for each animal the user named (the server attaches it automatically): recent medical history (newest-first), the feed plan (their own items plus their herd's base plan and notes), next hoof and dental due dates, the latest weight/BCS, and lastSeen (the most recent roll-call sighting date). USE IT to answer questions — "when was Gabriel last vaccinated?" (newest Vaccination-type entry: answer with title and date), "what does Gabriel get for lunch?" (the mid items and any notes), "when is Blossom's next trim?", "what did Pete weigh last?", "when did we last see Winnie?". It is read-only context: nothing in it has a medIdx and it cannot be edited or deleted directly. Never answer "no record" for an animal question without checking animalData first; if the relevant field is genuinely absent or empty, say the record may exist but wasn't loaded, and suggest checking the animal's profile.
 
 - "Change Shelley's Bute medication note to 2g instead of 1.5g" — LIVE STATE shows Shelley's Bute entry at medIdx 3, description "1.5g". Return: action: "edit_medical", medIdx: 3, text: "Bute 2g administered (adjusted dose).", summary: "Update Shelley's Bute entry to 2g."
 - "Fix the date on Edgar's annual exam to April 5" — Edgar's exam at medIdx 1. action: "edit_medical", medIdx: 1, date: "<resolved April 5>"
@@ -406,9 +410,81 @@ function stripCodeFence(s: string): string {
   return fence ? fence[1].trim() : trimmed;
 }
 
+// Per-animal dossier attached server-side whenever the utterance names a
+// donkey: recent medical, feed plan (own + herd base), next hoof/dental due,
+// latest weight, last roll-call sighting. This is what lets Joshy answer
+// "when was Gabriel last vaccinated?" / "what does he get for lunch?" —
+// the client's own LIVE STATE only carries 20 medical entries herd-wide.
+async function buildAnimalData(text: string, historyText = ""): Promise<unknown[]> {
+  // Scan the utterance AND the recent conversation — follow-ups like "what
+  // does he get for lunch?" name the donkey only in the previous exchange.
+  // Current-utterance mentions take priority over history mentions.
+  const lower = text.toLowerCase();
+  const lowerHistory = historyText.toLowerCase();
+  const inText = animalNames.filter((n) => lower.includes(n.toLowerCase()));
+  const inHistory = animalNames.filter(
+    (n) => !inText.includes(n) && lowerHistory.includes(n.toLowerCase())
+  );
+  const mentioned = [...inText, ...inHistory].slice(0, 3);
+  if (mentioned.length === 0) return [];
+
+  const out: unknown[] = [];
+  for (const name of mentioned) {
+    try {
+      const animalRow = await db.animal.findUnique({
+        where: { name },
+        select: { name: true, herd: true, status: true, nextHoofDue: true, nextDentalDue: true },
+      });
+      if (!animalRow) continue;
+      const [medical, feed, herdFeed, weight, sighting] = await Promise.all([
+        db.medicalEntry.findMany({
+          where: { animalName: name },
+          orderBy: { date: "desc" },
+          take: 15,
+          select: { type: true, title: true, date: true, description: true, provider: true },
+        }),
+        db.feedSchedule.findFirst({ where: { animalName: name } }),
+        animalRow.herd
+          ? db.herdFeedPlan.findUnique({ where: { herd: animalRow.herd } })
+          : Promise.resolve(null),
+        db.weighIn.findFirst({ where: { animalName: name }, orderBy: { date: "desc" } }),
+        db.sighting.findFirst({ where: { animalName: name }, orderBy: { date: "desc" } }),
+      ]);
+      out.push({
+        animal: name,
+        herd: animalRow.herd,
+        status: animalRow.status,
+        nextHoofDue: animalRow.nextHoofDue,
+        nextDentalDue: animalRow.nextDentalDue,
+        lastSeen: sighting?.date ?? null,
+        latestWeight: weight
+          ? { date: weight.date, weight: weight.weight, unit: weight.unit, bcs: weight.bcs }
+          : null,
+        feedPlan: feed
+          ? { am: feed.amPlan, mid: feed.midPlan, pm: feed.pmPlan, notes: (feed.notes ?? "").slice(0, 1500) }
+          : null,
+        herdFeedPlan: herdFeed
+          ? { am: herdFeed.amPlan, mid: herdFeed.midPlan, pm: herdFeed.pmPlan, notes: (herdFeed.notes ?? "").slice(0, 800) }
+          : null,
+        medical: medical.map((m) => ({
+          type: m.type,
+          title: m.title,
+          date: m.date,
+          provider: m.provider || undefined,
+          description: (m.description ?? "").slice(0, 120),
+        })),
+      });
+    } catch (e) {
+      // Enrichment is best-effort — a DB hiccup shouldn't take Joshy down.
+      console.error(`Joshy: animalData enrichment failed for ${name}:`, e);
+    }
+  }
+  return out;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { text, context } = await req.json();
+    const { text, context, localDate, history } = await req.json();
 
     if (!text || typeof text !== "string") {
       return NextResponse.json(
@@ -424,15 +500,43 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Build the user message. Always prefix with today's date so Gemini can
-    // resolve relative dates ("tomorrow", "next Friday") into YYYY-MM-DD
-    // without stalling. If the client sent a live-state snapshot, include it
-    // so Joshy can answer queries about today's data.
-    const todayIso = new Date().toISOString().split("T")[0];
+    // Build the user message. Prefix with today's date — the CLIENT's local
+    // date when provided (the server clock is UTC and flips to tomorrow at
+    // ~5 PM Arizona time, which mis-dated evening entries), server date as
+    // the fallback — so relative dates ("tomorrow", "next Friday") resolve
+    // correctly without stalling.
+    const todayIso =
+      typeof localDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(localDate)
+        ? localDate
+        : new Date().toISOString().split("T")[0];
     const dateHeader = `Today is ${todayIso}.`;
-    const userMessage = context
-      ? `${dateHeader}\n\nLIVE STATE (today, JSON):\n${JSON.stringify(context)}\n\nUSER INPUT:\n${text}`
-      : `${dateHeader}\n\nUSER INPUT:\n${text}`;
+
+    // Server-side per-animal enrichment — attached whether or not the client
+    // sent its own LIVE STATE snapshot.
+    const historyText = Array.isArray(history)
+      ? history.map((h) => (h && typeof h.text === "string" ? h.text : "")).join(" ")
+      : "";
+    const animalData = await buildAnimalData(text, historyText);
+    const mergedContext =
+      animalData.length > 0
+        ? { ...(context && typeof context === "object" ? context : {}), animalData }
+        : context;
+
+    // Short conversation memory: the client sends the last few exchanges so
+    // follow-ups like "what about Tenzel?" resolve against what was just
+    // discussed.
+    const historyBlock =
+      Array.isArray(history) && history.length > 0
+        ? `\n\nRECENT CONVERSATION (oldest first — resolve pronouns and follow-ups against this):\n${history
+            .slice(-8)
+            .filter((h) => h && typeof h.text === "string" && (h.role === "user" || h.role === "joshy"))
+            .map((h) => `${h.role === "user" ? "User" : "Joshy"}: ${String(h.text).slice(0, 300)}`)
+            .join("\n")}`
+        : "";
+
+    const userMessage = mergedContext
+      ? `${dateHeader}${historyBlock}\n\nLIVE STATE (today, JSON):\n${JSON.stringify(mergedContext)}\n\nUSER INPUT:\n${text}`
+      : `${dateHeader}${historyBlock}\n\nUSER INPUT:\n${text}`;
 
     // Tell Gemini we expect JSON. `responseMimeType: "application/json"` is
     // the key — without it the model happily wraps output in prose or fences.
