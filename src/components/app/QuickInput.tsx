@@ -24,6 +24,7 @@ import { useSchedule } from "@/lib/schedule-context";
 import { useMedical } from "@/lib/medical-context";
 import { useToast } from "@/lib/toast-context";
 import { animals } from "@/lib/animals";
+import { useAnimals } from "@/lib/animals-context";
 import type { MedicalEntryType } from "@/lib/medical-data";
 
 const sortedAnimals = [...animals].sort((a, b) => a.name.localeCompare(b.name));
@@ -344,6 +345,9 @@ export default function QuickInput({
     refresh: refreshParkingLot,
   } = useParkingLot();
   const { toastError, toastSuccess } = useToast();
+  // Live roster (CSV base + DB overlay) — needed so "mark ALL donkeys seen"
+  // expands against real statuses (deceased/adopted excluded).
+  const { animals: liveRoster } = useAnimals();
   const {
     addEntry: addMedicalEntry,
     updateEntry: updateMedicalEntry,
@@ -627,20 +631,47 @@ export default function QuickInput({
 
       if (action === "mark_seen") {
         // Daily roll call by voice: "I saw Winnie and Pete" → one Sighting
-        // row per donkey for today. Herd names expand to their members.
-        const targets = resolveAnimalTargets(result.data, animals);
+        // row per donkey for today. Herd names expand to their members, and
+        // "ALL" (from "mark all donkeys as seen") expands to the full living
+        // roster. Never claim success for zero targets — that's how "he said
+        // he did it but nothing happened" bugs are born.
+        const raw =
+          Array.isArray(result.data.animals) && result.data.animals.length > 0
+            ? result.data.animals
+            : result.data.animal
+              ? [result.data.animal]
+              : [];
+        const wantsAll = raw.some((n) => /^(all|everyone|everybody)$/i.test(n.trim()));
+        const targets = wantsAll
+          ? liveRoster
+              .filter((a) => a.status !== "Deceased" && a.status !== "Adopted")
+              .map((a) => a.name)
+          : resolveAnimalTargets(result.data, animals);
+        if (targets.length === 0) {
+          toastError("Couldn't tell which donkeys to mark seen — try naming them or a herd.");
+          return;
+        }
         const date = todayISO();
         void (async () => {
+          let ok = 0;
           for (const name of targets) {
             try {
-              await fetch("/api/rollcall", {
+              const res = await fetch("/api/rollcall", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ animal: name, date }),
               });
+              if (res.ok) ok++;
             } catch {
               // Idempotent — a reload of the dashboard re-syncs.
             }
+          }
+          // Tell the dashboard Roll Call card to re-fetch.
+          window.dispatchEvent(new Event("dd:rollcall-changed"));
+          if (ok > 0) {
+            toastSuccess(`Marked ${ok} donkey${ok === 1 ? "" : "s"} as seen today.`);
+          } else {
+            toastError("Couldn't save the roll call — check your connection and try again.");
           }
         })();
         return;
@@ -1544,7 +1575,7 @@ export default function QuickInput({
         date: result.data.date ?? undefined,
       });
     },
-    [addTask, addEntry, addMedicalEntry, editTask, deleteTask, toggleTask, resolveEntry, schedule, entries, updateMedicalEntry, removeMedicalEntry, medicalEntries, updateParkingLotEntry, removeParkingLotEntry, toastError, toastSuccess]
+    [addTask, addEntry, addMedicalEntry, editTask, deleteTask, toggleTask, resolveEntry, schedule, entries, updateMedicalEntry, removeMedicalEntry, medicalEntries, updateParkingLotEntry, removeParkingLotEntry, toastError, toastSuccess, liveRoster]
   );
 
   // Commit the main action plus any extraActions (multi-record utterances

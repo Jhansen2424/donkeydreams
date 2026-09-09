@@ -25,24 +25,26 @@ export default function RollCallCard() {
     [animals]
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/rollcall?date=${today}`, { cache: "no-store" });
-        if (!res.ok) return;
-        const body = (await res.json()) as { seen: string[]; lastSeen: Record<string, string> };
-        if (cancelled) return;
-        setSeen(new Set(body.seen));
-        setLastSeen(body.lastSeen);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const reload = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/rollcall?date=${today}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const body = (await res.json()) as { seen: string[]; lastSeen: Record<string, string> };
+      setSeen(new Set(body.seen));
+      setLastSeen(body.lastSeen);
+    } finally {
+      setLoading(false);
+    }
   }, [today]);
+
+  useEffect(() => {
+    void reload();
+    // Joshy's voice roll call ("mark all donkeys as seen") fires this event
+    // after writing sightings, so the card updates without a page reload.
+    const onChanged = () => void reload();
+    window.addEventListener("dd:rollcall-changed", onChanged);
+    return () => window.removeEventListener("dd:rollcall-changed", onChanged);
+  }, [reload]);
 
   const toggle = useCallback(
     async (name: string) => {

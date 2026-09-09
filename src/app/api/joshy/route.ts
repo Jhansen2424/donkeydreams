@@ -78,7 +78,7 @@ Action types:
 - "add_article" — add a new knowledge-base article. Requires articleTitle + articleContent (markdown). Optional articleTags and articleLinkedAnimals. Triggers: "Add a knowledge article titled 'Laminitis protocol' with the following content: ...", "Save a new protocol note about sling trimming".
 - "update_article" — update an existing article. Identify by articleTitle (case-insensitive match on the CURRENT title). Use articleNewTitle when renaming. Optional articleContent / articleTags / articleLinkedAnimals. Triggers: "Update the Laminitis protocol article to add: Monitor daily for heat", "Rename 'Sling trim notes' to 'Sling trimming protocol'".
 - "delete_article" — HARD-delete an article. Identify by articleTitle. Triggers: "Delete the old sling trim notes article".
-- "mark_seen" — daily roll call: record that donkeys were laid eyes on today. Accepts a single 'animal' OR an 'animals' array (herd names in the array are expanded by the app). Triggers: "I saw Winnie and Pete", "Mark Gabriel as seen", "Laid eyes on the whole Seniors herd", "Roll call: Blossom, Edgar, Swayze". This is a standalone action — never needs LIVE STATE.
+- "mark_seen" — daily roll call: record that donkeys were laid eyes on today. Accepts a single 'animal' OR an 'animals' array (herd names in the array are expanded by the app). For "all donkeys" / "everyone" / "the whole yard" / "everybody", return animals: ["ALL"] — the app expands it to the full living roster. Triggers: "I saw Winnie and Pete", "Mark Gabriel as seen", "Laid eyes on the whole Seniors herd", "Mark all donkeys as seen", "Roll call: Blossom, Edgar, Swayze". This is a standalone action — never needs LIVE STATE.
 
 MULTI-ACTION INPUTS: When ONE utterance clearly contains MULTIPLE distinct records ("Fed Gabriel, changed his sock, and he seemed a little off"), return the FIRST/primary action as usual and put each additional one in a top-level "extraActions" array: [{ "action": "...", "data": { ...same data shape... } }, ...]. Write ONE combined summary covering everything ("Log Gabriel's feeding, record the sock change, and add a watch note that he seemed off."). Only split when the parts are genuinely different record types or different animals — a single event with detail stays ONE action with the detail in its text. Never use extraActions for clarifications or queries.
 
@@ -313,6 +313,7 @@ EDIT / DELETE examples for existing records — all HARD deletes are irreversibl
 
 LIVE STATE's 'medical' array is sorted newest-first and capped at 20 entries ACROSS ALL ANIMALS. medIdx is the 0-based position in that array.
 When LIVE STATE has an 'animalData' block, it holds a per-animal dossier for each animal the user named (the server attaches it automatically): recent medical history (newest-first), the feed plan (their own items plus their herd's base plan and notes), next hoof and dental due dates, the latest weight/BCS, and lastSeen (the most recent roll-call sighting date). USE IT to answer questions — "when was Gabriel last vaccinated?" (newest Vaccination-type entry: answer with title and date), "what does Gabriel get for lunch?" (the mid items and any notes), "when is Blossom's next trim?", "what did Pete weigh last?", "when did we last see Winnie?". It is read-only context: nothing in it has a medIdx and it cannot be edited or deleted directly. Never answer "no record" for an animal question without checking animalData first; if the relevant field is genuinely absent or empty, say the record may exist but wasn't loaded, and suggest checking the animal's profile.
+animalData also carries a 'profile' block (tagline, personality traits, behavioral notes, origin story). Open-ended asks like "Tell me about Gabriel", "Who is Winnie?", "Read me Pete's profile", "What's Gabriel's story?" are QUERIES — never "I didn't understand". Answer with a warm spoken paragraph built from the profile: lead with who they are (tagline / origin story highlights), then personality traits, then anything care-critical (behavioral notes, special flags, herd). Keep it to a few sentences unless they ask for the full story.
 
 - "Change Shelley's Bute medication note to 2g instead of 1.5g" — LIVE STATE shows Shelley's Bute entry at medIdx 3, description "1.5g". Return: action: "edit_medical", medIdx: 3, text: "Bute 2g administered (adjusted dose).", summary: "Update Shelley's Bute entry to 2g."
 - "Fix the date on Edgar's annual exam to April 5" — Edgar's exam at medIdx 1. action: "edit_medical", medIdx: 1, date: "<resolved April 5>"
@@ -433,7 +434,17 @@ async function buildAnimalData(text: string, historyText = ""): Promise<unknown[
     try {
       const animalRow = await db.animal.findUnique({
         where: { name },
-        select: { name: true, herd: true, status: true, nextHoofDue: true, nextDentalDue: true },
+        select: {
+          name: true,
+          herd: true,
+          status: true,
+          nextHoofDue: true,
+          nextDentalDue: true,
+          tagline: true,
+          story: true,
+          traits: true,
+          behavioralNotes: true,
+        },
       });
       if (!animalRow) continue;
       const [medical, feed, herdFeed, weight, sighting] = await Promise.all([
@@ -454,6 +465,13 @@ async function buildAnimalData(text: string, historyText = ""): Promise<unknown[
         animal: name,
         herd: animalRow.herd,
         status: animalRow.status,
+        // Profile content, so "tell me about <donkey>" has something to say.
+        profile: {
+          tagline: animalRow.tagline || undefined,
+          traits: animalRow.traits,
+          behavioralNotes: (animalRow.behavioralNotes || "").slice(0, 800) || undefined,
+          originStory: animalRow.story.join(" ").slice(0, 1200) || undefined,
+        },
         nextHoofDue: animalRow.nextHoofDue,
         nextDentalDue: animalRow.nextDentalDue,
         lastSeen: sighting?.date ?? null,
