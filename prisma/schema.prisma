@@ -400,6 +400,22 @@ model Document {
   @@index([linkedTo])
 }
 
+// ── Roll Call ──
+// One row per donkey per day they were laid eyes on. Drives the dashboard
+// Roll Call checklist and the "not seen in 48 hours" alert.
+model Sighting {
+  id         String   @id @default(cuid())
+  animalName String
+  date       String   // ISO YYYY-MM-DD (sanctuary-local day)
+  seenBy     String   @default("")
+
+  createdAt DateTime @default(now())
+
+  @@unique([animalName, date])
+  @@index([date])
+  @@index([animalName])
+}
+
 // ── Map Pens ──
 //
 // Physical pen boundaries drawn on the map page. Each pen belongs to a herd

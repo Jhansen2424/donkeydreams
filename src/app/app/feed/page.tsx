@@ -54,8 +54,13 @@ export default function FeedPage() {
 
   const { entries: parkingEntries, addEntry, removeEntry } = useParkingLot();
   // Live roster (CSV base + DB overlay) so herd moves and new animals are
-  // reflected in feed grouping without a rebuild.
-  const { animals } = useAnimals();
+  // reflected in feed grouping without a rebuild. Deceased donkeys drop out
+  // of feed planning entirely.
+  const { animals: allAnimals } = useAnimals();
+  const animals = useMemo(
+    () => allAnimals.filter((a) => a.status !== "Deceased"),
+    [allAnimals]
+  );
 
   // Map donkey name → herd, so we can group / filter feed plans by herd
   // without having to refetch the Animal table.

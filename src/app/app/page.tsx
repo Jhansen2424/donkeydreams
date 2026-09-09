@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import MetricTabs from "@/components/app/dashboard/MetricTabs";
 import SanctuaryStats from "@/components/app/dashboard/SanctuaryStats";
 import DashboardTaskList from "@/components/app/dashboard/DashboardTaskList";
+import RollCallCard from "@/components/app/dashboard/RollCallCard";
 import DashboardCalendar, { todayEvents } from "@/components/app/dashboard/DashboardCalendar";
 import WatchAndMedical from "@/components/app/dashboard/WatchAndMedical";
 import UnassignedTasks from "@/components/app/dashboard/UnassignedTasks";
@@ -103,6 +104,9 @@ export default function AppDashboard() {
 
       {/* ── Sanctuary At a Glance (adoption-CSV stats) ── */}
       <SanctuaryStats />
+
+      {/* ── Daily Roll Call — eyes on every donkey, every day ── */}
+      <RollCallCard />
 
       {/* ── Three-column workspace ── */}
       <div className="grid gap-5 lg:grid-cols-3 lg:auto-rows-fr lg:[grid-template-rows:minmax(0,calc(100vh-16rem))]">

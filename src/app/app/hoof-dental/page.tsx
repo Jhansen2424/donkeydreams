@@ -181,7 +181,9 @@ function HoofDentalPage() {
     const base = computeAnimalCareStatuses({
       extraVisits: [...dbHoofVisits, ...dbDentalVisits],
       nextDueByAnimal,
-      animals: liveAnimals,
+      // Deceased donkeys drop out of hoof/dental care tracking (their visit
+      // history stays on their profile).
+      animals: liveAnimals.filter((a) => a.status !== "Deceased"),
     });
 
     return base.map((s) => {

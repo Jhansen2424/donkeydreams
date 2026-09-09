@@ -91,6 +91,7 @@ export const config = {
     "/api/parking-lot/:path*",
     "/api/pens/:path*",
     "/api/providers/:path*",
+    "/api/rollcall/:path*",
     "/api/tasks/:path*",
     "/api/trim-profiles/:path*",
     "/api/volunteers/:path*",

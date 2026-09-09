@@ -117,6 +117,49 @@ export default function AnimalProfilePage() {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const { toastSuccess: profileToastSuccess, toastError: profileToastError } = useToast();
 
+  // ── Edit auto-save ──
+  // Mobile Chrome silently discards background tabs; when the page reloads,
+  // in-memory edit state is gone (client lost profile work this way on 9/8).
+  // Every draft change is mirrored to localStorage and restored on the next
+  // visit to this profile; cleared on Save or Cancel.
+  const draftStorageKey = `dd:profile-draft:v1:${slug}`;
+  useEffect(() => {
+    if (!editing || !draft) return;
+    try {
+      window.localStorage.setItem(
+        draftStorageKey,
+        JSON.stringify({ draft, savedAt: Date.now() })
+      );
+    } catch {
+      // Storage full/blocked — editing still works, just without the net.
+    }
+  }, [editing, draft, draftStorageKey]);
+  const clearStoredDraft = () => {
+    try {
+      window.localStorage.removeItem(draftStorageKey);
+    } catch {}
+  };
+  const restoredSlugRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!animal || restoredSlugRef.current === slug) return;
+    restoredSlugRef.current = slug;
+    try {
+      const raw = window.localStorage.getItem(draftStorageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { draft?: ProfileDraft; savedAt?: number };
+      if (!parsed?.draft || Date.now() - (parsed.savedAt ?? 0) > 24 * 3600 * 1000) {
+        window.localStorage.removeItem(draftStorageKey);
+        return;
+      }
+      setDraft(parsed.draft);
+      setEditing(true);
+      profileToastSuccess(
+        `Restored your unsaved edits to ${animal.name}'s profile — hit Save to keep them.`
+      );
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [animal, slug, draftStorageKey]);
+
   // Keep `activeTab` in sync with URL changes (e.g. back/forward navigation).
   useEffect(() => {
     const t = searchParams?.get("tab");
@@ -168,6 +211,7 @@ export default function AnimalProfilePage() {
               onClick={() => {
                 setEditing(false);
                 setDraft(null);
+                clearStoredDraft();
               }}
               disabled={savingProfile}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-white border border-card-border text-charcoal hover:bg-cream transition-colors"
@@ -265,6 +309,7 @@ export default function AnimalProfilePage() {
                   // No changes to save — just exit edit mode.
                   setEditing(false);
                   setDraft(null);
+                  clearStoredDraft();
                   return;
                 }
                 const { name: _n, ...patch } = payload;
@@ -277,6 +322,7 @@ export default function AnimalProfilePage() {
                 profileToastSuccess(`Saved ${animal.name}'s profile.`);
                 setEditing(false);
                 setDraft(null);
+                clearStoredDraft();
               } finally {
                 setSavingProfile(false);
               }

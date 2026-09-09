@@ -164,7 +164,12 @@ interface ApiWeighIn {
 }
 
 export default function WeightTrackingPage() {
-  const { animals: liveAnimals } = useAnimals();
+  const { animals: allAnimals } = useAnimals();
+  // Deceased donkeys drop out of active weight tracking.
+  const liveAnimals = useMemo(
+    () => allAnimals.filter((a) => a.status !== "Deceased"),
+    [allAnimals]
+  );
   const [dbWeighIns, setDbWeighIns] = useState<WeighIn[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
