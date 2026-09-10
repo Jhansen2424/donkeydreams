@@ -63,7 +63,11 @@ interface ScheduleContextValue {
       applyToSeries?: boolean;
     }
   ) => Promise<void>;
-  deleteTask: (blockIdx: number, taskIdx: number) => Promise<void>;
+  deleteTask: (
+    blockIdx: number,
+    taskIdx: number,
+    opts?: { entireSeries?: boolean }
+  ) => Promise<void>;
   reorderTask: (blockIdx: number, fromIdx: number, toIdx: number) => Promise<void>;
   /** Deactivate a recurring template — future days stop getting the task. */
   stopRepeating: (templateId: string) => Promise<void>;
@@ -469,9 +473,20 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     }
   }, [schedule]);
 
-  const deleteTask = useCallback(async (blockIdx: number, taskIdx: number) => {
+  const deleteTask = useCallback(async (
+    blockIdx: number,
+    taskIdx: number,
+    opts?: {
+      /** For repeating tasks: also deactivate the template so the task stops
+          coming back on future days. Without it, deleting a repeating task
+          only removes THAT day's copy — it rematerializes tomorrow (the
+          "deleted task came back a day later" surprise). */
+      entireSeries?: boolean;
+    }
+  ) => {
     const ids = resolveIds(blockIdx, taskIdx);
     if (!ids) return;
+    const templateId = (schedule[blockIdx]?.tasks[taskIdx] as TaskWithId | undefined)?.templateId;
 
     const snapshot = localUpdate((prev) =>
       prev.map((b, bi) =>
@@ -480,6 +495,15 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     );
 
     try {
+      // Deactivate the template FIRST so a concurrent materialization can't
+      // recreate the instance between the delete and the deactivate.
+      if (opts?.entireSeries && templateId) {
+        await fetch("/api/tasks/templates", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: templateId, active: false }),
+        }).catch(() => {});
+      }
       const res = await fetch(`/api/tasks?id=${encodeURIComponent(ids.serverId)}`, { method: "DELETE" });
       if (!res.ok) throw new Error((await res.json()).error || "Failed to delete");
       setTaskBlocks((prev) => {

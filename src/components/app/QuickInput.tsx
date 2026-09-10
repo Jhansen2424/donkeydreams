@@ -692,7 +692,9 @@ export default function QuickInput({
       if (action === "delete_task") {
         const { blockIdx, taskIdx } = result.data;
         if (typeof blockIdx !== "number" || typeof taskIdx !== "number") return;
-        deleteTask(blockIdx, taskIdx);
+        // "Delete the X task" via Joshy means GONE — for repeating tasks
+        // that includes stopping the series, or it rematerializes tomorrow.
+        deleteTask(blockIdx, taskIdx, { entireSeries: true });
         return;
       }
 

@@ -181,7 +181,12 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
     if (mode.kind !== "edit") return;
     setSaving(true);
     try {
-      await deleteTask(mode.blockIdx, mode.taskIdx);
+      // Repeating task + "Every day" scope: also stop the template, so the
+      // task doesn't rematerialize tomorrow ("I deleted it and it came
+      // back"). "Only today" keeps the old skip-this-date behavior.
+      await deleteTask(mode.blockIdx, mode.taskIdx, {
+        entireSeries: Boolean(mode.task.templateId) && applyScope === "series",
+      });
       onClose();
     } finally {
       setSaving(false);
@@ -311,7 +316,7 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
           {mode.kind === "edit" && mode.task.templateId && (
             <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-sky/5 border border-sky/20">
               <Repeat className="w-4 h-4 text-sky shrink-0" />
-              <span className="text-xs text-charcoal">Repeating task — apply changes to:</span>
+              <span className="text-xs text-charcoal">Repeating task — changes &amp; deletes apply to:</span>
               <div className="flex gap-1">
                 {(
                   [
@@ -483,7 +488,13 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
                 </button>
               ) : (
                 <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200">
-                  <span className="text-sm text-red-700 flex-1">Delete this task?</span>
+                  <span className="text-sm text-red-700 flex-1">
+                    {mode.kind === "edit" && mode.task.templateId
+                      ? applyScope === "series"
+                        ? "Delete this repeating task from every day? It will stop coming back."
+                        : "Delete only today's copy? It will still appear on other days."
+                      : "Delete this task?"}
+                  </span>
                   <button
                     onClick={handleDelete}
                     disabled={saving}
