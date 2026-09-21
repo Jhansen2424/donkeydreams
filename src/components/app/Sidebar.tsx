@@ -54,6 +54,7 @@ const navGroups = [
   {
     label: "Operations",
     items: [
+      { name: "Sign-In Kiosk", href: "/app/signin", icon: ClipboardCheck },
       { name: "Documents", href: "/app/documents", icon: FolderOpen },
       { name: "Admin", href: "/app/admin", icon: Users },
       { name: "Donations", href: "/app/donations", icon: DollarSign },

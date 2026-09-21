@@ -94,6 +94,7 @@ export const config = {
     "/api/rollcall/:path*",
     "/api/tasks/:path*",
     "/api/trim-profiles/:path*",
+    "/api/visits/:path*",
     "/api/volunteers/:path*",
     "/api/weight/:path*",
   ],

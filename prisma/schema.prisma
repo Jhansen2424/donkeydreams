@@ -400,6 +400,64 @@ model Document {
   @@index([linkedTo])
 }
 
+// ── Sign-In / Visitors (GFAS requirement) ──
+// Everyone on the property signs in and out. First-timers digitally sign
+// the NDA (version depends on visitor type) and the liability waiver —
+// signatures stored as small PNG data URLs with timestamps. Mood responses
+// (Edj's 9/17 spec) pair sign-in and sign-out per session for the grant
+// impact data.
+model Visitor {
+  id              String    @id @default(cuid())
+  name            String
+  phone           String    @default("")
+  email           String    @default("")
+  emergencyName   String    @default("")
+  emergencyPhone  String    @default("")
+  visitorType     String    @default("visitor") // "volunteer" | "visitor"
+  ndaVersion      String    @default("") // "third-parties" | "sponsors-volunteers"
+  ndaSignedAt     DateTime?
+  ndaSignature    String    @default("") // PNG data URL
+  waiverSignedAt  DateTime?
+  waiverSignature String    @default("")
+  volunteerId     String? // link to the Volunteer roster row, when applicable
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions VisitSession[]
+
+  @@index([name])
+}
+
+model VisitSession {
+  id           String    @id @default(cuid())
+  visitor      Visitor   @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  visitorId    String
+  signInAt     DateTime  @default(now())
+  signOutAt    DateTime?
+  standoutNote String    @default("") // optional "did anything stand out today?"
+
+  createdAt DateTime @default(now())
+
+  moods MoodResponse[]
+
+  @@index([visitorId])
+  @@index([signInAt])
+}
+
+model MoodResponse {
+  id          String       @id @default(cuid())
+  session     VisitSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId   String
+  phase       String // "in" | "out"
+  questionKey String // feeling | energy | anxiety | connection | expectations
+  value       Int // 1-5 left-to-right (expectations: 1-4)
+
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+}
+
 // ── Roll Call ──
 // One row per donkey per day they were laid eyes on. Drives the dashboard
 // Roll Call checklist and the "not seen in 48 hours" alert.

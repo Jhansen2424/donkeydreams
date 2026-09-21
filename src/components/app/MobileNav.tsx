@@ -22,6 +22,7 @@ const tabs = [
 ];
 
 const moreLinks = [
+  { name: "Sign-In Kiosk", href: "/app/signin" },
   { name: "Daily Routine", href: "/app/tasks" },
   { name: "Watch List", href: "/app/watch" },
   { name: "Sanctuary Updates", href: "/app/updates" },

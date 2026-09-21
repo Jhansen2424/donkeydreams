@@ -38,6 +38,8 @@ import { useSchedule } from "@/lib/schedule-context";
 import { useAnimals } from "@/lib/animals-context";
 import { type ScheduleTask, type TaskCategory } from "@/lib/sanctuary-data";
 import ExpandableText from "@/components/app/ExpandableText";
+import TrimPhotos from "@/components/app/TrimPhotos";
+import { MOOD_QUESTIONS, QUESTION_LABELS, SIGN_DOC_SLOTS } from "@/lib/visit-questions";
 import Link from "next/link";
 
 // A task's tags, falling back to its legacy single category.
@@ -730,6 +732,9 @@ export default function VolunteersPage() {
 
         {/* ══════ ADMIN TASKS ══════ */}
         <AdminTasksCard adminTasks={adminTasks} />
+
+        {/* ══════ VISITORS & SIGN-INS (GFAS) ══════ */}
+        <VisitorsSignInsCard />
 
         {/* ══════ DECEASED (MEMORIAL) ══════ */}
         <DeceasedCard />
@@ -1436,3 +1441,232 @@ function DeceasedCard() {
     </div>
   );
 }
+
+// ── Visitors & Sign-Ins Card ──
+// GFAS sign-in records: who's on site now, the visit log, the mood-impact
+// report (averages in vs out, filterable by date range, CSV export), and
+// the upload slots for the signable NDA/waiver PDFs the kiosk displays.
+
+interface ReportSession {
+  id: string;
+  visitor: string;
+  visitorType: string;
+  signInAt: string;
+  signOutAt: string | null;
+  standoutNote: string;
+  moods: { phase: string; questionKey: string; value: number }[];
+}
+
+function VisitorsSignInsCard() {
+  const [sessions, setSessions] = useState<ReportSession[]>([]);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [loadingReport, setLoadingReport] = useState(true);
+
+  const loadReport = useCallback(async () => {
+    setLoadingReport(true);
+    try {
+      const params = new URLSearchParams({ view: "report" });
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      const res = await fetch(`/api/visits?${params}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const body = (await res.json()) as { sessions: ReportSession[] };
+      setSessions(body.sessions);
+    } finally {
+      setLoadingReport(false);
+    }
+  }, [from, to]);
+
+  useEffect(() => {
+    void loadReport();
+  }, [loadReport]);
+
+  const onSite = sessions.filter((s) => !s.signOutAt);
+
+  // Mood averages per question per phase, plus the in-to-out delta where a
+  // question is asked both times.
+  const moodStats = useMemo(() => {
+    const sums: Record<string, { total: number; n: number }> = {};
+    for (const s of sessions) {
+      for (const m of s.moods) {
+        const key = `${m.phase}:${m.questionKey}`;
+        sums[key] = { total: (sums[key]?.total ?? 0) + m.value, n: (sums[key]?.n ?? 0) + 1 };
+      }
+    }
+    const avg = (key: string) => {
+      const e = sums[key];
+      return e && e.n > 0 ? e.total / e.n : null;
+    };
+    return MOOD_QUESTIONS.map((q) => {
+      const inAvg = avg(`in:${q.key}`);
+      const outAvg = avg(`out:${q.key}`);
+      return {
+        key: q.key,
+        label: QUESTION_LABELS[q.key] ?? q.key,
+        inAvg,
+        outAvg,
+        delta: inAvg !== null && outAvg !== null ? outAvg - inAvg : null,
+        n: sums[`out:${q.key}`]?.n ?? sums[`in:${q.key}`]?.n ?? 0,
+      };
+    }).filter((r) => r.n > 0);
+  }, [sessions]);
+
+  function exportCsv() {
+    const header = [
+      "visitor",
+      "type",
+      "sign_in",
+      "sign_out",
+      ...MOOD_QUESTIONS.filter((q) => q.textIn).map((q) => `in_${q.key}`),
+      ...MOOD_QUESTIONS.filter((q) => q.textOut).map((q) => `out_${q.key}`),
+      "standout_note",
+    ];
+    const rows = sessions.map((s) => {
+      const mood = (phase: string, key: string) =>
+        s.moods.find((m) => m.phase === phase && m.questionKey === key)?.value ?? "";
+      return [
+        s.visitor,
+        s.visitorType,
+        s.signInAt,
+        s.signOutAt ?? "",
+        ...MOOD_QUESTIONS.filter((q) => q.textIn).map((q) => mood("in", q.key)),
+        ...MOOD_QUESTIONS.filter((q) => q.textOut).map((q) => mood("out", q.key)),
+        s.standoutNote.replace(/"/g, "'"),
+      ]
+        .map((v) => `"${String(v)}"`)
+        .join(",");
+    });
+    const blob = new Blob([[header.join(","), ...rows].join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `sign-in-report-${from || "all"}-to-${to || "now"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-card-border p-5 space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h3 className="font-bold text-charcoal flex items-center gap-2">
+          <ClipboardCheck className="w-4 h-4 text-emerald-600" />
+          Visitors &amp; Sign-Ins
+          {onSite.length > 0 && (
+            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+              {onSite.length} on site now
+            </span>
+          )}
+        </h3>
+        <Link href="/app/signin" className="text-xs font-semibold text-sidebar hover:underline">
+          Open the sign-in kiosk &rarr;
+        </Link>
+      </div>
+
+      {/* Date range + export */}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60">From</label>
+        <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="px-2 py-1.5 text-sm border border-card-border rounded-lg text-charcoal" />
+        <label className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60">To</label>
+        <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="px-2 py-1.5 text-sm border border-card-border rounded-lg text-charcoal" />
+        <button
+          onClick={exportCsv}
+          disabled={sessions.length === 0}
+          className="ml-auto px-3 py-1.5 text-xs font-semibold bg-white border border-card-border rounded-lg text-charcoal hover:bg-cream disabled:opacity-40"
+        >
+          Export CSV ({sessions.length})
+        </button>
+      </div>
+
+      {/* Mood impact */}
+      {moodStats.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-2">
+            Mood impact (averages, 1-5)
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead>
+                <tr className="text-[11px] font-semibold uppercase tracking-wider text-warm-gray/60 border-b border-card-border">
+                  <th className="py-1.5 pr-2">Question</th>
+                  <th className="py-1.5 pr-2">Arriving</th>
+                  <th className="py-1.5 pr-2">Leaving</th>
+                  <th className="py-1.5 pr-2">Change</th>
+                  <th className="py-1.5">Answers</th>
+                </tr>
+              </thead>
+              <tbody>
+                {moodStats.map((r) => (
+                  <tr key={r.key} className="border-b border-card-border/50">
+                    <td className="py-1.5 pr-2 font-medium text-charcoal">{r.label}</td>
+                    <td className="py-1.5 pr-2 text-warm-gray">{r.inAvg?.toFixed(2) ?? "-"}</td>
+                    <td className="py-1.5 pr-2 text-warm-gray">{r.outAvg?.toFixed(2) ?? "-"}</td>
+                    <td className={`py-1.5 pr-2 font-semibold ${r.delta === null ? "text-warm-gray" : r.delta >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                      {r.delta === null ? "-" : `${r.delta >= 0 ? "+" : ""}${r.delta.toFixed(2)}`}
+                    </td>
+                    <td className="py-1.5 text-warm-gray">{r.n}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[11px] text-warm-gray/60 mt-1">
+            Note: for Anxiety a NEGATIVE change is the good direction (calmer when leaving).
+          </p>
+        </div>
+      )}
+
+      {/* Visit log */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-2">
+          Visit log {loadingReport ? "..." : `(${sessions.length})`}
+        </p>
+        <div className="max-h-72 overflow-y-auto divide-y divide-card-border rounded-lg border border-card-border">
+          {sessions.length === 0 && !loadingReport && (
+            <p className="p-4 text-sm text-warm-gray/60 text-center">No visits in this range yet.</p>
+          )}
+          {sessions.map((s) => (
+            <div key={s.id} className="px-3 py-2 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-charcoal truncate">
+                  {s.visitor}
+                  <span className="ml-1.5 text-[10px] uppercase tracking-wide text-warm-gray/60">{s.visitorType}</span>
+                </p>
+                {s.standoutNote && (
+                  <p className="text-xs text-warm-gray italic truncate">&ldquo;{s.standoutNote}&rdquo;</p>
+                )}
+              </div>
+              <p className="text-xs text-warm-gray shrink-0 text-right">
+                {new Date(s.signInAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                {" -> "}
+                {s.signOutAt
+                  ? new Date(s.signOutAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+                  : "on site"}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Signable document slots */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1">
+          Signable documents (shown on the kiosk)
+        </p>
+        <p className="text-[11px] text-warm-gray/70 mb-3">
+          Upload the PDF for each — first-time visitors read and sign these on the kiosk. Replace a
+          document by deleting the old file and uploading the new one.
+        </p>
+        <div className="space-y-3">
+          {SIGN_DOC_SLOTS.map((slot) => (
+            <div key={slot.key} className="p-3 bg-cream/40 rounded-lg border border-card-border">
+              <p className="text-sm font-medium text-charcoal mb-1">{slot.label}</p>
+              <TrimPhotos visitId={slot.key} addLabel="Upload PDF" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
