@@ -306,6 +306,9 @@ export interface ScheduleTask {
   estimatedMinutes?: number;
   /** "Until done": stays on every day's list until checked off. */
   sticky?: boolean;
+  /** Appetite/outcome capture: "" normal, "partial", or "refused". */
+  outcome?: string;
+  outcomeNote?: string;
   /** DB row id (TaskCompletion.id) — stable identity for keys and mutations. */
   serverId?: string;
   /** Set when this row was materialized from a recurring TaskTemplate. */

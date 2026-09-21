@@ -1758,6 +1758,13 @@ function TasksTab({ animal }: { animal: Animal }) {
             {doneCount}/{mine.length} complete
           </p>
           <a
+            href={`/app/tasks/history?animal=${encodeURIComponent(animal.name)}`}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-card-border text-charcoal rounded-lg text-sm font-medium hover:bg-cream transition-colors"
+            title={`Which days ${animal.name}'s tasks were done or missed`}
+          >
+            View History
+          </a>
+          <a
             href="/app/tasks"
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors"
           >

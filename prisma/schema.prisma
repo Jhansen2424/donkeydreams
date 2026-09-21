@@ -157,6 +157,12 @@ model TaskCompletion {
   // "Until done" task: stays on every day's list (regardless of `date`)
   // until checked off. Used for standing items like grant milestones.
   sticky     Boolean  @default(false)
+  // Appetite/outcome capture (client 9/15: "Swayze only ate a couple of
+  // bites"): "" = normal, "partial" = started but not finished,
+  // "refused" = offered but didn't want it. outcomeNote holds the detail
+  // WITHOUT touching the task's instruction note.
+  outcome     String @default("")
+  outcomeNote String @default("")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

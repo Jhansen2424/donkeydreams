@@ -72,6 +72,13 @@ interface ScheduleContextValue {
     opts?: { entireSeries?: boolean }
   ) => Promise<void>;
   reorderTask: (blockIdx: number, fromIdx: number, toIdx: number) => Promise<void>;
+  /** Record how a task went: "" normal, "partial", "refused" (+ why). */
+  setOutcome: (
+    blockIdx: number,
+    taskIdx: number,
+    outcome: "" | "partial" | "refused",
+    outcomeNote: string
+  ) => Promise<void>;
   /** Deactivate a recurring template — future days stop getting the task. */
   stopRepeating: (templateId: string) => Promise<void>;
   resetSchedule: () => Promise<void>;
@@ -130,6 +137,8 @@ interface ApiTask {
   animalSpecific: string | null;
   templateId: string | null;
   sticky?: boolean;
+  outcome?: string;
+  outcomeNote?: string;
   createdAt: string;
 }
 
@@ -145,6 +154,8 @@ function apiToTask(a: ApiTask): TaskWithId {
     tags,
     source: (a.templateId ? "base" : "manual") as TaskSource,
     sticky: a.sticky === true,
+    outcome: a.outcome || "",
+    outcomeNote: a.outcomeNote || "",
     serverId: a.id,
     templateId: a.templateId,
   };
@@ -566,6 +577,42 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     }
   }, [schedule]);
 
+  // Record how a task actually went ("" normal / "partial" / "refused" +
+  // an optional why) — the appetite-capture ask: "Swayze only ate a couple
+  // of bites". Stored on the DAY's row, so it's part of history.
+  const setOutcome = useCallback(async (
+    blockIdx: number,
+    taskIdx: number,
+    outcome: "" | "partial" | "refused",
+    outcomeNote: string
+  ) => {
+    const ids = resolveIds(blockIdx, taskIdx);
+    if (!ids) return;
+    const snapshot = localUpdate((prev) =>
+      prev.map((b, bi) =>
+        bi === blockIdx
+          ? {
+              ...b,
+              tasks: b.tasks.map((t, ti) =>
+                ti === taskIdx ? { ...t, outcome, outcomeNote } : t
+              ),
+            }
+          : b
+      )
+    );
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ids.serverId, outcome, outcomeNote }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to save");
+    } catch (e) {
+      setSchedule(snapshot);
+      setError(e instanceof Error ? e.message : "Failed to save outcome");
+    }
+  }, [schedule]);
+
   // Deactivate a recurring template. The current day's instance stays (it's
   // already materialized); future days simply stop getting the task.
   const stopRepeating = useCallback(async (templateId: string) => {
@@ -597,6 +644,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         editTask,
         deleteTask,
         reorderTask,
+        setOutcome,
         stopRepeating,
         resetSchedule,
         refresh,

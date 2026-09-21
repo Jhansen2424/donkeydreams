@@ -232,6 +232,7 @@ export default function TasksPage() {
     bulkAssign,
     editTask,
     reorderTask,
+    setOutcome,
     resetSchedule,
     refresh,
     currentDate,
@@ -452,6 +453,14 @@ export default function TasksPage() {
             <Printer className="w-4 h-4" />
             Print
           </button>
+          <a
+            href="/app/tasks/history"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-card-border rounded-lg text-sm font-medium text-charcoal hover:bg-cream transition-colors"
+            title="What was done, missed, or refused on past days"
+          >
+            <RotateCcw className="w-4 h-4" />
+            History
+          </a>
           <div className="inline-flex bg-white border border-card-border rounded-lg overflow-hidden">
             <button
               onClick={() => setViewMode("time")}
@@ -738,6 +747,7 @@ export default function TasksPage() {
                           assignTask(origIdx, origTaskIdx, name)
                         }
                         onEdit={() => openEdit(origIdx, origTaskIdx)}
+                        onOutcome={(o, n) => void setOutcome(origIdx, origTaskIdx, o, n)}
                         onDragStart={() => setDragSource({ blockIdx: origIdx, taskIdx: origTaskIdx })}
                         onDragEnd={() => {
                           setDragSource(null);
@@ -836,6 +846,11 @@ export default function TasksPage() {
                             onEdit={
                               blockIdx >= 0 && taskIdx >= 0
                                 ? () => openEdit(blockIdx, taskIdx)
+                                : undefined
+                            }
+                            onOutcome={
+                              blockIdx >= 0 && taskIdx >= 0
+                                ? (o, n) => void setOutcome(blockIdx, taskIdx, o, n)
                                 : undefined
                             }
                             hideAnimal
@@ -1221,6 +1236,7 @@ function TaskRow({
   onToggle,
   onAssign,
   onEdit,
+  onOutcome,
   hideAnimal,
   onDragStart,
   onDragEnd,
@@ -1232,6 +1248,8 @@ function TaskRow({
   onToggle: () => void;
   onAssign: (name: string) => void;
   onEdit?: () => void;
+  /** Record how it went ("" / partial / refused + why) — appetite capture. */
+  onOutcome?: (outcome: "" | "partial" | "refused", note: string) => void;
   hideAnimal?: boolean;
   onDragStart?: () => void;
   onDragEnd?: () => void;
@@ -1241,6 +1259,9 @@ function TaskRow({
 }) {
   const source = sourceMeta[task.source];
   const draggable = Boolean(onDragStart);
+  const [outcomeOpen, setOutcomeOpen] = useState(false);
+  const [outcomeDraft, setOutcomeDraft] = useState<"partial" | "refused">("partial");
+  const [outcomeNoteDraft, setOutcomeNoteDraft] = useState("");
 
   return (
     <div
@@ -1313,6 +1334,22 @@ function TaskRow({
               Until done
             </span>
           )}
+          {task.outcome === "partial" && (
+            <span
+              title={task.outcomeNote || "Started but not finished"}
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200"
+            >
+              Partial
+            </span>
+          )}
+          {task.outcome === "refused" && (
+            <span
+              title={task.outcomeNote || "Offered but refused"}
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200"
+            >
+              Refused
+            </span>
+          )}
           {task.estimatedMinutes && (
             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium text-warm-gray bg-cream border border-card-border">
               <Clock className="w-2.5 h-2.5" />
@@ -1355,14 +1392,102 @@ function TaskRow({
             {normalizeParagraphs(task.note)}
           </p>
         )}
+        {task.outcomeNote && (
+          <p className="text-[11px] text-amber-800 mt-0.5">
+            {task.outcomeNote}
+          </p>
+        )}
         {/* Print-only assignee names (the colored chips don't print) */}
         {getAssignees(task).length > 0 && (
           <p className="hidden print:block text-[11px] text-charcoal mt-0.5">
             Assigned: {getAssignees(task).join(", ")}
           </p>
         )}
-        {/* Assign chips */}
-        <AssignChips task={task} onAssign={onAssign} />
+        {/* Assign chips + outcome flag */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <AssignChips task={task} onAssign={onAssign} />
+          {onOutcome && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setOutcomeDraft(task.outcome === "refused" ? "refused" : "partial");
+                setOutcomeNoteDraft(task.outcomeNote ?? "");
+                setOutcomeOpen((v) => !v);
+              }}
+              className={`print:hidden inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors mt-1.5 ${
+                task.outcome
+                  ? "text-amber-700 bg-amber-50 border-amber-200"
+                  : "text-warm-gray/60 bg-white border-card-border hover:text-charcoal hover:bg-cream"
+              }`}
+              title="Didn't finish or refused? Record it for the history."
+            >
+              <Info className="w-3 h-3" />
+              {task.outcome ? "Edit outcome" : "Issue?"}
+            </button>
+          )}
+        </div>
+        {outcomeOpen && onOutcome && (
+          <div className="mt-2 p-2.5 rounded-lg bg-amber-50/60 border border-amber-200 space-y-2 print:hidden">
+            <div className="flex gap-1.5">
+              {(
+                [
+                  ["partial", "Partial — didn't finish"],
+                  ["refused", "Refused / didn't want it"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  onClick={() => setOutcomeDraft(value)}
+                  className={`flex-1 px-2 py-1.5 rounded-md text-[11px] font-semibold border transition-colors ${
+                    outcomeDraft === value
+                      ? "bg-amber-500 text-white border-amber-500"
+                      : "bg-white text-charcoal border-amber-200 hover:bg-amber-100"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <input
+              value={outcomeNoteDraft}
+              onChange={(e) => setOutcomeNoteDraft(e.target.value)}
+              placeholder="e.g. only ate a couple of bites"
+              className="w-full px-2 py-1.5 text-xs border border-amber-200 rounded-md text-charcoal focus:outline-none focus:ring-2 focus:ring-amber-300"
+            />
+            <div className="flex justify-between items-center">
+              {task.outcome ? (
+                <button
+                  onClick={() => {
+                    onOutcome("", "");
+                    setOutcomeOpen(false);
+                  }}
+                  className="text-[11px] font-medium text-warm-gray hover:text-charcoal"
+                >
+                  Clear
+                </button>
+              ) : (
+                <span />
+              )}
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => setOutcomeOpen(false)}
+                  className="px-2.5 py-1 text-[11px] font-medium bg-white border border-amber-200 rounded-md text-charcoal hover:bg-amber-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    onOutcome(outcomeDraft, outcomeNoteDraft.trim());
+                    setOutcomeOpen(false);
+                  }}
+                  className="px-2.5 py-1 text-[11px] font-semibold bg-amber-500 text-white rounded-md hover:bg-amber-600"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

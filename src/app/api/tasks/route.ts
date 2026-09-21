@@ -17,6 +17,8 @@ interface ApiTask {
   templateId: string | null;
   sortOrder: number;
   sticky: boolean;
+  outcome: string;
+  outcomeNote: string;
   createdAt: string;
 }
 
@@ -33,6 +35,8 @@ function toApi(row: {
   templateId: string | null;
   sortOrder: number;
   sticky: boolean;
+  outcome: string;
+  outcomeNote: string;
   createdAt: Date;
 }, animalSpecific: string | null): ApiTask {
   return {
@@ -49,6 +53,8 @@ function toApi(row: {
     templateId: row.templateId,
     sortOrder: row.sortOrder,
     sticky: row.sticky,
+    outcome: row.outcome,
+    outcomeNote: row.outcomeNote,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -246,6 +252,8 @@ export async function PATCH(req: NextRequest) {
       done?: boolean;
       sortOrder?: number;
       sticky?: boolean;
+      outcome?: string;
+      outcomeNote?: string;
     } = {};
 
     if (typeof updates.task === "string") patch.task = updates.task;
@@ -262,6 +270,13 @@ export async function PATCH(req: NextRequest) {
     if (typeof updates.done === "boolean") patch.done = updates.done;
     if (typeof updates.sortOrder === "number") patch.sortOrder = updates.sortOrder;
     if (typeof updates.sticky === "boolean") patch.sticky = updates.sticky;
+    // Appetite/outcome capture: "", "partial", or "refused" + free-text why.
+    if (updates.outcome === "" || updates.outcome === "partial" || updates.outcome === "refused") {
+      patch.outcome = updates.outcome;
+    }
+    if (typeof updates.outcomeNote === "string") {
+      patch.outcomeNote = updates.outcomeNote.slice(0, 1000);
+    }
 
     // To re-encode note+animal we need the current row.
     if (updates.note !== undefined || updates.animalSpecific !== undefined) {
