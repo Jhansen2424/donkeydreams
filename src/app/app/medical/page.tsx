@@ -121,7 +121,7 @@ function RecordCard({
         )}
       </div>
       {canEdit && (
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
           <button
             onClick={() => onEdit(record)}
             title="Edit entry"
@@ -419,7 +419,9 @@ function MedicalDashboardPage() {
   }, []);
 
   // Types that should prompt the user for a follow-up ("next treatment")
-  // date alongside the main entry.
+  // date alongside the main entry. OPTIONAL for all types — the client asked
+  // that deworming entries not REQUIRE a follow-up date (9/11); when one is
+  // given it still creates the scheduled follow-up entry.
   const typesNeedingNextDate: MedicalRecordType[] = [
     "Deworming",
     "Hoof & Dental",
@@ -553,8 +555,7 @@ function MedicalDashboardPage() {
 
   async function handleAddRecord() {
     if (!formTitle.trim()) return;
-    // For treatment types we require a next-date so follow-ups don't slip.
-    if (needsNextDate && !formNextDate) return;
+    // Follow-up date is optional even for treatment types (client request).
 
     const desc = formDesc.trim();
     const combinedDesc = formNextDate
@@ -764,7 +765,7 @@ function MedicalDashboardPage() {
               <label className="block text-xs font-semibold uppercase tracking-wider text-amber-800 mb-1">
                 Next Treatment Date
                 <span className="ml-1 text-[10px] font-medium text-amber-700">
-                  (required for {formType})
+                  (optional)
                 </span>
               </label>
               <input
@@ -795,7 +796,7 @@ function MedicalDashboardPage() {
           <div className="flex justify-end">
             <button
               onClick={handleAddRecord}
-              disabled={!formTitle.trim() || (needsNextDate && !formNextDate)}
+              disabled={!formTitle.trim()}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Plus className="w-4 h-4" />

@@ -20,6 +20,7 @@ import {
   ChevronRight,
   Home,
   Loader2,
+  X,
 } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { compressImage } from "@/lib/trim-photos";
@@ -88,6 +89,10 @@ export default function DocumentsPage() {
   const [folders, setFolders] = useState<DocFolder[]>([]);
   const [documents, setDocuments] = useState<Doc[]>([]);
   const [path, setPath] = useState<Crumb[]>([]);
+  // In-app viewer — tapping a file used to hand it to the browser, which on
+  // phones just downloads it (client note 9/17). PDFs and images render in
+  // a modal instead; other types get an open/download choice.
+  const [viewingDoc, setViewingDoc] = useState<Doc | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -482,12 +487,10 @@ export default function DocumentsPage() {
                       className="group flex items-center gap-3 px-4 py-3 hover:bg-cream/50 transition-colors"
                     >
                       <Icon className="w-5 h-5 text-sky shrink-0" />
-                      <a
-                        href={`/api/documents/${d.id}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex-1 min-w-0"
-                        title="Open"
+                      <button
+                        onClick={() => setViewingDoc(d)}
+                        className="flex-1 min-w-0 text-left"
+                        title="View"
                       >
                         <p className="text-sm font-medium text-charcoal truncate">{d.name}</p>
                         <p className="text-[11px] text-warm-gray/70">
@@ -498,8 +501,8 @@ export default function DocumentsPage() {
                             year: "numeric",
                           })}
                         </p>
-                      </a>
-                      <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      </button>
+                      <span className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <a
                           href={`/api/documents/${d.id}?download=1`}
                           title="Download"
@@ -533,6 +536,84 @@ export default function DocumentsPage() {
           )}
         </div>
       )}
+
+      {viewingDoc && (
+        <DocViewerModal doc={viewingDoc} onClose={() => setViewingDoc(null)} />
+      )}
+    </div>
+  );
+}
+
+// ── In-app document viewer ──
+// PDFs and images render inline; anything else (Word, Excel, ...) can't be
+// rendered by the browser, so it gets a clear open/download choice instead
+// of a surprise download.
+function DocViewerModal({ doc, onClose }: { doc: Doc; onClose: () => void }) {
+  const url = `/api/documents/${doc.id}`;
+  const isImage = doc.mimeType.startsWith("image/");
+  const isPdf = doc.mimeType === "application/pdf";
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-3 sm:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white w-full max-w-4xl rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[92vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-sidebar px-4 py-3 flex items-center gap-2">
+          <p className="font-semibold text-white text-sm truncate flex-1">{doc.name}</p>
+          <a
+            href={`${url}?download=1`}
+            title="Download"
+            className="p-1.5 rounded text-cream/70 hover:text-white hover:bg-white/10"
+          >
+            <Download className="w-4 h-4" />
+          </a>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded text-cream/70 hover:text-white hover:bg-white/10"
+            title="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        {isImage ? (
+          <div className="flex-1 min-h-0 overflow-auto bg-charcoal/95 flex items-center justify-center p-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt={doc.name} className="max-w-full max-h-[80vh] object-contain" />
+          </div>
+        ) : isPdf ? (
+          <iframe
+            src={url}
+            title={doc.name}
+            className="flex-1 min-h-[70vh] w-full bg-warm-gray/10"
+          />
+        ) : (
+          <div className="p-8 text-center space-y-3">
+            <p className="text-sm text-warm-gray">
+              This file type can&apos;t be previewed in the app.
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              <a
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light"
+              >
+                Open in new tab
+              </a>
+              <a
+                href={`${url}?download=1`}
+                className="px-4 py-2 bg-white border border-card-border text-charcoal rounded-lg text-sm font-medium hover:bg-cream"
+              >
+                Download
+              </a>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

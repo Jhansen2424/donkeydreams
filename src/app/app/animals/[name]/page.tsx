@@ -1474,7 +1474,7 @@ function MedicalRecordCard({ record }: { record: MedicalRecord }) {
         )}
       </div>
       {isEditable && !editing && (
-        <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <div className="flex flex-col gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
           <button
             onClick={() => setEditing(true)}
             className="p-1.5 text-warm-gray hover:text-sky hover:bg-sky/10 rounded"
@@ -2036,7 +2036,7 @@ function HoofCareTab({ animal }: { animal: Animal }) {
                   </p>
                 )}
               </div>
-              <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              <span className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
                 <button
                   onClick={() =>
                     setDraft({
@@ -2329,7 +2329,7 @@ function RelationshipsTab({ animal }: { animal: Animal }) {
               <button
                 onClick={() => removeEntry(n.id)}
                 title="Delete note"
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-warm-gray/50 hover:text-red-500"
+                className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1 text-warm-gray/50 hover:text-red-500"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2705,7 +2705,7 @@ function PhotosTab({ animal }: { animal: Animal }) {
               <button
                 onClick={() => handleDelete(i)}
                 title="Delete photo"
-                className="absolute top-1.5 right-1.5 p-1.5 bg-black/60 hover:bg-red-600 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute top-1.5 right-1.5 p-1.5 bg-black/60 hover:bg-red-600 text-white rounded-md opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -2799,7 +2799,7 @@ function NotesTab({ animal }: { animal: Animal }) {
               <button
                 onClick={() => removeEntry(n.id)}
                 title="Delete note"
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-warm-gray/50 hover:text-red-500"
+                className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1 text-warm-gray/50 hover:text-red-500"
               >
                 <X className="w-4 h-4" />
               </button>

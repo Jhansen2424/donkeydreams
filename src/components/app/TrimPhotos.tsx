@@ -219,7 +219,7 @@ export default function TrimPhotos({ visitId, addLabel = "Add photos" }: TrimPho
                 onClick={() => {
                   if (confirm(`Delete ${doc.name}?`)) void handleDelete(doc.id);
                 }}
-                className="p-0.5 text-warm-gray/50 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="p-0.5 text-warm-gray/50 hover:text-red-500 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                 title="Delete"
               >
                 <Trash2 className="w-3 h-3" />

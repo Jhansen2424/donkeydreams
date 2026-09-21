@@ -8,7 +8,12 @@ import { useAnimals } from "@/lib/animals-context";
 // waiting for a spreadsheet re-import. Each tile carries a `derivation`
 // string shown on hover so staff can spot-check the math.
 export default function SanctuaryStats() {
-  const { animals } = useAnimals();
+  const { animals: roster } = useAnimals();
+  // Stats cover living residents only — deceased and adopted donkeys keep
+  // their records but no longer count toward "97 donkeys" on the dashboard.
+  const animals = roster.filter(
+    (a) => a.status !== "Deceased" && a.status !== "Adopted"
+  );
 
   const items = [
     {

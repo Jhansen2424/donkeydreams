@@ -104,6 +104,15 @@ async function materializeTemplates(date: string): Promise<void> {
   for (const t of templates) {
     if (t.repeatDays.length > 0 && !t.repeatDays.includes(weekday)) continue;
     if (t.skipDates.includes(date)) continue;
+    // A routine never materializes into days BEFORE it was created — adding
+    // a task today must not backfill it onto yesterday's list (client saw
+    // today's new routines appear on yesterday, 9/15). Creation date is
+    // taken in sanctuary-local time (Arizona, no DST) so a UTC timestamp
+    // from an evening create doesn't count as "tomorrow".
+    const createdIso = t.createdAt.toLocaleDateString("en-CA", {
+      timeZone: "America/Phoenix",
+    });
+    if (date < createdIso) continue;
     try {
       await db.taskCompletion.create({
         data: {

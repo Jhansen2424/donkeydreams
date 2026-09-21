@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Ear, EarOff, Mic, Inbox } from "lucide-react";
+import { Ear, EarOff, Mic, Inbox, StickyNote } from "lucide-react";
 import { format } from "date-fns";
 import QuickInput from "@/components/app/QuickInput";
 import QuickNoteSheet from "@/components/app/QuickNoteSheet";
@@ -179,18 +179,31 @@ export default function TopBar({ firstName }: { firstName?: string }) {
         initialText={wakeTail}
       />
 
-      {/* Mobile floating action button */}
+      {/* Mobile floating action buttons. The mic goes STRAIGHT to talking
+          with Joshy (one tap — client: "Joshy is not easily accessed on
+          mobile"); the smaller note button opens the typed quick-note
+          sheet the mic FAB used to open. */}
       <button
         onClick={() => setQuickNoteOpen(true)}
-        className="md:hidden print:hidden fixed bottom-20 right-4 z-30 w-14 h-14 bg-sidebar text-white rounded-full shadow-lg flex items-center justify-center hover:bg-sidebar-light transition-colors active:scale-95"
+        className="md:hidden print:hidden fixed bottom-[9.5rem] right-5 z-30 w-11 h-11 bg-white text-sidebar border border-card-border rounded-full shadow-lg flex items-center justify-center hover:bg-cream transition-colors active:scale-95"
         aria-label="Add Note"
       >
-        <Mic className="w-6 h-6" />
+        <StickyNote className="w-5 h-5" />
         {unresolvedCount > 0 && (
           <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
             {unresolvedCount}
           </span>
         )}
+      </button>
+      <button
+        onClick={() => {
+          setAutoVoice(true);
+          setQuickInputOpen(true);
+        }}
+        className="md:hidden print:hidden fixed bottom-20 right-4 z-30 w-14 h-14 bg-sidebar text-white rounded-full shadow-lg flex items-center justify-center hover:bg-sidebar-light transition-colors active:scale-95"
+        aria-label="Talk to Joshy"
+      >
+        <Mic className="w-6 h-6" />
       </button>
     </>
   );

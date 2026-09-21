@@ -49,6 +49,10 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
   // Form state
   const [text, setText] = useState("");
   const [block, setBlock] = useState<string>("AM");
+  // Add mode: MULTIPLE time blocks can be selected (client request: "same
+  // AM and PM treatment" should be one create, not two). One task is
+  // created per selected block. Edit mode still moves the single task.
+  const [blocks, setBlocks] = useState<string[]>(["AM"]);
   const [assignees, setAssignees] = useState<string[]>([]);
   const [animal, setAnimal] = useState("");
   const [note, setNote] = useState("");
@@ -64,15 +68,52 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
   const [applyScope, setApplyScope] = useState<"series" | "day">("series");
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Edit mode, repeating task: the template's ACTUAL schedule, fetched on
+  // open so the banner can say "Repeats: Mon & Fri" instead of leaving the
+  // scope toggle's "Every day" label to be misread as the schedule. null =
+  // still loading / not repeating. Editable via the weekday picker.
+  const [templateRepeat, setTemplateRepeat] = useState<number[] | null>(null);
+  const [repeatDirty, setRepeatDirty] = useState(false);
+  const [showRepeatEditor, setShowRepeatEditor] = useState(false);
+
+  // Edit mode on a repeating task: pull the template's schedule so we can
+  // show and edit the real repeat days.
+  useEffect(() => {
+    if (!open || mode.kind !== "edit" || !mode.task.templateId) {
+      setTemplateRepeat(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/tasks/templates", { cache: "no-store" });
+        if (!res.ok) return;
+        const body = (await res.json()) as {
+          templates: { id: string; repeatDays: number[] }[];
+        };
+        const tpl = body.templates.find((t) => t.id === mode.task.templateId);
+        if (!cancelled && tpl) setTemplateRepeat(tpl.repeatDays);
+      } catch {
+        // Banner just shows "Repeating task" without the day detail.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mode]);
 
   // Reset form whenever the modal opens or mode changes
   useEffect(() => {
     if (!open) return;
     setConfirmDelete(false);
     setSaving(false);
+    setRepeatDirty(false);
+    setShowRepeatEditor(false);
     if (mode.kind === "add") {
       setText("");
       setBlock(mode.defaultBlock ?? "AM");
+      setBlocks([mode.defaultBlock ?? "AM"]);
       setAssignees([]);
       setAnimal("");
       setNote("");
@@ -136,26 +177,30 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
       const assignedTo = assignees.join(", ") || undefined;
       const chosenTags = tags.length > 0 ? tags : (["routine"] as TaskCategory[]);
       if (mode.kind === "add") {
-        await addTask({
-          task: text.trim(),
-          blockName: block,
-          assignedTo,
-          animalSpecific: animal || undefined,
-          note: note.trim() || undefined,
-          category: chosenTags[0],
-          tags: chosenTags,
-          date,
-          // "once" stays a one-day task; "sticky" stays until checked off;
-          // otherwise create a recurring template ([] = every day, else
-          // selected weekdays).
-          sticky: repeat === "sticky" || undefined,
-          repeatDays:
-            repeat === "once" || repeat === "sticky"
-              ? undefined
-              : repeat === "daily"
-                ? []
-                : customDays,
-        });
+        // One task per selected time block ("AM and PM sock change" = 2).
+        const targetBlocks = blocks.length > 0 ? blocks : [block];
+        for (const b of targetBlocks) {
+          await addTask({
+            task: text.trim(),
+            blockName: b,
+            assignedTo,
+            animalSpecific: animal || undefined,
+            note: note.trim() || undefined,
+            category: chosenTags[0],
+            tags: chosenTags,
+            date,
+            // "once" stays a one-day task; "sticky" stays until checked off;
+            // otherwise create a recurring template ([] = every day, else
+            // selected weekdays).
+            sticky: repeat === "sticky" || undefined,
+            repeatDays:
+              repeat === "once" || repeat === "sticky"
+                ? undefined
+                : repeat === "daily"
+                  ? []
+                  : customDays,
+          });
+        }
       } else {
         await editTask(
           mode.blockIdx,
@@ -167,6 +212,10 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
             note: note.trim(),
             blockName: block,
             tags: chosenTags,
+            // Repeat-day changes ride along to the template (series scope).
+            ...(repeatDirty && templateRepeat !== null && applyScope === "series"
+              ? { repeatDays: templateRepeat }
+              : {}),
           },
           { applyToSeries: applyScope === "series" }
         );
@@ -314,66 +363,141 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
 
           {/* Recurring-task controls (edit mode) */}
           {mode.kind === "edit" && mode.task.templateId && (
-            <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-sky/5 border border-sky/20">
-              <Repeat className="w-4 h-4 text-sky shrink-0" />
-              <span className="text-xs text-charcoal">Repeating task — changes &amp; deletes apply to:</span>
-              <div className="flex gap-1">
-                {(
-                  [
-                    ["series", "Every day"],
-                    ["day", "Only today"],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    key={value}
-                    onClick={() => setApplyScope(value)}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-full border transition-colors ${
-                      applyScope === value
-                        ? "bg-sky text-white border-sky"
-                        : "bg-white text-warm-gray border-card-border hover:bg-cream"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
+            <div className="p-3 rounded-lg bg-sky/5 border border-sky/20 space-y-2">
+              {/* The ACTUAL schedule, so nobody misreads the scope toggle's
+                  labels as the repeat days. */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Repeat className="w-4 h-4 text-sky shrink-0" />
+                <span className="text-xs font-semibold text-charcoal">
+                  Repeats:{" "}
+                  {templateRepeat === null
+                    ? "…"
+                    : templateRepeat.length === 0 || templateRepeat.length === 7
+                      ? "Every day"
+                      : [...templateRepeat].sort().map((d) => WEEKDAYS[d]).join(", ")}
+                </span>
+                <button
+                  onClick={() => setShowRepeatEditor((v) => !v)}
+                  className="text-xs font-semibold text-sky hover:underline"
+                >
+                  {showRepeatEditor ? "Done" : "Change days"}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!mode.task.templateId) return;
+                    setSaving(true);
+                    try {
+                      await stopRepeating(mode.task.templateId);
+                      onClose();
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  disabled={saving}
+                  className="ml-auto px-3 py-1 bg-white border border-card-border text-charcoal text-xs font-semibold rounded-lg hover:bg-cream disabled:opacity-50"
+                >
+                  Stop repeating
+                </button>
               </div>
-              <button
-                onClick={async () => {
-                  if (!mode.task.templateId) return;
-                  setSaving(true);
-                  try {
-                    await stopRepeating(mode.task.templateId);
-                    onClose();
-                  } finally {
-                    setSaving(false);
-                  }
-                }}
-                disabled={saving}
-                className="px-3 py-1.5 bg-white border border-card-border text-charcoal text-xs font-semibold rounded-lg hover:bg-cream disabled:opacity-50"
-              >
-                Stop repeating
-              </button>
+              {showRepeatEditor && templateRepeat !== null && (
+                <div>
+                  <div className="flex gap-1">
+                    {WEEKDAYS.map((day, i) => {
+                      const everyDay = templateRepeat.length === 0;
+                      const selected = everyDay || templateRepeat.includes(i);
+                      return (
+                        <button
+                          key={day}
+                          onClick={() => {
+                            // From "every day", a tap means "only NOT this
+                            // day" — expand to all 7 first, then toggle.
+                            const base = everyDay ? [0, 1, 2, 3, 4, 5, 6] : templateRepeat;
+                            const next = base.includes(i)
+                              ? base.filter((d) => d !== i)
+                              : [...base, i].sort();
+                            setTemplateRepeat(next.length === 7 ? [] : next);
+                            setRepeatDirty(true);
+                          }}
+                          className={`flex-1 py-1.5 rounded-md text-xs font-semibold border transition-colors ${
+                            selected
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                              : "bg-white text-warm-gray border-card-border hover:bg-cream"
+                          }`}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-warm-gray/70 mt-1">
+                    Saved with the task — applies to every future day.
+                  </p>
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-charcoal">Changes &amp; deletes apply to:</span>
+                <div className="flex gap-1">
+                  {(
+                    [
+                      ["series", "The whole routine"],
+                      ["day", "Only this day"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      onClick={() => setApplyScope(value)}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-full border transition-colors ${
+                        applyScope === value
+                          ? "bg-sky text-white border-sky"
+                          : "bg-white text-warm-gray border-card-border hover:bg-cream"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Time block */}
+          {/* Time block — add mode allows MULTIPLE (one task per block) */}
           <div>
             <label className="text-[10px] font-semibold uppercase tracking-wider text-warm-gray/60 mb-1 block">
-              Time block
+              Time block{mode.kind === "add" ? "s" : ""}
             </label>
             <div className="flex gap-1.5">
-              {BLOCKS.map((b) => (
-                <button
-                  key={b}
-                  onClick={() => setBlock(b)}
-                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                    block === b ? "bg-sky text-white" : "bg-cream text-charcoal hover:bg-sand/30"
-                  }`}
-                >
-                  {b}
-                </button>
-              ))}
+              {BLOCKS.map((b) => {
+                const selected = mode.kind === "add" ? blocks.includes(b) : block === b;
+                return (
+                  <button
+                    key={b}
+                    onClick={() => {
+                      if (mode.kind === "add") {
+                        setBlocks((prev) =>
+                          prev.includes(b)
+                            ? prev.length > 1
+                              ? prev.filter((x) => x !== b)
+                              : prev // always keep at least one block
+                            : [...prev, b]
+                        );
+                      } else {
+                        setBlock(b);
+                      }
+                    }}
+                    className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                      selected ? "bg-sky text-white" : "bg-cream text-charcoal hover:bg-sand/30"
+                    }`}
+                  >
+                    {b}
+                  </button>
+                );
+              })}
             </div>
+            {mode.kind === "add" && blocks.length > 1 && (
+              <p className="text-[11px] text-warm-gray/70 mt-1">
+                Creates one copy of this task in each selected block ({blocks.join(" + ")}).
+              </p>
+            )}
           </div>
 
           {/* Assignees */}

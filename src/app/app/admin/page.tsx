@@ -1387,7 +1387,7 @@ function AdminTasksCard({
               <button
                 onClick={() => void deleteTask(blockIdx, taskIdx)}
                 title="Delete task"
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-warm-gray/50 hover:text-red-500 shrink-0"
+                className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1 text-warm-gray/50 hover:text-red-500 shrink-0"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>

@@ -72,7 +72,7 @@ export default function AnimalGridCard({
             e.stopPropagation();
             onEdit();
           }}
-          className="absolute top-3 right-3 p-2 bg-white/90 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white text-warm-gray hover:text-charcoal"
+          className="absolute top-3 right-3 p-2 bg-white/90 rounded-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-white text-warm-gray hover:text-charcoal"
           title={`Edit ${name}`}
         >
           <Pencil className="w-4 h-4" />

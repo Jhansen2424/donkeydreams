@@ -355,7 +355,7 @@ function WatchCard({
           <Clock className="w-3.5 h-3.5" />
           <span className="text-xs font-medium">{entry.date}</span>
           {canEdit && (
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+            <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity ml-2">
               <button
                 onClick={onEdit}
                 title="Edit alert"

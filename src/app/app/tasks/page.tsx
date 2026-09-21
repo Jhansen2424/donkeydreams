@@ -694,6 +694,22 @@ export default function TasksPage() {
                           />
                         )}
                       </div>
+                      {/* Check off every remaining task in this block at once
+                          (client request 9/20: "select all and mark complete"). */}
+                      {schedule[origIdx]?.tasks.some((t) => !t.done) && (
+                        <button
+                          onClick={() => {
+                            schedule[origIdx].tasks.forEach((t, ti) => {
+                              if (!t.done) void toggleTask(origIdx, ti);
+                            });
+                          }}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-cream/70 hover:text-white hover:bg-white/10 transition-colors"
+                          title={`Mark every ${block.name} task done`}
+                        >
+                          <ClipboardCheck className="w-3.5 h-3.5" />
+                          All done
+                        </button>
+                      )}
                       <div className="flex items-center gap-1.5">
                         <Clock className="w-4 h-4 text-cream/40" />
                         <span className="text-cream/70 text-sm font-medium">
@@ -1095,7 +1111,7 @@ function RemindersCard() {
               {!r.resolved && (
                 <button
                   onClick={() => void promoteReminderToTask(r.id, r.text)}
-                  className="text-warm-gray/50 hover:text-sky transition-colors opacity-0 group-hover:opacity-100"
+                  className="text-warm-gray/50 hover:text-sky transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                   title="Promote to task on today's schedule"
                 >
                   <ClipboardCheck className="w-3.5 h-3.5" />
@@ -1111,7 +1127,7 @@ function RemindersCard() {
               {r.resolved && (
                 <button
                   onClick={() => removeEntry(r.id)}
-                  className="text-warm-gray/50 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                  className="text-warm-gray/50 hover:text-red-500 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                   title="Delete permanently"
                 >
                   <Trash2 className="w-3.5 h-3.5" />

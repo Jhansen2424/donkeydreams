@@ -45,6 +45,9 @@ export interface EditTaskInput {
   note?: string;
   blockName?: string;
   tags?: TaskCategory[];
+  /** Repeating tasks only (applies to the template with applyToSeries):
+      [] = every day, else JS weekday numbers. */
+  repeatDays?: number[];
 }
 
 interface ScheduleContextValue {
@@ -450,6 +453,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         if (updates.assignedTo !== undefined) templatePatch.assignedTo = updates.assignedTo || null;
         if (updates.animalSpecific !== undefined) templatePatch.animalSpecific = updates.animalSpecific || null;
         if (updates.tags !== undefined) templatePatch.tags = updates.tags;
+        if (updates.repeatDays !== undefined) templatePatch.repeatDays = updates.repeatDays;
         if (moving && updates.blockName) templatePatch.block = updates.blockName;
         if (Object.keys(templatePatch).length > 1) {
           await fetch("/api/tasks/templates", {
@@ -543,6 +547,19 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ reorder }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Failed to reorder");
+
+      // Write the new order through to the recurring templates too —
+      // otherwise tomorrow's materialized copies snap back to the old order
+      // (client: "the AM tasks were out of the order I organized them in").
+      for (const [i, t] of moved.entries()) {
+        const templateId = (t as TaskWithId).templateId;
+        if (!templateId) continue;
+        void fetch("/api/tasks/templates", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: templateId, sortOrder: i }),
+        }).catch(() => {});
+      }
     } catch (e) {
       setSchedule(snapshot);
       setError(e instanceof Error ? e.message : "Failed to reorder tasks");

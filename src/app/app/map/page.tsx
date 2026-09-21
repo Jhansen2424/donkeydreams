@@ -399,7 +399,7 @@ export default function MapPage() {
                     e.stopPropagation();
                     void deletePen(p);
                   }}
-                  className="p-1 text-warm-gray hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="p-1 text-warm-gray hover:text-red-500 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                   title="Delete pen"
                 >
                   <Trash2 className="w-3 h-3" />

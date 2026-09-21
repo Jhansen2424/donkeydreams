@@ -1012,7 +1012,7 @@ function EditableInterval({
   return (
     <button onClick={onStartEdit} className="flex items-center gap-1 text-xs text-warm-gray hover:text-charcoal group">
       {label} {value} {unit}
-      <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <Pencil className="w-3 h-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" />
     </button>
   );
 }
@@ -1214,7 +1214,7 @@ function VisitList({
               <TrimPhotos visitId={v.id} />
             </div>
             {editable && (
-              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
                 <button onClick={() => onEdit(v)} className="p-1 text-warm-gray hover:text-sky" title="Edit visit">
                   <Pencil className="w-3 h-3" />
                 </button>

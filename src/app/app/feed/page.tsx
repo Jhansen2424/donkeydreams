@@ -70,13 +70,11 @@ export default function FeedPage() {
     return m;
   }, [animals]);
 
-  // Unique herd list (sorted), used for the filter chips + the modal's
-  // "Apply to herd" picker.
-  const allHerds = useMemo(() => {
-    const set = new Set<string>();
-    for (const a of animals) if (a.herd) set.add(a.herd);
-    return Array.from(set).sort();
-  }, [animals]);
+  // Canonical herd list (static roster + DB + user-created), used for the
+  // filter chips + the modal's "Apply to herd" picker. Sourced from the
+  // animals context rather than derived from current assignments, so every
+  // herd (e.g. Wilds) shows even before donkeys are assigned to it.
+  const { herds: allHerds } = useAnimals();
 
   // Load per-donkey + herd-level feed plans from the API.
   const reload = async () => {
@@ -437,7 +435,9 @@ function FeedCard({
               </span>
             ))}
           </div>
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* Always visible on touch screens — hover-only buttons are
+              invisible on phones (client: "can't edit feed plans at all"). */}
+          <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
             <button
               onClick={onEdit}
               title="Edit plan"
@@ -891,7 +891,7 @@ function FeedNotesSection({
             <button
               onClick={() => onRemove(note.id)}
               title="Remove note"
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-warm-gray/60 hover:text-red-500"
+              className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1 text-warm-gray/60 hover:text-red-500"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
