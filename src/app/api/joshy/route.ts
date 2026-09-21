@@ -97,7 +97,7 @@ Response format:
     "date": "YYYY-MM-DD if a date is mentioned (or null). ALWAYS resolve relative dates — 'today', 'tomorrow', 'next Friday', 'April 20', etc. — into an absolute YYYY-MM-DD. Never say you need to check the schedule for a date.",
     "provider": "Vet/farrier/dentist name if mentioned (or null)",
     "weight": "Number in pounds for weight_bcs action (or null)",
-    "bcs": "Integer 1-9 for weight_bcs action (or null)",
+    "bcs": "Number 1-9 for weight_bcs action, half steps allowed (e.g. 4.5) (or null)",
     "blockIdx": "For edit_task/delete_task/complete_task only: the index of the schedule block containing the target task (number, or null)",
     "taskIdx": "For edit_task/delete_task/complete_task only: the index of the target task within that block (number, or null)",
     "entryIdx": "For resolve_watch / delete_watch / edit_feed / delete_feed: the index of the target entry in LIVE STATE's parkingLot array (number, or null)",

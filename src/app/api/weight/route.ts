@@ -68,7 +68,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing 'date'" }, { status: 400 });
     }
     const hasWeight = typeof weight === "number" && Number.isFinite(weight);
-    const hasBcs = typeof bcs === "number" && Number.isInteger(bcs) && bcs >= 1 && bcs <= 9;
+    // Half steps allowed (1, 1.5, … 9) — client scores between whole numbers.
+    const hasBcs = typeof bcs === "number" && (bcs * 2) % 1 === 0 && bcs >= 1 && bcs <= 9;
     if (!hasWeight && !hasBcs) {
       return NextResponse.json(
         { error: "Provide weight (lbs) and/or bcs (1-9)" },

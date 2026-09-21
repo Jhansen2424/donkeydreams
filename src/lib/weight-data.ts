@@ -4,7 +4,10 @@ import { donkeyWeights } from "./scheduled-and-events-data";
 
 // ── Types ──
 export type WeightTrend = "gaining" | "losing" | "stable" | "insufficient";
-export type BCSScore = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+// 1-9 in half steps (1, 1.5, 2, … 9) — client scores between whole numbers.
+export type BCSScore = number;
+/** Every selectable BCS value, half steps included. */
+export const BCS_VALUES: number[] = Array.from({ length: 17 }, (_, i) => 1 + i * 0.5);
 export type WeighInFlag = "normal" | "sudden-change" | "underweight" | "overweight" | "overdue";
 
 export interface WeighIn {

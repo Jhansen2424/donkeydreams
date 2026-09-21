@@ -32,6 +32,8 @@ import {
 import {
   getRecordsForAnimal,
   typeBadgeColors,
+  entryTypes,
+  type MedicalEntryType,
   type MedicalRecord,
   type MedicalRecordType,
 } from "@/lib/medical-data";
@@ -1334,15 +1336,24 @@ function MedicalTypeBadge({ type }: { type: MedicalRecordType }) {
 // Re-export so JSX call sites don't need to change.
 const formatRecordDate = sharedFormatDate;
 
-type MedicalSubTab = "all" | "deworming" | "vaccinations" | "fecal-tests" | "other";
+// The medical filter is a dropdown over the SAME types the Add Entry form
+// offers (client request 9/10: "what you can file is what you can filter"),
+// replacing the old deworming/vaccination/fecal quick tabs.
+type MedicalSubTab = "all" | MedicalEntryType;
 
-const medicalSubTabs: { id: MedicalSubTab; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "deworming", label: "Deworming" },
-  { id: "vaccinations", label: "Vaccinations" },
-  { id: "fecal-tests", label: "Fecal Tests" },
-  { id: "other", label: "Other" },
-];
+// Legacy deep-link slugs (?sub=deworming from the medical dashboard) map
+// onto the entry types so old links keep working.
+const LEGACY_SUB_SLUGS: Record<string, MedicalSubTab> = {
+  all: "all",
+  deworming: "Deworming",
+  vaccinations: "Vaccination",
+  "fecal-tests": "Fecal Test",
+};
+function resolveSubParam(s: string | null | undefined): MedicalSubTab | null {
+  if (!s) return null;
+  if (LEGACY_SUB_SLUGS[s]) return LEGACY_SUB_SLUGS[s];
+  return (entryTypes as string[]).includes(s) ? (s as MedicalSubTab) : null;
+}
 
 function MedicalRecordCard({ record }: { record: MedicalRecord }) {
   const { updateEntry, removeEntry } = useMedical();
@@ -1517,20 +1528,13 @@ function MedicalTab({ animal }: { animal: Animal }) {
   // Allow deep-linking to a specific medical sub-tab via `?sub=...` (e.g. the
   // medical dashboard can link straight to a sub-tab; hoof care now has its
   // own top-level profile tab at ?tab=hoof).
-  const initialSubTab = (() => {
-    const s = searchParams?.get("sub");
-    return s && medicalSubTabs.some((t) => t.id === s)
-      ? (s as MedicalSubTab)
-      : "all";
-  })();
+  const initialSubTab = resolveSubParam(searchParams?.get("sub")) ?? "all";
   const [subTab, setSubTab] = useState<MedicalSubTab>(initialSubTab);
 
   // Keep `subTab` in sync with URL changes (e.g. back/forward navigation).
   useEffect(() => {
-    const s = searchParams?.get("sub");
-    if (s && medicalSubTabs.some((t) => t.id === s) && s !== subTab) {
-      setSubTab(s as MedicalSubTab);
-    }
+    const resolved = resolveSubParam(searchParams?.get("sub"));
+    if (resolved && resolved !== subTab) setSubTab(resolved);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
@@ -1559,30 +1563,12 @@ function MedicalTab({ animal }: { animal: Animal }) {
   const dewormingDosage = getDewormingDosage(animal.name);
   const donkeyWeight = getDonkeyWeight(animal.name);
 
-  const filtered = records.filter((r) => {
-    if (subTab === "all") return true;
-    if (subTab === "deworming") return r.type === "Deworming";
-    if (subTab === "vaccinations") return r.type === "Vaccination";
-    if (subTab === "fecal-tests") return r.type === "Fecal Test";
-    return (
-      r.type !== "Deworming" &&
-      r.type !== "Vaccination" &&
-      r.type !== "Fecal Test"
-    );
-  });
+  const filtered = records.filter((r) => subTab === "all" || r.type === subTab);
 
-  const counts = {
-    all: records.length,
-    deworming: records.filter((r) => r.type === "Deworming").length,
-    vaccinations: records.filter((r) => r.type === "Vaccination").length,
-    "fecal-tests": records.filter((r) => r.type === "Fecal Test").length,
-    other: records.filter(
-      (r) =>
-        r.type !== "Deworming" &&
-        r.type !== "Vaccination" &&
-        r.type !== "Fecal Test"
-    ).length,
-  };
+  const typeCounts = records.reduce<Record<string, number>>((acc, r) => {
+    acc[r.type] = (acc[r.type] ?? 0) + 1;
+    return acc;
+  }, {});
 
   const mostRecent = (type: MedicalRecordType) =>
     records.find((r) => r.type === type);
@@ -1603,13 +1589,7 @@ function MedicalTab({ animal }: { animal: Animal }) {
         </h3>
         <a
           href={`/app/medical?animal=${encodeURIComponent(animal.name)}&open=1${
-            subTab === "vaccinations"
-              ? "&type=Vaccination"
-              : subTab === "deworming"
-                ? "&type=Deworming"
-                : subTab === "fecal-tests"
-                  ? "&type=Fecal+Test"
-                  : ""
+            subTab !== "all" ? `&type=${encodeURIComponent(subTab)}` : ""
           }`}
           className="inline-flex items-center gap-1.5 px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors"
         >
@@ -1617,34 +1597,27 @@ function MedicalTab({ animal }: { animal: Animal }) {
         </a>
       </div>
 
-      {/* Sub-tab navigation */}
-      <div className="border-b border-card-border">
-        <div className="flex gap-1 overflow-x-auto">
-          {medicalSubTabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setSubTab(t.id)}
-              className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                subTab === t.id
-                  ? "border-sidebar text-sidebar"
-                  : "border-transparent text-warm-gray hover:text-charcoal"
-              }`}
-            >
-              {t.label}
-              <span
-                className={`text-[11px] px-1.5 py-0.5 rounded-full ${
-                  subTab === t.id ? "bg-sidebar/10 text-sidebar" : "bg-cream text-warm-gray"
-                }`}
-              >
-                {counts[t.id]}
-              </span>
-            </button>
+      {/* Type filter — the same list as the Add Entry form */}
+      <div className="flex items-center gap-2">
+        <label className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 shrink-0">
+          Filter by type
+        </label>
+        <select
+          value={subTab}
+          onChange={(e) => setSubTab(e.target.value as MedicalSubTab)}
+          className="px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal bg-white focus:outline-none focus:ring-2 focus:ring-sand/50"
+        >
+          <option value="all">All ({records.length})</option>
+          {entryTypes.map((t) => (
+            <option key={t} value={t}>
+              {t} ({typeCounts[t] ?? 0})
+            </option>
           ))}
-        </div>
+        </select>
       </div>
 
       {/* Summary cards on Deworming sub-tab */}
-      {subTab === "deworming" && (lastDeworm || dewormingDosage || donkeyWeight) && (
+      {subTab === "Deworming" && (lastDeworm || dewormingDosage || donkeyWeight) && (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {lastDeworm && (
             <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
@@ -1687,7 +1660,7 @@ function MedicalTab({ animal }: { animal: Animal }) {
       )}
 
       {/* Most recent fecal test summary */}
-      {subTab === "fecal-tests" && counts["fecal-tests"] > 0 && (
+      {subTab === "Fecal Test" && (typeCounts["Fecal Test"] ?? 0) > 0 && (
         <div className="bg-teal-50 border border-teal-200 rounded-xl p-4">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-teal-700/80 mb-1">
             Most Recent Fecal Test
@@ -1705,7 +1678,7 @@ function MedicalTab({ animal }: { animal: Animal }) {
           })()}
         </div>
       )}
-      {subTab === "vaccinations" && lastVacc && (
+      {subTab === "Vaccination" && lastVacc && (
         <div className="bg-green-50 border border-green-200 rounded-xl p-4">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-green-700/80 mb-1">
             Most Recent Vaccination
@@ -1724,7 +1697,7 @@ function MedicalTab({ animal }: { animal: Animal }) {
           <p className="text-warm-gray font-medium">
             {subTab === "all"
               ? "No medical entries yet"
-              : `No ${medicalSubTabs.find((t) => t.id === subTab)?.label.toLowerCase()} entries yet`}
+              : `No ${subTab.toLowerCase()} entries yet`}
           </p>
           <p className="text-sm text-warm-gray/60 mt-1">
             Add records from the{" "}

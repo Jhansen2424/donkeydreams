@@ -107,8 +107,22 @@ export default function NotesPage() {
   const unresolved = entries.filter((e) => !e.resolved);
   const resolved = entries.filter((e) => e.resolved);
 
+  // Notes attached to a specific donkey live on that donkey's profile Notes
+  // tab — hiding them here keeps the inbox for genuinely general notes
+  // (client request 9/10: profile work was cluttering the inbox). A toggle
+  // brings them back when someone wants the full firehose.
+  const [showDonkeyNotes, setShowDonkeyNotes] = useState(false);
+  const donkeyNoteCount = unresolved.filter(
+    (e) => e.type === "note" && e.data?.animal
+  ).length;
+  const inboxUnresolved = showDonkeyNotes
+    ? unresolved
+    : unresolved.filter((e) => !(e.type === "note" && e.data?.animal));
+
   const filteredUnresolved =
-    filter === "all" ? unresolved : unresolved.filter((e) => e.type === filter);
+    filter === "all"
+      ? inboxUnresolved
+      : inboxUnresolved.filter((e) => e.type === filter);
 
   // Promote a note → schedule task, routing into the chosen care category.
   // `category` defaults to "routine" for a generic note → task promotion.
@@ -195,6 +209,19 @@ export default function NotesPage() {
             </button>
           );
         })}
+        {donkeyNoteCount > 0 && (
+          <button
+            onClick={() => setShowDonkeyNotes((v) => !v)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
+              showDonkeyNotes
+                ? "bg-sky text-white border-sky"
+                : "bg-white text-warm-gray border-card-border hover:bg-cream hover:text-charcoal"
+            }`}
+            title="Notes attached to a donkey live on their profile — toggle to also see them here"
+          >
+            🫏 Donkey notes ({donkeyNoteCount})
+          </button>
+        )}
       </div>
 
       {/* Error banner */}

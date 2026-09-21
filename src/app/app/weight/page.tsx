@@ -26,6 +26,7 @@ import {
   flagMeta,
   bcsColor,
   bcsGuide,
+  BCS_VALUES,
   weighInHistory,
   type AnimalWeightStatus,
   type WeighIn,
@@ -383,7 +384,7 @@ export default function WeightTrackingPage() {
       .map((entry) => ({
         animal: entry.animal,
         weight: entry.weight ? parseFloat(entry.weight) : null,
-        bcs: entry.bcs ? parseInt(entry.bcs) : null,
+        bcs: entry.bcs ? parseFloat(entry.bcs) : null,
         notes: entry.notes,
       }))
       .filter((p) => p.weight !== null || p.bcs !== null);
@@ -427,7 +428,7 @@ export default function WeightTrackingPage() {
 
   async function handleAddSingle() {
     const weight = formWeight ? parseFloat(formWeight) : null;
-    const bcs = formBcs ? parseInt(formBcs) : null;
+    const bcs = formBcs ? parseFloat(formBcs) : null;
     if (weight === null && bcs === null) return;
 
     const today = new Date().toISOString().split("T")[0];
@@ -600,7 +601,7 @@ export default function WeightTrackingPage() {
                       className="w-full px-1 py-1.5 text-sm border border-card-border rounded-lg text-charcoal text-center appearance-none focus:outline-none focus:ring-2 focus:ring-amber-300"
                     >
                       <option value="">—</option>
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+                      {BCS_VALUES.map((n) => (
                         <option key={n} value={n}>
                           {n}
                         </option>
@@ -689,11 +690,15 @@ export default function WeightTrackingPage() {
                   className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal bg-white appearance-none focus:outline-none focus:ring-2 focus:ring-sand/50"
                 >
                   <option value="">—</option>
-                  {bcsGuide.map((g) => (
-                    <option key={g.score} value={g.score}>
-                      {g.score} — {g.label}
-                    </option>
-                  ))}
+                  {BCS_VALUES.map((n) => {
+                    const guide = bcsGuide.find((g) => g.score === n);
+                    return (
+                      <option key={n} value={n}>
+                        {n}
+                        {guide ? ` — ${guide.label}` : ""}
+                      </option>
+                    );
+                  })}
                 </select>
                 <ChevronDown className="w-4 h-4 text-warm-gray absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>

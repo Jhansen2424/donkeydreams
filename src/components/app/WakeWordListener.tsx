@@ -5,9 +5,10 @@ import { useEffect, useRef } from "react";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRecognition = any;
 
-// Match "hey joshy" and common mishears. We're permissive on purpose —
-// recognition will mangle "joshy" into things like "joshie", "josie", etc.
-const WAKE_REGEX = /\b(hey|hi|ok|okay|yo)\s+(joshy|joshie|josh|josie|joshi|jose)\b/i;
+// Match "hey joshy" and common mishears of JOSHY specifically. Bare "josh"
+// and "jose" are deliberately NOT matched — the developer's name is Josh,
+// and "hey Josh" on a call was popping Joshy up constantly (client, 9/10).
+const WAKE_REGEX = /\b(hey|hi|ok|okay|yo)\s+(joshy|joshie|josie|joshi)\b/i;
 
 export default function WakeWordListener({
   enabled,

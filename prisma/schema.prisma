@@ -246,7 +246,7 @@ model WeighIn {
   date       String
   weight     Float?
   unit       String  @default("lbs")
-  bcs        Int?    // body condition score 1-9
+  bcs        Float?  // body condition score 1-9, half steps allowed (e.g. 4.5)
   notes      String  @default("")
   recordedBy String  @default("")
 

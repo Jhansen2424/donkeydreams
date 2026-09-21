@@ -610,13 +610,12 @@ function MedicalDashboardPage() {
             Sanctuary-wide health tracking and care management
           </p>
         </div>
+        {/* Deworming Schedule page removed 2026-09-21 (client-approved):
+            the rotation it showed was a stale Claude-generated plan from the
+            old spreadsheet tabs. Rebuild it here when Amber sends the real
+            herd-wide schedule. Animal deworming/vaccination records are
+            untouched — they never lived on that page. */}
         <div className="flex items-center gap-2">
-          <Link
-            href="/app/medical/deworming-schedule"
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-card-border text-charcoal rounded-lg text-sm font-medium hover:bg-cream transition-colors"
-          >
-            Deworming Schedule
-          </Link>
           <button
             onClick={() => setShowProviderPanel((v) => !v)}
             className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white border border-card-border text-charcoal rounded-lg text-sm font-medium hover:bg-cream transition-colors"
