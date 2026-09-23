@@ -651,10 +651,16 @@ export default function TasksPage() {
                   setDropTargetBlock(null);
                   // Same-block drops are handled per-row (reorder); this
                   // block-level handler only moves tasks BETWEEN blocks.
+                  // applyToSeries: dragging a repeating task to another block
+                  // moves the whole routine, matching every other edit's
+                  // default — without it the task snapped back the next day.
                   if (!dragSource || dragSource.blockIdx === origIdx) return;
-                  await editTask(dragSource.blockIdx, dragSource.taskIdx, {
-                    blockName: block.name,
-                  });
+                  await editTask(
+                    dragSource.blockIdx,
+                    dragSource.taskIdx,
+                    { blockName: block.name },
+                    { applyToSeries: true }
+                  );
                   setDragSource(null);
                 }}
                 className={`bg-white rounded-xl border transition-colors ${
