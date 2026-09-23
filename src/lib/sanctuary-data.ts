@@ -306,6 +306,9 @@ export interface ScheduleTask {
   estimatedMinutes?: number;
   /** "Until done": stays on every day's list until checked off. */
   sticky?: boolean;
+  /** Position within the block (mirrors the DB row; used so new tasks land
+      AFTER the current last task, not at index = count). */
+  sortOrder?: number;
   /** Appetite/outcome capture: "" normal, "partial", or "refused". */
   outcome?: string;
   outcomeNote?: string;

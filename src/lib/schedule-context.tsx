@@ -139,6 +139,7 @@ interface ApiTask {
   sticky?: boolean;
   outcome?: string;
   outcomeNote?: string;
+  sortOrder?: number;
   createdAt: string;
 }
 
@@ -156,6 +157,7 @@ function apiToTask(a: ApiTask): TaskWithId {
     sticky: a.sticky === true,
     outcome: a.outcome || "",
     outcomeNote: a.outcomeNote || "",
+    sortOrder: a.sortOrder,
     serverId: a.id,
     templateId: a.templateId,
   };
@@ -335,8 +337,12 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     // so adding while looking at tomorrow creates tomorrow's task.
     const viewedDate = currentDateRef.current;
     const taskDate = input.date || viewedDate;
-    // Append to the end of the target block.
-    const sortOrder = schedule.find((b) => b.name === block)?.tasks.length ?? 0;
+    // Append to the END of the target block: one past the block's highest
+    // sortOrder. (Using the task COUNT broke after the 9/15 order restore,
+    // whose sortOrders don't start at 0 — new tasks landed mid-list.)
+    const blockTasks = schedule.find((b) => b.name === block)?.tasks ?? [];
+    const sortOrder =
+      blockTasks.reduce((max, t) => Math.max(max, t.sortOrder ?? 0), -1) + 1;
 
     // Recurring: create a template; the server materializes it into each
     // matching day on load, so a refresh brings in the viewed day's instance.
