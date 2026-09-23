@@ -657,7 +657,7 @@ export default function TasksPage() {
                   });
                   setDragSource(null);
                 }}
-                className={`bg-white rounded-xl border overflow-hidden transition-colors ${
+                className={`bg-white rounded-xl border transition-colors ${
                   isDropTarget
                     ? "border-sidebar ring-2 ring-sidebar/30"
                     : isNow
@@ -665,7 +665,11 @@ export default function TasksPage() {
                       : "border-card-border"
                 }`}
               >
-                <div className="bg-sidebar px-5 py-3 print:bg-transparent print:border-b-2 print:border-charcoal print:px-0">
+                {/* NOTE: the card must NOT be overflow-hidden — the assign
+                    popover (+ button) renders outside the card bounds and
+                    was getting clipped behind neighboring columns (client
+                    9/22). The header carries its own top rounding instead. */}
+                <div className="bg-sidebar rounded-t-xl px-5 py-3 print:bg-transparent print:border-b-2 print:border-charcoal print:px-0">
                   <div className="flex items-center justify-between">
                     <div>
                       <h2 className="font-bold text-white print:text-charcoal flex items-center gap-2">
@@ -812,9 +816,9 @@ export default function TasksPage() {
               return (
                 <div
                   key={group.animal}
-                  className="bg-white rounded-xl border border-card-border overflow-hidden"
+                  className="bg-white rounded-xl border border-card-border"
                 >
-                  <div className="bg-sidebar px-5 py-3 flex items-center justify-between print:bg-transparent print:border-b-2 print:border-charcoal print:px-0">
+                  <div className="bg-sidebar rounded-t-xl px-5 py-3 flex items-center justify-between print:bg-transparent print:border-b-2 print:border-charcoal print:px-0">
                     <h2 className="font-bold text-white print:text-charcoal">{group.animal}</h2>
                     <span className="text-cream/70 text-sm font-medium print:text-charcoal">
                       {done}/{total}
@@ -882,8 +886,8 @@ export default function TasksPage() {
               const done = items.filter((it) => it.task.done).length;
               const total = items.length;
               return (
-                <div key={name} className="bg-white rounded-xl border border-card-border overflow-hidden">
-                  <div className="bg-sidebar px-5 py-3 flex items-center justify-between print:bg-transparent print:border-b-2 print:border-charcoal print:px-0">
+                <div key={name} className="bg-white rounded-xl border border-card-border">
+                  <div className="bg-sidebar rounded-t-xl px-5 py-3 flex items-center justify-between print:bg-transparent print:border-b-2 print:border-charcoal print:px-0">
                     <div className="flex items-center gap-2">
                       <span
                         className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white ${
