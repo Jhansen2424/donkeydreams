@@ -183,6 +183,24 @@ export default function TopBar({ firstName }: { firstName?: string }) {
           with Joshy (one tap — client: "Joshy is not easily accessed on
           mobile"); the smaller note button opens the typed quick-note
           sheet the mic FAB used to open. */}
+      {/* Hey-Joshy wake toggle — the header button shrinks to a bare ear
+          icon on phones, so the on/off switch was easy to miss there
+          (client 9/24: "turn Joshy on and off on mobile"). This puts it in
+          the same floating cluster people already use to talk to Joshy. */}
+      <button
+        onClick={toggleWake}
+        className={`md:hidden print:hidden fixed bottom-[12.5rem] right-5 z-30 w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-colors active:scale-95 border ${
+          wakeEnabled
+            ? "bg-emerald-500 text-white border-emerald-500"
+            : "bg-white text-warm-gray border-card-border hover:bg-cream"
+        }`}
+        aria-label={wakeEnabled ? "Turn off 'Hey Joshy'" : "Turn on 'Hey Joshy'"}
+      >
+        {wakeEnabled ? <Ear className="w-5 h-5" /> : <EarOff className="w-5 h-5" />}
+        {wakeEnabled && (
+          <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-emerald-300 rounded-full animate-pulse" />
+        )}
+      </button>
       <button
         onClick={() => setQuickNoteOpen(true)}
         className="md:hidden print:hidden fixed bottom-[9.5rem] right-5 z-30 w-11 h-11 bg-white text-sidebar border border-card-border rounded-full shadow-lg flex items-center justify-center hover:bg-cream transition-colors active:scale-95"
