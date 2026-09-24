@@ -72,11 +72,22 @@ interface ScheduleContextValue {
     opts?: { entireSeries?: boolean }
   ) => Promise<void>;
   reorderTask: (blockIdx: number, fromIdx: number, toIdx: number) => Promise<void>;
+  /** Copy a task (name + " (copy)") into the same block, at the end. A
+      repeating original produces a repeating copy on the same days. */
+  duplicateTask: (blockIdx: number, taskIdx: number) => Promise<void>;
+  /** Multi-select actions — addressed by server id so the list can shift
+      underneath without the wrong rows being hit. */
+  bulkComplete: (ids: string[]) => Promise<void>;
+  bulkMove: (ids: string[], blockName: string) => Promise<void>;
+  bulkAssignTo: (ids: string[], memberName: string) => Promise<void>;
+  /** Removes the selected tasks from THIS day only (repeating tasks skip
+      the date and come back on their next scheduled day). */
+  bulkDelete: (ids: string[]) => Promise<void>;
   /** Record how a task went: "" normal, "partial", "refused" (+ why). */
   setOutcome: (
     blockIdx: number,
     taskIdx: number,
-    outcome: "" | "partial" | "refused",
+    outcome: "" | "partial" | "refused" | "issue",
     outcomeNote: string
   ) => Promise<void>;
   /** Deactivate a recurring template — future days stop getting the task. */
@@ -583,13 +594,245 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     }
   }, [schedule]);
 
+  // Copy a task into the same block. The copy lands at the end (max
+  // sortOrder + 1) so it's easy to find and drag into place. Repeating
+  // originals duplicate the TEMPLATE (same days) so the copy repeats too.
+  const duplicateTask = useCallback(async (blockIdx: number, taskIdx: number) => {
+    const block = schedule[blockIdx];
+    const task = block?.tasks[taskIdx] as TaskWithId | undefined;
+    if (!block || !task) return;
+    const copyText = `${task.task} (copy)`;
+    const sortOrder =
+      block.tasks.reduce((max, t) => Math.max(max, t.sortOrder ?? 0), -1) + 1;
+    const shared = {
+      task: copyText,
+      block: block.name,
+      category: task.category,
+      tags: task.tags && task.tags.length > 0 ? task.tags : [task.category],
+      assignedTo: task.assignedTo,
+      animalSpecific: task.animalSpecific,
+      note: task.note,
+      sortOrder,
+    };
+
+    try {
+      if (task.templateId) {
+        // Same repeat days as the original's template.
+        let repeatDays: number[] = [];
+        try {
+          const tRes = await fetch("/api/tasks/templates", { cache: "no-store" });
+          if (tRes.ok) {
+            const body = (await tRes.json()) as { templates: { id: string; repeatDays: number[] }[] };
+            repeatDays = body.templates.find((t) => t.id === task.templateId)?.repeatDays ?? [];
+          }
+        } catch {
+          // Fall back to every day.
+        }
+        const res = await fetch("/api/tasks/templates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...shared, repeatDays }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error || "Failed to duplicate");
+        await refresh();
+        return;
+      }
+
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...shared,
+          date: currentDateRef.current,
+          sticky: task.sticky === true,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to duplicate");
+      const body = (await res.json()) as { task: ApiTask };
+      const newTask = apiToTask(body.task);
+      setTaskBlocks((prev) => {
+        const next = new Map(prev);
+        next.set(body.task.id, body.task.block);
+        return next;
+      });
+      setSchedule((prev) =>
+        prev.map((b) => (b.name === body.task.block ? { ...b, tasks: [...b.tasks, newTask] } : b))
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to duplicate task");
+    }
+  }, [schedule, refresh]);
+
+  // ── Multi-select bulk actions (addressed by server id) ──
+
+  const bulkComplete = useCallback(async (ids: string[]) => {
+    const idSet = new Set(ids);
+    const snapshot = localUpdate((prev) =>
+      prev.map((b) => ({
+        ...b,
+        tasks: b.tasks.map((t) =>
+          (t as TaskWithId).serverId && idSet.has((t as TaskWithId).serverId!)
+            ? { ...t, done: true }
+            : t
+        ),
+      }))
+    );
+    try {
+      await Promise.all(
+        ids.map((id) =>
+          fetch("/api/tasks", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, done: true }),
+          }).then((r) => {
+            if (!r.ok) throw new Error("patch failed");
+          })
+        )
+      );
+    } catch (e) {
+      setSchedule(snapshot);
+      setError(e instanceof Error ? e.message : "Failed to complete tasks");
+    }
+  }, [schedule]);
+
+  const bulkMove = useCallback(async (ids: string[], blockName: string) => {
+    const idSet = new Set(ids);
+    const target = schedule.find((b) => b.name === blockName);
+    if (!target) return;
+    // Moved tasks land at the END of the target block, keeping their
+    // relative order.
+    let nextOrder =
+      target.tasks.reduce((max, t) => Math.max(max, t.sortOrder ?? 0), -1) + 1;
+    const moving: TaskWithId[] = [];
+    for (const b of schedule) {
+      if (b.name === blockName) continue;
+      for (const t of b.tasks) {
+        const tw = t as TaskWithId;
+        if (tw.serverId && idSet.has(tw.serverId)) moving.push(tw);
+      }
+    }
+    if (moving.length === 0) return;
+    const orders = new Map(moving.map((t) => [t.serverId!, nextOrder++]));
+
+    const snapshot = localUpdate((prev) =>
+      prev.map((b) => {
+        const kept = b.tasks.filter(
+          (t) => !((t as TaskWithId).serverId && orders.has((t as TaskWithId).serverId!))
+        );
+        if (b.name !== blockName) return { ...b, tasks: kept };
+        return {
+          ...b,
+          tasks: [
+            ...kept,
+            ...moving.map((t) => ({ ...t, sortOrder: orders.get(t.serverId!) })),
+          ],
+        };
+      })
+    );
+
+    try {
+      await Promise.all(
+        moving.map((t) =>
+          fetch("/api/tasks", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: t.serverId, block: blockName, sortOrder: orders.get(t.serverId!) }),
+          }).then((r) => {
+            if (!r.ok) throw new Error("patch failed");
+          })
+        )
+      );
+      setTaskBlocks((prev) => {
+        const next = new Map(prev);
+        for (const t of moving) next.set(t.serverId!, blockName);
+        return next;
+      });
+      // Write through to the templates so the move carries to future days.
+      for (const t of moving) {
+        if (!t.templateId) continue;
+        void fetch("/api/tasks/templates", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: t.templateId, block: blockName, sortOrder: orders.get(t.serverId!) }),
+        }).catch(() => {});
+      }
+    } catch (e) {
+      setSchedule(snapshot);
+      setError(e instanceof Error ? e.message : "Failed to move tasks");
+    }
+  }, [schedule]);
+
+  const bulkAssignTo = useCallback(async (ids: string[], memberName: string) => {
+    const idSet = new Set(ids);
+    const patches: Array<{ id: string; assignedTo: string }> = [];
+    const snapshot = localUpdate((prev) =>
+      prev.map((b) => ({
+        ...b,
+        tasks: b.tasks.map((t) => {
+          const tw = t as TaskWithId;
+          if (!tw.serverId || !idSet.has(tw.serverId)) return t;
+          const list = t.assignedTo ? t.assignedTo.split(", ").filter(Boolean) : [];
+          if (list.includes(memberName)) return t;
+          const next = [...list, memberName].join(", ");
+          patches.push({ id: tw.serverId, assignedTo: next });
+          return { ...t, assignedTo: next };
+        }),
+      }))
+    );
+    try {
+      await Promise.all(
+        patches.map((p) =>
+          fetch("/api/tasks", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(p),
+          }).then((r) => {
+            if (!r.ok) throw new Error("patch failed");
+          })
+        )
+      );
+    } catch (e) {
+      setSchedule(snapshot);
+      setError(e instanceof Error ? e.message : "Failed to assign tasks");
+    }
+  }, [schedule]);
+
+  const bulkDelete = useCallback(async (ids: string[]) => {
+    const idSet = new Set(ids);
+    const snapshot = localUpdate((prev) =>
+      prev.map((b) => ({
+        ...b,
+        tasks: b.tasks.filter(
+          (t) => !((t as TaskWithId).serverId && idSet.has((t as TaskWithId).serverId!))
+        ),
+      }))
+    );
+    try {
+      await Promise.all(
+        ids.map((id) =>
+          fetch(`/api/tasks?id=${encodeURIComponent(id)}`, { method: "DELETE" }).then((r) => {
+            if (!r.ok) throw new Error("delete failed");
+          })
+        )
+      );
+      setTaskBlocks((prev) => {
+        const next = new Map(prev);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
+    } catch (e) {
+      setSchedule(snapshot);
+      setError(e instanceof Error ? e.message : "Failed to delete tasks");
+    }
+  }, [schedule]);
+
   // Record how a task actually went ("" normal / "partial" / "refused" +
   // an optional why) — the appetite-capture ask: "Swayze only ate a couple
   // of bites". Stored on the DAY's row, so it's part of history.
   const setOutcome = useCallback(async (
     blockIdx: number,
     taskIdx: number,
-    outcome: "" | "partial" | "refused",
+    outcome: "" | "partial" | "refused" | "issue",
     outcomeNote: string
   ) => {
     const ids = resolveIds(blockIdx, taskIdx);
@@ -650,6 +893,11 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         editTask,
         deleteTask,
         reorderTask,
+        duplicateTask,
+        bulkComplete,
+        bulkMove,
+        bulkAssignTo,
+        bulkDelete,
         setOutcome,
         stopRepeating,
         resetSchedule,

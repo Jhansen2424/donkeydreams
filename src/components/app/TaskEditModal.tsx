@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Trash2, Check, Loader2, Repeat } from "lucide-react";
+import { X, Trash2, Check, Loader2, Repeat, Copy } from "lucide-react";
 import { animals } from "@/lib/animals";
 import { volunteers } from "@/lib/volunteer-data";
 import { categoryMeta, type TaskCategory, type ScheduleTask } from "@/lib/sanctuary-data";
@@ -44,7 +44,7 @@ function splitAssignees(s?: string): string[] {
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function TaskEditModal({ open, onClose, mode }: Props) {
-  const { addTask, editTask, deleteTask, stopRepeating, currentDate } = useSchedule();
+  const { addTask, editTask, deleteTask, duplicateTask, stopRepeating, currentDate } = useSchedule();
 
   // Form state
   const [text, setText] = useState("");
@@ -599,17 +599,37 @@ export default function TaskEditModal({ open, onClose, mode }: Props) {
             )}
           </div>
 
-          {/* Delete (edit mode only) */}
+          {/* Duplicate + Delete (edit mode only) */}
           {mode.kind === "edit" && (
             <div className="pt-3 border-t border-card-border">
               {!confirmDelete ? (
-                <button
-                  onClick={() => setConfirmDelete(true)}
-                  className="inline-flex items-center gap-1.5 text-sm text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete task
-                </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={async () => {
+                      if (saving) return;
+                      setSaving(true);
+                      try {
+                        await duplicateTask(mode.blockIdx, mode.taskIdx);
+                        onClose();
+                      } finally {
+                        setSaving(false);
+                      }
+                    }}
+                    disabled={saving}
+                    className="inline-flex items-center gap-1.5 text-sm text-sky-dark hover:bg-sky/10 px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+                    title="Makes a copy at the bottom of this time block — drag it wherever you want"
+                  >
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+                    Duplicate task
+                  </button>
+                  <button
+                    onClick={() => setConfirmDelete(true)}
+                    className="inline-flex items-center gap-1.5 text-sm text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete task
+                  </button>
+                </div>
               ) : (
                 <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200">
                   <span className="text-sm text-red-700 flex-1">

@@ -115,6 +115,7 @@ function TaskHistoryInner() {
         missed: number;
         partial: number;
         refused: number;
+        issues: number;
         first: string;
         last: string;
       }
@@ -131,6 +132,7 @@ function TaskHistoryInner() {
           missed: 0,
           partial: 0,
           refused: 0,
+          issues: 0,
           first: r.date,
           last: r.date,
         };
@@ -140,6 +142,7 @@ function TaskHistoryInner() {
       else if (r.date < today) e.missed++;
       if (r.outcome === "partial") e.partial++;
       if (r.outcome === "refused") e.refused++;
+      if (r.outcome === "issue") e.issues++;
       if (r.date < e.first) e.first = r.date;
       if (r.date > e.last) e.last = r.date;
       m.set(key, e);
@@ -259,6 +262,7 @@ function TaskHistoryInner() {
                 <th className="px-2 py-2.5">Missed</th>
                 <th className="px-2 py-2.5">Partial</th>
                 <th className="px-2 py-2.5">Refused</th>
+                <th className="px-2 py-2.5">Issues</th>
                 <th className="px-2 py-2.5">First</th>
                 <th className="px-4 py-2.5">Last</th>
               </tr>
@@ -279,6 +283,9 @@ function TaskHistoryInner() {
                   </td>
                   <td className={`px-2 py-2 ${r.refused > 0 ? "text-red-600 font-semibold" : "text-warm-gray/50"}`}>
                     {r.refused}
+                  </td>
+                  <td className={`px-2 py-2 ${r.issues > 0 ? "text-rose-700 font-semibold" : "text-warm-gray/50"}`}>
+                    {r.issues}
                   </td>
                   <td className="px-2 py-2 text-warm-gray whitespace-nowrap">{formatDate(r.first)}</td>
                   <td className="px-4 py-2 text-warm-gray whitespace-nowrap">{formatDate(r.last)}</td>
@@ -331,6 +338,11 @@ function TaskHistoryInner() {
                           {t.outcome === "refused" && (
                             <span className="text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
                               Refused
+                            </span>
+                          )}
+                          {t.outcome === "issue" && (
+                            <span className="text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">
+                              Issue
                             </span>
                           )}
                           <span className="text-[10px] uppercase tracking-wide text-warm-gray/50">

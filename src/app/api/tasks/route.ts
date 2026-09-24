@@ -270,8 +270,15 @@ export async function PATCH(req: NextRequest) {
     if (typeof updates.done === "boolean") patch.done = updates.done;
     if (typeof updates.sortOrder === "number") patch.sortOrder = updates.sortOrder;
     if (typeof updates.sticky === "boolean") patch.sticky = updates.sticky;
-    // Appetite/outcome capture: "", "partial", or "refused" + free-text why.
-    if (updates.outcome === "" || updates.outcome === "partial" || updates.outcome === "refused") {
+    // Outcome capture: "", "partial", "refused", or "issue" (medical/other
+    // concern — client 9/23: "sometimes there is an issue with the medical")
+    // + free-text why.
+    if (
+      updates.outcome === "" ||
+      updates.outcome === "partial" ||
+      updates.outcome === "refused" ||
+      updates.outcome === "issue"
+    ) {
       patch.outcome = updates.outcome;
     }
     if (typeof updates.outcomeNote === "string") {
@@ -290,10 +297,71 @@ export async function PATCH(req: NextRequest) {
 
     const row = await db.taskCompletion.update({ where: { id }, data: patch });
     const { animal, cleanNote } = extractAnimal(row.note);
+
+    // A recorded issue on an animal's task also lands on that animal's
+    // profile (client 9/23: "can the documented issue also record to the
+    // animals profile?"). Kept in sync: editing updates the entry, clearing
+    // the outcome removes it. Never fails the task update itself.
+    if (patch.outcome !== undefined && animal) {
+      try {
+        await syncOutcomeToProfile(row.id, animal, row.task, row.date, row.outcome, row.outcomeNote);
+      } catch (e) {
+        console.error("outcome → profile sync failed:", e);
+      }
+    }
+
     return NextResponse.json({ task: toApi({ ...row, note: cleanNote }, animal) });
   } catch (error) {
     console.error("PATCH /api/tasks failed:", error);
     return NextResponse.json({ error: "Failed to update task" }, { status: 500 });
+  }
+}
+
+// Mirror a task outcome onto the animal's profile as a MedicalEntry
+// ("Routine Issue"), linked by sourceTaskId so edits update the same entry
+// and clearing the outcome deletes it.
+const OUTCOME_LABELS: Record<string, string> = {
+  partial: "Partial: started but not finished",
+  refused: "Refused",
+  issue: "Issue noted",
+};
+
+async function syncOutcomeToProfile(
+  taskId: string,
+  animalName: string,
+  taskText: string,
+  date: string,
+  outcome: string,
+  outcomeNote: string
+): Promise<void> {
+  const existing = await db.medicalEntry.findFirst({ where: { sourceTaskId: taskId } });
+
+  if (!outcome) {
+    if (existing) await db.medicalEntry.delete({ where: { id: existing.id } });
+    return;
+  }
+
+  const animalRow = await db.animal.findFirst({
+    where: { name: { equals: animalName, mode: "insensitive" } },
+  });
+  if (!animalRow) return;
+
+  const label = OUTCOME_LABELS[outcome] ?? outcome;
+  const description = outcomeNote ? `${label}. ${outcomeNote}` : label;
+  const data = {
+    animalId: animalRow.id,
+    animalName: animalRow.name,
+    type: "Routine Issue",
+    title: taskText,
+    date,
+    description,
+    sourceTaskId: taskId,
+  };
+
+  if (existing) {
+    await db.medicalEntry.update({ where: { id: existing.id }, data });
+  } else {
+    await db.medicalEntry.create({ data });
   }
 }
 

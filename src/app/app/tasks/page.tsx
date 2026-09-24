@@ -19,6 +19,7 @@ import {
   ChevronRight,
   Printer,
   Repeat,
+  CheckSquare,
 } from "lucide-react";
 import {
   groupTasksByAnimal,
@@ -233,6 +234,10 @@ export default function TasksPage() {
     editTask,
     reorderTask,
     setOutcome,
+    bulkComplete,
+    bulkMove,
+    bulkAssignTo,
+    bulkDelete,
     resetSchedule,
     refresh,
     currentDate,
@@ -247,6 +252,25 @@ export default function TasksPage() {
   const [dropTargetBlock, setDropTargetBlock] = useState<number | null>(null);
   // Row hovered during a same-block drag — where the card will be dropped.
   const [dropTargetRow, setDropTargetRow] = useState<{ blockIdx: number; taskIdx: number } | null>(null);
+  // Multi-select: tap "Select", then tap tasks to check off / move / assign /
+  // remove several at once (client 9/24).
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
+
+  const toggleSelected = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelected(new Set());
+    setBulkAssignOpen(false);
+  };
 
   const viewingToday = currentDate === localToday();
 
@@ -497,6 +521,18 @@ export default function TasksPage() {
             </button>
           </div>
           <button
+            onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+            className={`inline-flex items-center gap-1.5 px-4 py-2 border rounded-lg text-sm font-medium transition-colors ${
+              selectMode
+                ? "bg-sky text-white border-sky"
+                : "bg-white border-card-border text-charcoal hover:bg-cream"
+            }`}
+            title="Tap tasks to select several, then complete / move / assign them at once"
+          >
+            <CheckSquare className="w-4 h-4" />
+            {selectMode ? "Done selecting" : "Select"}
+          </button>
+          <button
             onClick={() => openAdd()}
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-bold hover:bg-sidebar-light transition-colors"
           >
@@ -617,6 +653,35 @@ export default function TasksPage() {
       </div>
 
       {/* ═══ BY TIME VIEW ═══ */}
+      {/* Mobile jump bar — on phones the three blocks stack, so PM lives a
+          long scroll away (client 9/23). Sticky AM/Mid/PM buttons jump
+          straight to each block. Hidden on desktop (columns sit side by
+          side there). */}
+      {viewMode === "time" && (
+        <div className="lg:hidden sticky top-2 z-30 print:hidden">
+          <div className="flex gap-1.5 bg-white/95 backdrop-blur border border-card-border rounded-xl p-1.5 shadow-sm">
+            {filteredSchedule.map((block) => {
+              const done = block.tasks.filter((t) => t.done).length;
+              return (
+                <button
+                  key={block.name}
+                  onClick={() =>
+                    document
+                      .getElementById(`block-${block.name}`)
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                  }
+                  className="flex-1 py-2 rounded-lg text-sm font-bold bg-cream text-charcoal hover:bg-sand/40 transition-colors"
+                >
+                  {block.name}
+                  <span className="ml-1.5 text-[11px] font-semibold text-warm-gray">
+                    {done}/{block.tasks.length}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {viewMode === "time" && (
         <div className="grid lg:grid-cols-3 gap-6 print:grid-cols-1 print:gap-4">
           {filteredSchedule.map((block, _fi) => {
@@ -631,6 +696,7 @@ export default function TasksPage() {
             return (
               <div
                 key={block.name}
+                id={`block-${block.name}`}
                 onDragOver={(e) => {
                   if (dragSource && dragSource.blockIdx !== origIdx) {
                     e.preventDefault();
@@ -663,7 +729,7 @@ export default function TasksPage() {
                   );
                   setDragSource(null);
                 }}
-                className={`bg-white rounded-xl border transition-colors ${
+                className={`bg-white rounded-xl border transition-colors scroll-mt-20 ${
                   isDropTarget
                     ? "border-sidebar ring-2 ring-sidebar/30"
                     : isNow
@@ -689,6 +755,26 @@ export default function TasksPage() {
                       <p className="text-cream/60 text-xs print:text-charcoal">{block.time}</p>
                     </div>
                     <div className="flex items-center gap-2 print:hidden">
+                      {selectMode && (
+                        <button
+                          onClick={() => {
+                            const ids = block.tasks
+                              .map((t) => t.serverId)
+                              .filter((id): id is string => Boolean(id));
+                            setSelected((prev) => {
+                              const allIn = ids.every((id) => prev.has(id));
+                              const next = new Set(prev);
+                              ids.forEach((id) => (allIn ? next.delete(id) : next.add(id)));
+                              return next;
+                            });
+                          }}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-cream/70 hover:text-white hover:bg-white/10 transition-colors"
+                          title={`Select every ${block.name} task`}
+                        >
+                          <CheckSquare className="w-3.5 h-3.5" />
+                          Select all
+                        </button>
+                      )}
                       {/* Bulk assign button */}
                       <div className="relative">
                         <button
@@ -752,6 +838,9 @@ export default function TasksPage() {
                       <TaskRow
                         key={task.serverId ?? `${block.name}-${taskIdx}`}
                         task={task}
+                        selectMode={selectMode}
+                        isSelected={Boolean(task.serverId && selected.has(task.serverId))}
+                        onSelectToggle={() => task.serverId && toggleSelected(task.serverId)}
                         onToggle={() => toggleTask(origIdx, origTaskIdx)}
                         onAssign={(name) =>
                           assignTask(origIdx, origTaskIdx, name)
@@ -953,6 +1042,120 @@ export default function TasksPage() {
       <div className="grid sm:grid-cols-2 gap-4 print:hidden">
         <RemindersCard />
       </div>
+
+      {/* Multi-select action bar — floats over the page while tasks are
+          selected. Everything acts on the checked tasks at once. */}
+      {selectMode && (
+        <div className="fixed bottom-20 md:bottom-4 left-1/2 -translate-x-1/2 z-50 print:hidden w-[calc(100%-1.5rem)] sm:w-auto">
+          <div className="bg-sidebar text-white rounded-2xl shadow-xl px-4 py-3 flex items-center gap-2 flex-wrap justify-center">
+            <span className="text-sm font-bold whitespace-nowrap">
+              {selected.size} selected
+            </span>
+            <button
+              disabled={selected.size === 0 || bulkBusy}
+              onClick={async () => {
+                setBulkBusy(true);
+                try {
+                  await bulkComplete([...selected]);
+                  setSelected(new Set());
+                } finally {
+                  setBulkBusy(false);
+                }
+              }}
+              className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-500 rounded-lg text-xs font-bold hover:bg-emerald-600 disabled:opacity-40 transition-colors"
+            >
+              <Check className="w-3.5 h-3.5" />
+              Mark done
+            </button>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-[11px] text-cream/70 font-medium mr-0.5">Move to</span>
+              {["AM", "Mid", "PM"].map((b) => (
+                <button
+                  key={b}
+                  disabled={selected.size === 0 || bulkBusy}
+                  onClick={async () => {
+                    setBulkBusy(true);
+                    try {
+                      await bulkMove([...selected], b);
+                    } finally {
+                      setBulkBusy(false);
+                    }
+                  }}
+                  className="px-2.5 py-1.5 bg-white/10 rounded-lg text-xs font-bold hover:bg-white/25 disabled:opacity-40 transition-colors"
+                >
+                  {b}
+                </button>
+              ))}
+            </span>
+            <span className="relative">
+              <button
+                disabled={selected.size === 0 || bulkBusy}
+                onClick={() => setBulkAssignOpen((v) => !v)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/10 rounded-lg text-xs font-bold hover:bg-white/25 disabled:opacity-40 transition-colors"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                Assign
+              </button>
+              {bulkAssignOpen && (
+                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-white rounded-lg border border-card-border shadow-lg p-2 min-w-[170px]">
+                  {teamMembers.map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={async () => {
+                        setBulkAssignOpen(false);
+                        setBulkBusy(true);
+                        try {
+                          await bulkAssignTo([...selected], m.name);
+                        } finally {
+                          setBulkBusy(false);
+                        }
+                      }}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left hover:bg-cream transition-colors"
+                    >
+                      <span
+                        className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 ${m.color}`}
+                      >
+                        {m.initials}
+                      </span>
+                      <span className="text-sm text-charcoal">{m.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </span>
+            <button
+              disabled={selected.size === 0 || bulkBusy}
+              onClick={async () => {
+                const n = selected.size;
+                if (
+                  !window.confirm(
+                    `Remove ${n} task${n === 1 ? "" : "s"} from this day? Repeating tasks come back on their next scheduled day.`
+                  )
+                )
+                  return;
+                setBulkBusy(true);
+                try {
+                  await bulkDelete([...selected]);
+                  setSelected(new Set());
+                } finally {
+                  setBulkBusy(false);
+                }
+              }}
+              className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/90 rounded-lg text-xs font-bold hover:bg-red-600 disabled:opacity-40 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Remove
+            </button>
+            <button
+              onClick={exitSelectMode}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-cream/70 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Task add / edit modal */}
       {modalMode && (
@@ -1253,24 +1456,32 @@ function TaskRow({
   onDragOverRow,
   onDropRow,
   isDropTarget,
+  selectMode,
+  isSelected,
+  onSelectToggle,
 }: {
   task: ScheduleTask;
   onToggle: () => void;
   onAssign: (name: string) => void;
   onEdit?: () => void;
-  /** Record how it went ("" / partial / refused + why) — appetite capture. */
-  onOutcome?: (outcome: "" | "partial" | "refused", note: string) => void;
+  /** Record how it went ("" / partial / refused / issue + why). */
+  onOutcome?: (outcome: "" | "partial" | "refused" | "issue", note: string) => void;
   hideAnimal?: boolean;
   onDragStart?: () => void;
   onDragEnd?: () => void;
   onDragOverRow?: (e: React.DragEvent<HTMLDivElement>) => void;
   onDropRow?: (e: React.DragEvent<HTMLDivElement>) => void;
   isDropTarget?: boolean;
+  /** Multi-select mode: the whole row toggles selection instead of its
+      normal actions (drag/edit are paused while selecting). */
+  selectMode?: boolean;
+  isSelected?: boolean;
+  onSelectToggle?: () => void;
 }) {
   const source = sourceMeta[task.source];
-  const draggable = Boolean(onDragStart);
+  const draggable = Boolean(onDragStart) && !selectMode;
   const [outcomeOpen, setOutcomeOpen] = useState(false);
-  const [outcomeDraft, setOutcomeDraft] = useState<"partial" | "refused">("partial");
+  const [outcomeDraft, setOutcomeDraft] = useState<"partial" | "refused" | "issue">("partial");
   const [outcomeNoteDraft, setOutcomeNoteDraft] = useState("");
 
   return (
@@ -1286,14 +1497,17 @@ function TaskRow({
       onDragEnd={() => onDragEnd?.()}
       onDragOver={onDragOverRow}
       onDrop={onDropRow}
+      onClick={selectMode ? onSelectToggle : undefined}
       className={`group relative flex items-start gap-3 p-3 rounded-lg transition-all text-left break-inside-avoid ${
-        draggable ? "cursor-grab active:cursor-grabbing" : ""
+        draggable ? "cursor-grab active:cursor-grabbing" : selectMode ? "cursor-pointer" : ""
       } ${
         isDropTarget ? "ring-2 ring-sidebar/40 " : ""
       }${
-        task.done
-          ? "bg-emerald-50/50 border border-emerald-200"
-          : "bg-cream/30 border border-card-border hover:border-sand"
+        selectMode && isSelected
+          ? "bg-sky/10 border border-sky ring-1 ring-sky/40"
+          : task.done
+            ? "bg-emerald-50/50 border border-emerald-200"
+            : "bg-cream/30 border border-card-border hover:border-sand"
       }`}
     >
       {/* Print-only done marker — the styled checkbox relies on background
@@ -1302,25 +1516,43 @@ function TaskRow({
         {task.done ? "✓" : "☐"}
       </span>
       <button
-        onClick={onToggle}
+        onClick={(e) => {
+          if (selectMode) {
+            e.stopPropagation();
+            onSelectToggle?.();
+            return;
+          }
+          onToggle();
+        }}
         className={`print:hidden w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
-          task.done
-            ? "bg-emerald-500 border-emerald-500"
-            : "border-card-border hover:border-sand"
+          selectMode
+            ? isSelected
+              ? "bg-sky border-sky"
+              : "border-sky/50 hover:border-sky"
+            : task.done
+              ? "bg-emerald-500 border-emerald-500"
+              : "border-card-border hover:border-sand"
         }`}
       >
-        {task.done && <Check className="w-3 h-3 text-white" />}
+        {(selectMode ? isSelected : task.done) && <Check className="w-3 h-3 text-white" />}
       </button>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            onClick={onEdit}
-            disabled={!onEdit}
+            onClick={(e) => {
+              if (selectMode) {
+                e.stopPropagation();
+                onSelectToggle?.();
+                return;
+              }
+              onEdit?.();
+            }}
+            disabled={!selectMode && !onEdit}
             className={`text-sm font-medium text-left ${
               task.done ? "text-warm-gray line-through" : "text-charcoal"
-            } ${onEdit ? "hover:underline cursor-pointer" : "cursor-default"}`}
-            title={onEdit ? "Click to edit" : undefined}
+            } ${!selectMode && onEdit ? "hover:underline cursor-pointer" : "cursor-default"}`}
+            title={selectMode ? undefined : onEdit ? "Click to edit" : undefined}
           >
             {task.task}
           </button>
@@ -1358,6 +1590,14 @@ function TaskRow({
               className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200"
             >
               Refused
+            </span>
+          )}
+          {task.outcome === "issue" && (
+            <span
+              title={task.outcomeNote || "Issue noted"}
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200"
+            >
+              Issue
             </span>
           )}
           {task.estimatedMinutes && (
@@ -1420,7 +1660,11 @@ function TaskRow({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setOutcomeDraft(task.outcome === "refused" ? "refused" : "partial");
+                setOutcomeDraft(
+                  task.outcome === "refused" || task.outcome === "issue"
+                    ? task.outcome
+                    : "partial"
+                );
                 setOutcomeNoteDraft(task.outcomeNote ?? "");
                 setOutcomeOpen((v) => !v);
               }}
@@ -1441,8 +1685,9 @@ function TaskRow({
             <div className="flex gap-1.5">
               {(
                 [
-                  ["partial", "Partial — didn't finish"],
-                  ["refused", "Refused / didn't want it"],
+                  ["partial", "Partial"],
+                  ["refused", "Refused"],
+                  ["issue", "Medical / other issue"],
                 ] as const
               ).map(([value, label]) => (
                 <button
@@ -1461,9 +1706,14 @@ function TaskRow({
             <input
               value={outcomeNoteDraft}
               onChange={(e) => setOutcomeNoteDraft(e.target.value)}
-              placeholder="e.g. only ate a couple of bites"
+              placeholder="e.g. only ate half, spit out meds, limping"
               className="w-full px-2 py-1.5 text-xs border border-amber-200 rounded-md text-charcoal focus:outline-none focus:ring-2 focus:ring-amber-300"
             />
+            {task.animalSpecific && (
+              <p className="text-[10px] text-amber-800/80">
+                Saved to history and to {task.animalSpecific}&apos;s profile.
+              </p>
+            )}
             <div className="flex justify-between items-center">
               {task.outcome ? (
                 <button

@@ -82,6 +82,10 @@ model MedicalEntry {
   description String   @default("")
   urgent      Boolean  @default(false)
   provider    String   @default("")
+  // Set when this entry was auto-created from a daily-routine issue
+  // (partial / refused / medical concern on a task). One entry per task row,
+  // kept in sync as the outcome is edited or cleared.
+  sourceTaskId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -89,6 +93,7 @@ model MedicalEntry {
   @@index([animalId])
   @@index([date])
   @@index([urgent])
+  @@index([sourceTaskId])
 }
 
 // ── Watch Alerts ──

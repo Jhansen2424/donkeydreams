@@ -309,7 +309,7 @@ export interface ScheduleTask {
   /** Position within the block (mirrors the DB row; used so new tasks land
       AFTER the current last task, not at index = count). */
   sortOrder?: number;
-  /** Appetite/outcome capture: "" normal, "partial", or "refused". */
+  /** Outcome capture: "" normal, "partial", "refused", or "issue". */
   outcome?: string;
   outcomeNote?: string;
   /** DB row id (TaskCompletion.id) — stable identity for keys and mutations. */
