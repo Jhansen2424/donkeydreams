@@ -14,6 +14,17 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
     const { searchParams } = new URL(req.url);
+    // `?meta=1` returns JSON metadata only — used by the in-app viewer page
+    // to decide how to render before pulling the bytes.
+    if (searchParams.get("meta") === "1") {
+      return NextResponse.json({
+        id: row.id,
+        name: row.name,
+        mimeType: row.mimeType,
+        size: row.size,
+        createdAt: row.createdAt.toISOString(),
+      });
+    }
     const download = searchParams.get("download") === "1";
     const disposition = `${download ? "attachment" : "inline"}; filename="${row.name.replace(/"/g, "'")}"`;
 

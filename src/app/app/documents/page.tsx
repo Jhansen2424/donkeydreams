@@ -21,6 +21,7 @@ import {
   Home,
   Loader2,
   X,
+  ExternalLink,
 } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { compressImage } from "@/lib/trim-photos";
@@ -504,6 +505,15 @@ export default function DocumentsPage() {
                       </button>
                       <span className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <a
+                          href={`/app/documents/view/${d.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Open in new tab"
+                          className="p-1.5 rounded text-warm-gray/60 hover:text-charcoal hover:bg-sand/30"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                        <a
                           href={`/api/documents/${d.id}?download=1`}
                           title="Download"
                           className="p-1.5 rounded text-warm-gray/60 hover:text-charcoal hover:bg-sand/30"
@@ -565,6 +575,15 @@ function DocViewerModal({ doc, onClose }: { doc: Doc; onClose: () => void }) {
         <div className="bg-sidebar px-4 py-3 flex items-center gap-2">
           <p className="font-semibold text-white text-sm truncate flex-1">{doc.name}</p>
           <a
+            href={`/app/documents/view/${doc.id}`}
+            target="_blank"
+            rel="noreferrer"
+            title="Open in new tab"
+            className="p-1.5 rounded text-cream/70 hover:text-white hover:bg-white/10"
+          >
+            <ExternalLink className="w-4 h-4" />
+          </a>
+          <a
             href={`${url}?download=1`}
             title="Download"
             className="p-1.5 rounded text-cream/70 hover:text-white hover:bg-white/10"
@@ -593,11 +612,11 @@ function DocViewerModal({ doc, onClose }: { doc: Doc; onClose: () => void }) {
         ) : (
           <div className="p-8 text-center space-y-3">
             <p className="text-sm text-warm-gray">
-              This file type can&apos;t be previewed in the app.
+              Word and Excel files open in their own tab, right in the browser.
             </p>
             <div className="flex items-center justify-center gap-2">
               <a
-                href={url}
+                href={`/app/documents/view/${doc.id}`}
                 target="_blank"
                 rel="noreferrer"
                 className="px-4 py-2 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light"
