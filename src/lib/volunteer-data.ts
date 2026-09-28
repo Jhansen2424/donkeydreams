@@ -110,7 +110,7 @@ export const volunteers: Volunteer[] = [
   {
     id: "v-michelle",
     name: "Michelle",
-    email: "rcgs625@gmail.com",
+    email: "rgcs625@gmail.com", // matches her actual sign-up (not rcgs)
     phone: '',
     role: 'volunteer',
     status: 'active',

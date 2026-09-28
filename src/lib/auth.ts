@@ -27,7 +27,11 @@ export const ALLOWED_EMAILS = new Set(
     "joshua@webaholics.ai",
     "amber@donkeydreams.org",
     "theedj17@gmail.com",
-    "rcgs625@gmail.com", // Michelle (volunteer)
+    // Michelle (volunteer) — she signed up as rgcs625, Josh's text said
+    // rcgs625. Both allowed until she confirms which is her real Gmail;
+    // then remove the wrong one.
+    "rcgs625@gmail.com",
+    "rgcs625@gmail.com",
   ].map((e) => e.toLowerCase())
 );
 
