@@ -149,10 +149,11 @@ export default function AnimalProfilePage() {
       const raw = window.localStorage.getItem(draftStorageKey);
       if (!raw) return;
       const parsed = JSON.parse(raw) as { draft?: ProfileDraft; savedAt?: number };
-      if (!parsed?.draft || Date.now() - (parsed.savedAt ?? 0) > 24 * 3600 * 1000) {
-        window.localStorage.removeItem(draftStorageKey);
-        return;
-      }
+      // NEVER auto-delete a draft, no matter how old (the old 24-hour expiry
+      // silently threw away unsaved profile work — client lost Gabriel's
+      // story edits to it, 9/28). A draft only leaves localStorage when the
+      // person Saves or Cancels.
+      if (!parsed?.draft) return;
       setDraft(parsed.draft);
       setEditing(true);
       profileToastSuccess(
