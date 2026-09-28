@@ -107,6 +107,22 @@ export const volunteers: Volunteer[] = [
     committedHoursPerDay: 0,
     tasks: [],
   },
+  {
+    id: "v-michelle",
+    name: "Michelle",
+    email: "rcgs625@gmail.com",
+    phone: '',
+    role: 'volunteer',
+    status: 'active',
+    startDate: "2026-09-28",
+    availability: [],
+    skills: [],
+    emergencyContact: { name: '', phone: '', relation: '' },
+    notes: '',
+    hoursThisMonth: 0,
+    committedHoursPerDay: 0,
+    tasks: [],
+  },
 ];
 // Dummy volunteers removed. This is a seed list matching the 3 admins in
 // Neon. Will be replaced by a live DB fetch in a later phase.

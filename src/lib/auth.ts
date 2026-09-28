@@ -27,6 +27,7 @@ export const ALLOWED_EMAILS = new Set(
     "joshua@webaholics.ai",
     "amber@donkeydreams.org",
     "theedj17@gmail.com",
+    "rcgs625@gmail.com", // Michelle (volunteer)
   ].map((e) => e.toLowerCase())
 );
 
