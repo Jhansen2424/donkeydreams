@@ -221,15 +221,32 @@ export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // Bulk reorder: { reorder: [{ id, sortOrder }, ...] }. Sequential awaits —
-    // the Neon HTTP adapter does not support transactions.
+    // Bulk reorder: { reorder: [{ id, sortOrder, templateId? }], date? }.
+    // Sequential awaits — the Neon HTTP adapter does not support transactions.
+    // When an item carries its templateId, the template AND any already-
+    // materialized future copies get the same sortOrder in this ONE request.
+    // (The old client fired template updates as separate fire-and-forget
+    // fetches; closing the app right after a drag cancelled them, so the
+    // order reverted the next day — client 9/26, "especially PM tasks".)
     if (Array.isArray(body?.reorder)) {
+      const viewDate = typeof body.date === "string" ? body.date : null;
       for (const item of body.reorder) {
         if (!item || typeof item.id !== "string" || typeof item.sortOrder !== "number") continue;
         await db.taskCompletion.update({
           where: { id: item.id },
           data: { sortOrder: item.sortOrder },
         });
+        if (typeof item.templateId === "string" && item.templateId) {
+          await db.taskTemplate
+            .update({ where: { id: item.templateId }, data: { sortOrder: item.sortOrder } })
+            .catch(() => {}); // template may have been deleted — instance order still applies
+          if (viewDate) {
+            await db.taskCompletion.updateMany({
+              where: { templateId: item.templateId, date: { gt: viewDate } },
+              data: { sortOrder: item.sortOrder },
+            });
+          }
+        }
       }
       return NextResponse.json({ ok: true });
     }

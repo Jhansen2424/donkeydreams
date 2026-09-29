@@ -242,7 +242,23 @@ export default function TasksPage() {
     refresh,
     currentDate,
   } = useSchedule();
-  const [viewMode, setViewMode] = useState<ViewMode>("time");
+  // Remembered per device (client 9/24: "remember their preferences") —
+  // whoever works By Human shouldn't have to re-pick it every visit.
+  const [viewMode, setViewModeState] = useState<ViewMode>("time");
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("dd:tasks-view");
+      if (saved === "time" || saved === "animal" || saved === "human") {
+        setViewModeState(saved);
+      }
+    } catch {}
+  }, []);
+  const setViewMode = (mode: ViewMode) => {
+    setViewModeState(mode);
+    try {
+      window.localStorage.setItem("dd:tasks-view", mode);
+    } catch {}
+  };
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [humanFilter, setHumanFilter] = useState<HumanFilter>("all");
   const [search, setSearch] = useState("");
@@ -1014,6 +1030,11 @@ export default function TasksPage() {
                           onEdit={
                             blockIdx >= 0 && taskIdx >= 0
                               ? () => openEdit(blockIdx, taskIdx)
+                              : undefined
+                          }
+                          onOutcome={
+                            blockIdx >= 0 && taskIdx >= 0
+                              ? (o, n) => void setOutcome(blockIdx, taskIdx, o, n)
                               : undefined
                           }
                         />

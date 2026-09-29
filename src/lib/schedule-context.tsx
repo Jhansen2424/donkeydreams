@@ -564,30 +564,26 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       prev.map((b, bi) => (bi === blockIdx ? { ...b, tasks: moved } : b))
     );
 
-    const reorder = moved
-      .map((t, i) => ({ id: (t as TaskWithId).serverId, sortOrder: i }))
-      .filter((r): r is { id: string; sortOrder: number } => Boolean(r.id));
+    // Templates ride along IN the same request so tomorrow's copies can't
+    // miss the new order. (These used to be separate fire-and-forget fetches;
+    // closing the app right after a drag cancelled them and the order
+    // reverted the next day — client 9/26.)
+    const reorder: { id: string; sortOrder: number; templateId?: string }[] = [];
+    moved.forEach((t, i) => {
+      const tw = t as TaskWithId;
+      if (!tw.serverId) return;
+      reorder.push({ id: tw.serverId, sortOrder: i, templateId: tw.templateId ?? undefined });
+    });
 
     try {
       const res = await fetch("/api/tasks", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reorder }),
+        body: JSON.stringify({ reorder, date: currentDateRef.current }),
+        // Survive the tab being closed right after the drop.
+        keepalive: true,
       });
       if (!res.ok) throw new Error((await res.json()).error || "Failed to reorder");
-
-      // Write the new order through to the recurring templates too —
-      // otherwise tomorrow's materialized copies snap back to the old order
-      // (client: "the AM tasks were out of the order I organized them in").
-      for (const [i, t] of moved.entries()) {
-        const templateId = (t as TaskWithId).templateId;
-        if (!templateId) continue;
-        void fetch("/api/tasks/templates", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: templateId, sortOrder: i }),
-        }).catch(() => {});
-      }
     } catch (e) {
       setSchedule(snapshot);
       setError(e instanceof Error ? e.message : "Failed to reorder tasks");
@@ -748,14 +744,20 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         return next;
       });
       // Write through to the templates so the move carries to future days.
-      for (const t of moving) {
-        if (!t.templateId) continue;
-        void fetch("/api/tasks/templates", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: t.templateId, block: blockName, sortOrder: orders.get(t.serverId!) }),
-        }).catch(() => {});
-      }
+      // Awaited + keepalive: fire-and-forget template writes were getting
+      // cancelled when the app closed right after the action (client 9/26).
+      await Promise.all(
+        moving
+          .filter((t) => t.templateId)
+          .map((t) =>
+            fetch("/api/tasks/templates", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: t.templateId, block: blockName, sortOrder: orders.get(t.serverId!) }),
+              keepalive: true,
+            }).catch(() => {})
+          )
+      );
     } catch (e) {
       setSchedule(snapshot);
       setError(e instanceof Error ? e.message : "Failed to move tasks");
