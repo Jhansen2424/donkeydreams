@@ -29,11 +29,13 @@ export default function Narrator() {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
     setAuto(false);
+    delete document.body.dataset.autoscroll; // lets the idle scroll cue return
   };
 
   const startAuto = () => {
     if (rafRef.current !== null) return;
     setAuto(true);
+    document.body.dataset.autoscroll = "1";
     let last = performance.now();
     const step = (t: number) => {
       const dt = Math.min(0.05, (t - last) / 1000);
@@ -65,12 +67,51 @@ export default function Narrator() {
     };
   }, [auto]);
 
-  // The cold open's big play button starts the film from anywhere.
-  useEffect(() => {
-    const play = () => {
-      setOn(true);
-      startAuto();
+  // Start everything INSIDE the user's tap. Mobile browsers only allow
+  // audio.play() synchronously within a gesture — deferring it to an
+  // effect after a state update is why Play was silently failing on
+  // phones (client, 10/12).
+  const mostVisibleId = (): string => {
+    const sections = Array.from(document.querySelectorAll<HTMLElement>("[data-narration]"));
+    let best: { id: string; overlap: number } | null = null;
+    for (const s of sections) {
+      const r = s.getBoundingClientRect();
+      const overlap = Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0);
+      if (overlap > 0 && (!best || overlap > best.overlap)) {
+        best = { id: s.dataset.narration!, overlap };
+      }
+    }
+    return best?.id ?? "hero";
+  };
+
+  const armAndPlay = () => {
+    let audio = audioRef.current;
+    if (!audio) {
+      audio = new Audio();
+      audio.volume = 0.9;
+      audioRef.current = audio;
+    }
+    const id = mostVisibleId();
+    currentRef.current = id;
+    setNowPlaying(id);
+    audio.src = `/audio/story/${id}.mp3`;
+    audio.onerror = () => {
+      if (audio!.src.endsWith(".mp3")) {
+        audio!.src = audio!.src.replace(/\.mp3$/, ".wav");
+        void audio!.play().catch(() => {});
+      }
     };
+    void audio.play().catch(() => {});
+    setOn(true);
+    startAuto();
+  };
+  const armRef = useRef(armAndPlay);
+  armRef.current = armAndPlay;
+
+  // The cold open's big play button starts the film from anywhere. Note:
+  // dispatchEvent is synchronous, so this still runs inside the tap.
+  useEffect(() => {
+    const play = () => armRef.current();
     window.addEventListener("dd:play-story", play);
     return () => window.removeEventListener("dd:play-story", play);
   }, []);
@@ -148,8 +189,7 @@ export default function Narrator() {
           setOn(false);
           stopAuto();
         } else {
-          setOn(true);
-          startAuto();
+          armAndPlay(); // audio starts inside the tap (mobile autoplay rules)
         }
       }}
       className={`fixed bottom-5 left-5 z-50 inline-flex items-center gap-2 pl-3 pr-4 py-2.5 rounded-full text-sm font-bold shadow-lg transition-colors ${

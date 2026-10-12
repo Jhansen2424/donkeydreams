@@ -132,8 +132,10 @@ function ColdOpen() {
 
   return (
     <section ref={ref} className="relative h-[260vh]">
+      {/* 100svh, not 100vh: iOS counts the URL bar into vh and clips the
+          bottom of every pinned frame (client: "looks like shit on mobile"). */}
       <motion.div
-        className="sticky top-0 h-screen bg-[#0d0a07] flex items-center justify-center px-8"
+        className="sticky top-0 h-[100svh] bg-[#0d0a07] flex items-center justify-center px-8"
         style={{ opacity: panel }}
       >
         <motion.p
@@ -154,13 +156,18 @@ function ColdOpen() {
           className="absolute bottom-10 inset-x-0 flex flex-col items-center gap-5"
           style={{ opacity: hint, pointerEvents: hintPointer }}
         >
-          <button
-            onClick={() => window.dispatchEvent(new Event("dd:play-story"))}
-            className="inline-flex items-center gap-2.5 pl-4 pr-6 py-3.5 rounded-full bg-[#e2963f] text-[#241d14] text-base font-bold hover:bg-[#efc98c] transition-colors shadow-[0_0_30px_rgba(226,150,63,0.35)]"
-          >
-            <Play className="w-5 h-5" />
-            Play the story
-          </button>
+          <div className="flex flex-col items-center gap-2">
+            <button
+              onClick={() => window.dispatchEvent(new Event("dd:play-story"))}
+              className="inline-flex items-center gap-2.5 pl-4 pr-6 py-3.5 rounded-full bg-[#e2963f] text-[#241d14] text-base font-bold hover:bg-[#efc98c] transition-colors shadow-[0_0_30px_rgba(226,150,63,0.35)]"
+            >
+              <Play className="w-5 h-5" />
+              Play the story
+            </button>
+            <span className="text-xs text-[#efe8da]/65">
+              sit back — it scrolls itself, with narration
+            </span>
+          </div>
           <div className="flex flex-col items-center gap-1.5 text-[#efe8da]/55">
             <span className="text-[11px] font-bold uppercase tracking-[0.3em]">
               or scroll at your own pace
@@ -341,18 +348,21 @@ function PinnedBeat({
   );
   const y = useTransform(progress, [start, end], [24, -24]);
   return (
-    <motion.div style={{ opacity }} className="absolute inset-0 flex items-center px-6">
-      <div className="max-w-5xl mx-auto w-full grid md:grid-cols-2 gap-8 items-center">
+    <motion.div
+      style={{ opacity }}
+      className="absolute inset-0 flex items-center px-6 pt-24 md:pt-0"
+    >
+      <div className="max-w-5xl mx-auto w-full grid md:grid-cols-2 gap-5 md:gap-8 items-center">
         <Photo
           label={beat.label}
           tone={beat.tone}
           scene={beat.scene}
           name={beat.name}
-          ratio="aspect-[4/3]"
+          ratio="aspect-[16/10] md:aspect-[4/3]"
         />
         <motion.p
           style={{ y, ...display }}
-          className="text-2xl sm:text-3xl lg:text-4xl leading-snug font-medium"
+          className="text-xl sm:text-2xl lg:text-4xl leading-snug font-medium"
         >
           {beat.text}
         </motion.p>
@@ -374,7 +384,7 @@ function YouAreHere() {
 
   return (
     <section data-narration="youarehere" ref={ref} className="relative h-[340vh]">
-      <div className="sticky top-0 h-screen overflow-hidden">
+      <div className="sticky top-0 h-[100svh] overflow-hidden">
         <Letterbox progress={scrollYProgress} />
         <div className="absolute top-20 inset-x-6">
           <div className="max-w-5xl mx-auto">
@@ -405,6 +415,11 @@ const VISION_BEATS = [
   "We believe they deserve more than survival. They deserve this: a family to belong to, room to roam, sovereignty honored — not someday, but as soon as we can build it.",
 ];
 
+// Each beat gets its own full-frame flex wrapper for centering. NEVER mix
+// Tailwind translate utilities with motion transform values on the same
+// element — motion owns `transform` and silently erases the CSS centering
+// (that's how "Every Wild Burro Deserves This" ended up anchored to the top
+// of the frame — client, 10/12).
 function VisionBeatText({
   progress,
   window: [start, end],
@@ -420,16 +435,18 @@ function VisionBeatText({
   const opacity = useTransform(progress, [start, start + fade, end - fade, end], [0, 1, 1, 0]);
   const y = useTransform(progress, [start, end], [16, -16]);
   return (
-    <motion.p
-      style={{ opacity, y, ...(big ? display : {}) }}
-      className={`absolute inset-x-0 px-8 text-center ${
-        big
-          ? "text-3xl sm:text-4xl lg:text-5xl font-medium leading-snug"
-          : "text-lg sm:text-xl leading-relaxed text-[#efe8da]/90"
-      }`}
-    >
-      {children}
-    </motion.p>
+    <div className="absolute inset-0 flex items-center justify-center px-8 pointer-events-none">
+      <motion.p
+        style={{ opacity, y, ...(big ? display : {}) }}
+        className={`text-center ${
+          big
+            ? "text-2xl sm:text-4xl lg:text-5xl font-medium leading-snug max-w-2xl"
+            : "text-base sm:text-xl leading-relaxed text-[#efe8da]/90 max-w-xl"
+        }`}
+      >
+        {children}
+      </motion.p>
+    </div>
   );
 }
 
@@ -441,7 +458,7 @@ function TheVision() {
   // box, holds through the darkest line, then shatters outward as dawn
   // breaks. (All scroll-scrubbed — scrolling back re-opens the pen.)
   const frameW = useTransform(scrollYProgress, [0.02, 0.4], ["140vw", "min(680px, 88vw)"]);
-  const frameH = useTransform(scrollYProgress, [0.02, 0.4], ["130vh", "min(460px, 64vh)"]);
+  const frameH = useTransform(scrollYProgress, [0.02, 0.4], ["130svh", "min(460px, 58svh)"]);
   const frameOpacity = useTransform(scrollYProgress, [0.02, 0.12, 0.8, 0.88], [0, 1, 1, 0]);
   const frameScale = useTransform(scrollYProgress, [0.8, 0.95], [1, 1.8]);
   const starsOpacity = useTransform(scrollYProgress, [0, 0.75, 0.9], [0.5, 0.5, 0]);
@@ -455,7 +472,7 @@ function TheVision() {
 
   return (
     <section data-narration="vision" ref={ref} className="relative h-[420vh] bg-[#15100b] text-[#efe8da]">
-      <div className="sticky top-0 h-screen overflow-hidden">
+      <div className="sticky top-0 h-[100svh] overflow-hidden">
         <Letterbox progress={scrollYProgress} />
         {/* stars */}
         <motion.div
@@ -487,42 +504,40 @@ function TheVision() {
           Every Wild Burro Deserves This
         </VisionBeatText>
 
-        {/* the pen — four fence lines closing in */}
-        <motion.div
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border-2 border-[#efe8da]/50 rounded-sm"
-          style={{ width: frameW, height: frameH, opacity: frameOpacity, scale: frameScale }}
-        >
-          <div className="absolute inset-2 border border-[#efe8da]/20 rounded-sm" />
-        </motion.div>
+        {/* the pen — four fence lines closing in (flex-centered; motion only
+            animates size/opacity/scale, never position) */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <motion.div
+            className="relative border-2 border-[#efe8da]/50 rounded-sm"
+            style={{ width: frameW, height: frameH, opacity: frameOpacity, scale: frameScale }}
+          >
+            <div className="absolute inset-2 border border-[#efe8da]/20 rounded-sm" />
+          </motion.div>
+        </div>
 
         {/* the lone donkey, standing inside the pen */}
-        <motion.div
-          className="absolute left-1/2 -translate-x-1/2 bottom-[16vh] w-24 sm:w-28"
-          style={{ opacity: loneOpacity, y: loneY }}
-        >
-          <svg viewBox="0 0 100 100" className="w-full">
-            <Donkey x={32} scale={1.1} color="#3a3025" />
-          </svg>
-        </motion.div>
+        <div className="absolute inset-x-0 bottom-[14svh] flex justify-center pointer-events-none">
+          <motion.div className="w-20 sm:w-28" style={{ opacity: loneOpacity, y: loneY }}>
+            <svg viewBox="0 0 100 100" className="w-full">
+              <Donkey x={32} scale={1.1} color="#3a3025" />
+            </svg>
+          </motion.div>
+        </div>
 
         {/* beats inside the pen */}
-        <div className="absolute inset-0 flex items-center">
-          <div className="relative w-full max-w-xl mx-auto">
-            <VisionBeatText progress={scrollYProgress} window={[0.16, 0.44]}>
-              {VISION_BEATS[0]}
-            </VisionBeatText>
-            <VisionBeatText progress={scrollYProgress} window={[0.44, 0.68]} big>
-              {VISION_BEATS[1]}
-            </VisionBeatText>
-            <VisionBeatText progress={scrollYProgress} window={[0.68, 0.9]}>
-              {VISION_BEATS[2]}
-            </VisionBeatText>
-          </div>
-        </div>
+        <VisionBeatText progress={scrollYProgress} window={[0.16, 0.44]}>
+          {VISION_BEATS[0]}
+        </VisionBeatText>
+        <VisionBeatText progress={scrollYProgress} window={[0.44, 0.68]} big>
+          {VISION_BEATS[1]}
+        </VisionBeatText>
+        <VisionBeatText progress={scrollYProgress} window={[0.68, 0.9]}>
+          {VISION_BEATS[2]}
+        </VisionBeatText>
 
         {/* dawn breaks — the ask */}
         <motion.div
-          className="absolute inset-x-0 bottom-[14vh] text-center"
+          className="absolute inset-x-0 bottom-[12svh] text-center"
           style={{ opacity: ctaOpacity, y: ctaY }}
         >
           <Link
@@ -534,6 +549,48 @@ function TheVision() {
         </motion.div>
       </div>
     </section>
+  );
+}
+
+// ── Idle scroll cue ──
+// The pinned scenes make people think the page "stopped". After a few idle
+// seconds (not during cinema mode, the cold open, or near the end) a gentle
+// "keep scrolling" chevron fades up; any scroll hides it again.
+
+function ScrollCue() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const arm = () => {
+      setVisible(false);
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const nearBottom =
+          window.innerHeight + window.scrollY > document.body.scrollHeight - 900;
+        const inColdOpen = window.scrollY < window.innerHeight * 1.5;
+        if (!nearBottom && !inColdOpen && !document.body.dataset.autoscroll) {
+          setVisible(true);
+        }
+      }, 3500);
+    };
+    window.addEventListener("scroll", arm, { passive: true });
+    arm();
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("scroll", arm);
+    };
+  }, []);
+  return (
+    <div
+      className={`fixed bottom-5 inset-x-0 z-40 flex justify-center pointer-events-none transition-opacity duration-700 ${
+        visible ? "opacity-100" : "opacity-0"
+      }`}
+    >
+      <div className="flex flex-col items-center gap-0.5 text-[#241d14]/60 bg-[#f6f0e4]/75 backdrop-blur-sm rounded-full px-4 py-2 shadow-sm">
+        <span className="text-[10px] font-bold uppercase tracking-[0.25em]">keep scrolling</span>
+        <ChevronDown className="w-4 h-4 animate-bounce" />
+      </div>
+    </div>
   );
 }
 
@@ -718,12 +775,13 @@ export default function StoryHome() {
 
       <StoryNav />
       <Narrator />
+      <ScrollCue />
 
       {/* ═══ 0 · COLD OPEN ═══ */}
       <ColdOpen />
 
       {/* ═══ 1 · HERO ═══ */}
-      <section data-narration="hero" className="min-h-screen flex flex-col justify-center px-6 pt-24 pb-16">
+      <section data-narration="hero" className="min-h-[100svh] flex flex-col justify-center px-6 pt-24 pb-16">
         <div className="max-w-5xl mx-auto w-full">
           <Reveal>
             <p className="text-[12px] font-bold uppercase tracking-[0.3em] text-[#9a6a1f] mb-6">
