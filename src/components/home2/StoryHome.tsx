@@ -29,6 +29,7 @@ import {
   type MotionValue,
 } from "motion/react";
 import Narrator from "./Narrator";
+import SceneArt, { Donkey, type SceneKind, type SceneTone } from "./SceneArt";
 
 const display = { fontFamily: "var(--font-fraunces), Georgia, serif" };
 
@@ -83,50 +84,75 @@ function LowerThird({ name }: { name: string }) {
   );
 }
 
-/** Labeled placeholder frame for a photo that hasn't been exported yet. */
+/** Illustrated film frame standing in for a photo that hasn't been exported
+    yet — a layered desert scene with donkey silhouettes (see SceneArt). The
+    tiny chip names the real photo that will replace it. */
 function Photo({
   label,
   name,
   tone = "gold",
+  scene = "herd",
   ratio = "aspect-[3/2]",
   className = "",
 }: {
   label: string;
   /** Documentary lower-third name tag (e.g. "Dusk & Dawn"). */
   name?: string;
-  tone?: "dawn" | "gold" | "amber" | "dusk" | "night";
+  tone?: SceneTone;
+  scene?: SceneKind;
   ratio?: string;
   className?: string;
 }) {
-  const reduce = useReducedMotion();
-  const tones: Record<string, string> = {
-    dawn: "from-[#f6e9d2] via-[#eed9b4] to-[#cfae87]",
-    gold: "from-[#f0d9ae] via-[#e2963f] to-[#9a6a1f]",
-    amber: "from-[#e8b57e] via-[#b5592e] to-[#6e3420]",
-    dusk: "from-[#8c9bb0] via-[#4a5f7a] to-[#2b3950]",
-    night: "from-[#3a4458] via-[#241d14] to-[#15100b]",
-  };
   return (
     <div className={`relative overflow-hidden rounded-2xl ring-1 ring-white/15 ${ratio} ${className}`}>
-      <motion.div
-        className={`absolute inset-[-6%] bg-gradient-to-br ${tones[tone]}`}
-        animate={reduce ? undefined : { scale: [1, 1.07], x: [0, -10] }}
-        transition={{ duration: 22, repeat: Infinity, repeatType: "reverse", ease: "linear" }}
-      />
-      <div
-        className="absolute inset-0 opacity-25 mix-blend-overlay"
-        style={{
-          backgroundImage: "radial-gradient(rgba(255,255,255,0.14) 1px, transparent 1px)",
-          backgroundSize: "3px 3px",
-        }}
-      />
+      <SceneArt tone={tone} kind={scene} />
       {name && <LowerThird name={name} />}
-      <div className="absolute inset-0 flex items-end p-4">
-        <p className="text-[11px] leading-snug font-semibold uppercase tracking-wider text-white/85 bg-black/30 backdrop-blur-sm rounded-lg px-3 py-2">
+      <div className="absolute inset-0 flex items-end justify-end p-3">
+        <p className="text-[10px] leading-snug font-semibold uppercase tracking-wider text-white/70 bg-black/25 backdrop-blur-sm rounded-md px-2 py-1 max-w-[70%] text-right">
           Photo · {label}
         </p>
       </div>
     </div>
+  );
+}
+
+// ── Cold open: a film prologue before the first light ──
+// (New connective copy, not from the 10/8 doc — flag for client approval.)
+
+function ColdOpen() {
+  const ref = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
+  const line1 = useTransform(scrollYProgress, [0.04, 0.16, 0.36, 0.46], [0, 1, 1, 0]);
+  const line2 = useTransform(scrollYProgress, [0.46, 0.58, 0.78, 0.86], [0, 1, 1, 0]);
+  const panel = useTransform(scrollYProgress, [0.86, 1], [1, 0]);
+  const hint = useTransform(scrollYProgress, [0, 0.06], [1, 0]);
+
+  return (
+    <section ref={ref} className="relative h-[260vh]">
+      <motion.div
+        className="sticky top-0 h-screen bg-[#0d0a07] flex items-center justify-center px-8"
+        style={{ opacity: panel }}
+      >
+        <motion.p
+          className="absolute text-center text-2xl sm:text-4xl lg:text-5xl font-medium leading-snug text-[#efe8da] max-w-3xl"
+          style={{ opacity: line1, ...display }}
+        >
+          Somewhere in the Arizona desert…
+        </motion.p>
+        <motion.p
+          className="absolute text-center text-2xl sm:text-4xl lg:text-5xl font-medium leading-snug text-[#efe8da] max-w-3xl"
+          style={{ opacity: line2, ...display }}
+        >
+          …there's a place where wild burro families never have to say goodbye.
+        </motion.p>
+        <motion.p
+          className="absolute bottom-10 inset-x-0 text-center text-[11px] font-bold uppercase tracking-[0.3em] text-[#efe8da]/50"
+          style={{ opacity: hint }}
+        >
+          Scroll to begin
+        </motion.p>
+      </motion.div>
+    </section>
   );
 }
 
@@ -239,22 +265,38 @@ const YOU_ARE_HERE_BEATS = [
   {
     label: "The wilds at sunset after a full day roaming, playing, napping",
     tone: "amber" as const,
+    scene: "herd" as const,
     name: undefined as string | undefined,
     text: "Roaming. Playing. Napping. And now, dinner, as the sun goes down — a full day lived entirely on their own terms.",
   },
   {
     label: "Brave Herd, dusk, feeding trough",
     tone: "dusk" as const,
+    scene: "herd" as const,
     name: "The Brave Herd",
     text: "They don't eat where we put them. They eat beside who they trust.",
   },
   {
     label: "Dusk and Dawn, mother and daughter",
     tone: "dawn" as const,
+    scene: "pair" as const,
     name: "Dusk & Dawn",
     text: "This is Dusk and Dawn — named for the same light at opposite ends of the day. Here, they'll grow old together. Never separated. That's the wild burro spirit, preserved.",
   },
 ];
+
+/** Cinema letterbox bars that slide in while a scene is pinned. */
+function Letterbox({ progress }: { progress: MotionValue<number> }) {
+  const reach = useTransform(progress, [0, 0.07, 0.93, 1], [0, 1, 1, 0]);
+  const topY = useTransform(reach, (v) => `${(v - 1) * 100}%`);
+  const bottomY = useTransform(reach, (v) => `${(1 - v) * 100}%`);
+  return (
+    <>
+      <motion.div className="absolute top-0 inset-x-0 h-[5vh] bg-[#0d0a07] z-20" style={{ y: topY }} />
+      <motion.div className="absolute bottom-0 inset-x-0 h-[5vh] bg-[#0d0a07] z-20" style={{ y: bottomY }} />
+    </>
+  );
+}
 
 function PinnedBeat({
   progress,
@@ -284,7 +326,13 @@ function PinnedBeat({
   return (
     <motion.div style={{ opacity }} className="absolute inset-0 flex items-center px-6">
       <div className="max-w-5xl mx-auto w-full grid md:grid-cols-2 gap-8 items-center">
-        <Photo label={beat.label} tone={beat.tone} name={beat.name} ratio="aspect-[4/3]" />
+        <Photo
+          label={beat.label}
+          tone={beat.tone}
+          scene={beat.scene}
+          name={beat.name}
+          ratio="aspect-[4/3]"
+        />
         <motion.p
           style={{ y, ...display }}
           className="text-2xl sm:text-3xl lg:text-4xl leading-snug font-medium"
@@ -296,33 +344,21 @@ function PinnedBeat({
   );
 }
 
+// NOTE: the pinned scenes run for everyone, including prefers-reduced-motion.
+// They're scroll-SCRUBBED — the user's own scrolling drives every frame, and
+// stopping scrolling stops all motion — which reduced-motion guidance treats
+// differently from autonomous animation. (The OS flag was also silently
+// serving a flat page to anyone with Windows animations off — the client
+// reviewed THAT by accident on 10/12 and thought the redesign was broken.)
+
 function YouAreHere() {
   const ref = useRef<HTMLDivElement>(null);
-  const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
-
-  if (reduce) {
-    // Reduced motion: plain stacked beats, no pinning.
-    return (
-      <section data-narration="youarehere" className="px-6 py-24">
-        <div className="max-w-5xl mx-auto space-y-20">
-          <Kicker n="01" title="You are here" />
-          {YOU_ARE_HERE_BEATS.map((beat) => (
-            <div key={beat.label} className="grid md:grid-cols-2 gap-8 items-center">
-              <Photo label={beat.label} tone={beat.tone} name={beat.name} />
-              <p className="text-2xl sm:text-3xl leading-snug font-medium" style={display}>
-                {beat.text}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-    );
-  }
 
   return (
     <section data-narration="youarehere" ref={ref} className="relative h-[340vh]">
       <div className="sticky top-0 h-screen overflow-hidden">
+        <Letterbox progress={scrollYProgress} />
         <div className="absolute top-20 inset-x-6">
           <div className="max-w-5xl mx-auto">
             <Kicker n="01" title="You are here" />
@@ -382,7 +418,6 @@ function VisionBeatText({
 
 function TheVision() {
   const ref = useRef<HTMLDivElement>(null);
-  const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
 
   // The pen: a frame that closes from beyond the viewport down to a tight
@@ -396,34 +431,15 @@ function TheVision() {
   const dawnOpacity = useTransform(scrollYProgress, [0.78, 0.95], [0, 1]);
   const ctaOpacity = useTransform(scrollYProgress, [0.86, 0.96], [0, 1]);
   const ctaY = useTransform(scrollYProgress, [0.86, 0.96], [24, 0]);
-
-  if (reduce) {
-    return (
-      <section data-narration="vision" className="bg-[#15100b] text-[#efe8da] px-6 py-32">
-        <div className="max-w-3xl mx-auto text-center space-y-8">
-          <Kicker n="09" title="The vision" light />
-          <h2 className="text-4xl sm:text-6xl font-semibold leading-tight" style={display}>
-            Every Wild Burro Deserves This
-          </h2>
-          {VISION_BEATS.map((b, i) => (
-            <p key={i} className={i === 1 ? "text-2xl font-medium" : "text-lg text-[#efe8da]/85"} style={i === 1 ? display : undefined}>
-              {b}
-            </p>
-          ))}
-          <Link
-            href="/donate"
-            className="inline-block px-8 py-4 rounded-full bg-[#e2963f] text-[#241d14] text-lg font-bold"
-          >
-            Make an Impact →
-          </Link>
-        </div>
-      </section>
-    );
-  }
+  // The lone donkey standing inside the pen — arrives with the fences,
+  // stays through the quiet line, lifts their head free as dawn breaks.
+  const loneOpacity = useTransform(scrollYProgress, [0.18, 0.28, 0.8, 0.9], [0, 0.95, 0.95, 0]);
+  const loneY = useTransform(scrollYProgress, [0.18, 0.9], [8, -4]);
 
   return (
     <section data-narration="vision" ref={ref} className="relative h-[420vh] bg-[#15100b] text-[#efe8da]">
       <div className="sticky top-0 h-screen overflow-hidden">
+        <Letterbox progress={scrollYProgress} />
         {/* stars */}
         <motion.div
           className="absolute inset-0"
@@ -460,6 +476,16 @@ function TheVision() {
           style={{ width: frameW, height: frameH, opacity: frameOpacity, scale: frameScale }}
         >
           <div className="absolute inset-2 border border-[#efe8da]/20 rounded-sm" />
+        </motion.div>
+
+        {/* the lone donkey, standing inside the pen */}
+        <motion.div
+          className="absolute left-1/2 -translate-x-1/2 bottom-[16vh] w-24 sm:w-28"
+          style={{ opacity: loneOpacity, y: loneY }}
+        >
+          <svg viewBox="0 0 100 100" className="w-full">
+            <Donkey x={32} scale={1.1} color="#3a3025" />
+          </svg>
         </motion.div>
 
         {/* beats inside the pen */}
@@ -508,7 +534,7 @@ function StoryNav() {
     <header className="fixed top-0 inset-x-0 z-40">
       <div className="bg-[#f6f0e4]/80 backdrop-blur-md border-b border-[#241d14]/10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-          <Link href="/new-home" className="font-bold text-[#241d14] tracking-tight" style={display}>
+          <Link href="/" className="font-bold text-[#241d14] tracking-tight" style={display}>
             Donkey Dreams
           </Link>
           <nav className="hidden md:flex items-center gap-6">
@@ -564,7 +590,7 @@ function StoryFooter() {
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#b6a996] mb-3">
             Explore
           </p>
-          {[{ label: "Home", href: "/new-home" }, ...NAV].map((item) => (
+          {[{ label: "Home", href: "/" }, ...NAV].map((item) => (
             <Link key={item.label} href={item.href} className="block hover:text-white transition-colors">
               {item.label}
             </Link>
@@ -662,8 +688,22 @@ export default function StoryHome() {
         <span className="absolute -right-0.5 -top-0.5 w-2.5 h-2.5 rounded-full bg-[#15100b]" />
       </motion.div>
 
+      {/* film grain over everything, very faint */}
+      <div
+        className="fixed inset-0 z-[55] pointer-events-none opacity-[0.05] mix-blend-overlay"
+        style={{
+          backgroundImage:
+            "radial-gradient(rgba(255,255,255,0.8) 1px, transparent 1px), radial-gradient(rgba(0,0,0,0.8) 1px, transparent 1px)",
+          backgroundSize: "3px 3px, 5px 5px",
+          backgroundPosition: "0 0, 1px 2px",
+        }}
+      />
+
       <StoryNav />
       <Narrator />
+
+      {/* ═══ 0 · COLD OPEN ═══ */}
+      <ColdOpen />
 
       {/* ═══ 1 · HERO ═══ */}
       <section data-narration="hero" className="min-h-screen flex flex-col justify-center px-6 pt-24 pb-16">
@@ -707,6 +747,7 @@ export default function StoryHome() {
             <Photo
               label="The wilds at sunset — dinner, distinctive peak silhouetted against the setting sun (panoramic)"
               tone="amber"
+              scene="herd"
               ratio="aspect-[21/9]"
               className="mt-12"
             />
@@ -797,6 +838,7 @@ export default function StoryHome() {
                   head: "Graze",
                   label: "Sparse hillside herd, soft morning light",
                   tone: "dawn",
+                  scene: "herd",
                   name: undefined,
                   text: "No rush to breakfast at base camp. Just hanging on the ridge with friends and family, picking up a few nibbles along the way.",
                 },
@@ -804,6 +846,7 @@ export default function StoryHome() {
                   head: "Run",
                   label: "Dust and motion, summer evening",
                   tone: "gold",
+                  scene: "run",
                   name: undefined,
                   text: "Dinner, then out to run — rocky, steep ground where their bodies are designed to thrive.",
                 },
@@ -811,6 +854,7 @@ export default function StoryHome() {
                   head: "Trail",
                   label: "Self-made trails across the property",
                   tone: "amber",
+                  scene: "land",
                   name: undefined,
                   text: "Their own trails, their own loop — out across the sanctuary and back to base camp when they're ready, not when we say.",
                 },
@@ -818,6 +862,7 @@ export default function StoryHome() {
                   head: "Nap",
                   label: "Moses and Nelly Belle, nose-to-tail in the shade of a tree",
                   tone: "dusk",
+                  scene: "pair",
                   name: "Nelly Belle & Moses",
                   text: "Nelly Belle and Moses, a mother/son pair from the wild. Separated through adoption, reunited here — inseparable ever since.",
                 },
@@ -825,7 +870,7 @@ export default function StoryHome() {
             ).map((card, i) => (
               <Reveal key={card.head} delay={i * 0.1}>
                 <div>
-                  <Photo label={card.label} tone={card.tone} name={card.name} />
+                  <Photo label={card.label} tone={card.tone} scene={card.scene} name={card.name} />
                   <h3 className="text-2xl font-semibold mt-5 mb-2" style={display}>
                     {card.head}
                   </h3>
@@ -858,7 +903,7 @@ export default function StoryHome() {
             </p>
           </Reveal>
           <Reveal delay={0.3}>
-            <Photo label="Amber and Dusk, nose to nose" name="Amber & Dusk" tone="dusk" ratio="aspect-[16/9]" />
+            <Photo label="Amber and Dusk, nose to nose" name="Amber & Dusk" tone="dusk" scene="pair" ratio="aspect-[16/9]" />
           </Reveal>
         </div>
       </section>
@@ -880,6 +925,7 @@ export default function StoryHome() {
                   label:
                     "Gabriel (on his prosthetic leg) standing watch over Halo and Halo's mom Angel while they nap in the shade",
                   tone: "gold",
+                  scene: "lone",
                   text: "Gabriel was found wild and alone at just a few months old — injured, with no mother in sight. He needed a family, and he needed a prosthetic leg. Today he has both — enough to run, to play, and sometimes, to stand watch over the family that took him in.",
                   cta: "Read Gabriel's story",
                 },
@@ -888,6 +934,7 @@ export default function StoryHome() {
                   label:
                     "Three donkeys standing tight together, shoulder to shoulder, desert and mountain backdrop",
                   tone: "amber",
+                  scene: "herd",
                   text: "When Jack-Jack's mother died suddenly, he was only seven months old. Grief like that can be its own kind of danger for a burro — loss alone can be enough to make them stop eating. His herd was what kept him going.",
                   cta: "Read Jack-Jack's story",
                 },
@@ -896,6 +943,7 @@ export default function StoryHome() {
                   label:
                     "Xander and his bonded mate Luna eating together from a feed bag, desert and mountain backdrop",
                   tone: "dawn",
+                  scene: "pair",
                   text: "Xander was pulled from the slaughter pipeline — separated from his family at a livestock auction in Bowie, headed to Mexico. It took us a year to bring him home. Now, he's the only known father in a herd that includes two of his own sons.",
                   cta: "Read Xander's story",
                 },
@@ -903,6 +951,7 @@ export default function StoryHome() {
                   name: "The Brave Herd",
                   label: "The Brave Herd resting and cuddling together under a tree",
                   tone: "dusk",
+                  scene: "herd",
                   text: "When the Brave Herd arrived, they were some of the most terrified wild burros we'd ever met. We didn't force anything — we just let them learn to trust us, in their own time. Now, three generations of that family live here together — and they're some of the most affectionate, trusting donkeys on the sanctuary.",
                   cta: "Read the Brave Herd's story",
                 },
@@ -915,7 +964,7 @@ export default function StoryHome() {
                 }`}
               >
                 <Reveal className="md:[direction:ltr]">
-                  <Photo label={story.label} tone={story.tone} name={story.name} />
+                  <Photo label={story.label} tone={story.tone} scene={story.scene} name={story.name} />
                 </Reveal>
                 <Reveal delay={0.15} className="md:[direction:ltr]">
                   <h3 className="text-3xl font-semibold mb-4" style={display}>
@@ -957,7 +1006,7 @@ export default function StoryHome() {
             </Reveal>
           </div>
           <Reveal delay={0.2}>
-            <Photo label="Amber and Pink napping together" name="Amber & Pink" tone="dusk" ratio="aspect-[4/5]" />
+            <Photo label="Amber and Pink napping together" name="Amber & Pink" tone="dusk" scene="pair" ratio="aspect-[4/5]" />
           </Reveal>
         </div>
       </section>
@@ -966,7 +1015,7 @@ export default function StoryHome() {
       <section className="bg-gradient-to-b from-[#324257] to-[#241d14] text-[#f6f0e4] px-6 py-28">
         <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-10 items-center">
           <Reveal>
-            <Photo label="Nose-to-nose feeding moment from the wilds" tone="dusk" ratio="aspect-[4/5]" />
+            <Photo label="Nose-to-nose feeding moment from the wilds" tone="dusk" scene="pair" ratio="aspect-[4/5]" />
           </Reveal>
           <div>
             <Kicker n="08" title="Save more families" light />
@@ -999,6 +1048,7 @@ export default function StoryHome() {
             <Photo
               label="A rescued family standing together on open ground, backlit by morning sun, all facing the camera"
               tone="dawn"
+              scene="herd"
               ratio="aspect-[21/9]"
               className="mb-14"
             />
