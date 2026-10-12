@@ -28,6 +28,7 @@ import {
   useReducedMotion,
   type MotionValue,
 } from "motion/react";
+import { Play, ChevronDown } from "lucide-react";
 import Narrator from "./Narrator";
 import SceneArt, { Donkey, type SceneKind, type SceneTone } from "./SceneArt";
 
@@ -125,7 +126,9 @@ function ColdOpen() {
   const line1 = useTransform(scrollYProgress, [0.04, 0.16, 0.36, 0.46], [0, 1, 1, 0]);
   const line2 = useTransform(scrollYProgress, [0.46, 0.58, 0.78, 0.86], [0, 1, 1, 0]);
   const panel = useTransform(scrollYProgress, [0.86, 1], [1, 0]);
-  const hint = useTransform(scrollYProgress, [0, 0.06], [1, 0]);
+  const hint = useTransform(scrollYProgress, [0, 0.08], [1, 0]);
+  // Once the hint fades, it must not swallow clicks/taps.
+  const hintPointer = useTransform(hint, (v) => (v < 0.15 ? "none" : "auto"));
 
   return (
     <section ref={ref} className="relative h-[260vh]">
@@ -145,12 +148,26 @@ function ColdOpen() {
         >
           …there's a place where wild burro families never have to say goodbye.
         </motion.p>
-        <motion.p
-          className="absolute bottom-10 inset-x-0 text-center text-[11px] font-bold uppercase tracking-[0.3em] text-[#efe8da]/50"
-          style={{ opacity: hint }}
+        {/* How to watch: press play (narrated, self-scrolling) or scroll.
+            Fades away the moment they start, either way. */}
+        <motion.div
+          className="absolute bottom-10 inset-x-0 flex flex-col items-center gap-5"
+          style={{ opacity: hint, pointerEvents: hintPointer }}
         >
-          Scroll to begin
-        </motion.p>
+          <button
+            onClick={() => window.dispatchEvent(new Event("dd:play-story"))}
+            className="inline-flex items-center gap-2.5 pl-4 pr-6 py-3.5 rounded-full bg-[#e2963f] text-[#241d14] text-base font-bold hover:bg-[#efc98c] transition-colors shadow-[0_0_30px_rgba(226,150,63,0.35)]"
+          >
+            <Play className="w-5 h-5" />
+            Play the story
+          </button>
+          <div className="flex flex-col items-center gap-1.5 text-[#efe8da]/55">
+            <span className="text-[11px] font-bold uppercase tracking-[0.3em]">
+              or scroll at your own pace
+            </span>
+            <ChevronDown className="w-5 h-5 animate-bounce" />
+          </div>
+        </motion.div>
       </motion.div>
     </section>
   );
@@ -550,7 +567,7 @@ function StoryNav() {
           </nav>
           <Link
             href="/donate"
-            className="shrink-0 px-4 py-2 rounded-full bg-[#b5592e] text-white text-sm font-bold hover:bg-[#a43f30] transition-colors"
+            className="shrink-0 px-4 py-2 rounded-full bg-[#e2963f] text-[#241d14] text-sm font-bold hover:bg-[#c87f2f] transition-colors"
           >
             Donate Now
           </Link>
@@ -883,7 +900,8 @@ export default function StoryHome() {
       </section>
 
       {/* ═══ 6 · TRUST, NOT CONTROL ═══ */}
-      <section data-narration="trust" className="bg-gradient-to-b from-[#a43f30] to-[#7c2f23] text-[#f6f0e4] px-6 py-28">
+      {/* The light begins to fade — same warm stock, first step down. */}
+      <section data-narration="trust" className="bg-gradient-to-b from-[#5e4631] to-[#45331f] text-[#f6f0e4] px-6 py-28">
         <div className="max-w-3xl mx-auto">
           <Kicker n="05" title="Trust, not control" light />
           {[
@@ -985,7 +1003,8 @@ export default function StoryHome() {
       </section>
 
       {/* ═══ 8 · WHERE IT STARTED ═══ */}
-      <section className="bg-gradient-to-b from-[#4a5f7a] to-[#324257] text-[#f6f0e4] px-6 py-28">
+      {/* Dusk — second step down the same grade. */}
+      <section className="bg-gradient-to-b from-[#45331f] to-[#332517] text-[#f6f0e4] px-6 py-28">
         <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-10 items-center">
           <div>
             <Kicker n="07" title="Where it started" light />
@@ -1012,7 +1031,8 @@ export default function StoryHome() {
       </section>
 
       {/* ═══ 9 · SAVE MORE FAMILIES ═══ */}
-      <section className="bg-gradient-to-b from-[#324257] to-[#241d14] text-[#f6f0e4] px-6 py-28">
+      {/* Last light before night. */}
+      <section className="bg-gradient-to-b from-[#332517] to-[#241d14] text-[#f6f0e4] px-6 py-28">
         <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-10 items-center">
           <Reveal>
             <Photo label="Nose-to-nose feeding moment from the wilds" tone="dusk" scene="pair" ratio="aspect-[4/5]" />

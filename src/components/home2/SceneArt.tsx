@@ -13,19 +13,22 @@ import { motion, useScroll, useTransform, useReducedMotion } from "motion/react"
 export type SceneTone = "dawn" | "gold" | "amber" | "dusk" | "night";
 export type SceneKind = "herd" | "pair" | "lone" | "run" | "land";
 
+// One film grade: every sky is the same warm stock at a different hour.
+// Dusk and night are desaturated umber, never blue — hue stays constant
+// across the whole story; only the light changes.
 const SKY: Record<SceneTone, { top: string; bottom: string; sun: string; sunY: number }> = {
-  dawn: { top: "#f8ecd6", bottom: "#eac089", sun: "#f3d07a", sunY: 62 },
+  dawn: { top: "#f8eeda", bottom: "#e9c989", sun: "#f3d07a", sunY: 62 },
   gold: { top: "#f3dcae", bottom: "#dd9a4e", sun: "#f0b652", sunY: 40 },
-  amber: { top: "#e8ad70", bottom: "#a84a28", sun: "#e2963f", sunY: 66 },
-  dusk: { top: "#8c9bb0", bottom: "#3c4f6a", sun: "#e8d9b4", sunY: 30 },
-  night: { top: "#2b3347", bottom: "#15100b", sun: "#e8e4da", sunY: 24 },
+  amber: { top: "#e8ad70", bottom: "#b06a35", sun: "#e2963f", sunY: 66 },
+  dusk: { top: "#a9987e", bottom: "#5e4c38", sun: "#ecd9ae", sunY: 30 },
+  night: { top: "#2e2619", bottom: "#15100b", sun: "#e8e0cf", sunY: 24 },
 };
 
 const RIDGE: Record<SceneTone, { far: string; near: string; ground: string }> = {
   dawn: { far: "#cfae87", near: "#9a7a55", ground: "#7a5f41" },
   gold: { far: "#b98a4a", near: "#8a6232", ground: "#6e4d26" },
-  amber: { far: "#8a4a2a", near: "#5e3018", ground: "#45230f" },
-  dusk: { far: "#324257", near: "#232f41", ground: "#1a2330" },
+  amber: { far: "#8a5230", near: "#5e381c", ground: "#452a12" },
+  dusk: { far: "#4a3b29", near: "#33281a", ground: "#241c11" },
   night: { far: "#1d1812", near: "#13100b", ground: "#0d0b07" },
 };
 
