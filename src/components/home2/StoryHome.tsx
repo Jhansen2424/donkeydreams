@@ -126,9 +126,12 @@ function ColdOpen() {
   const line1 = useTransform(scrollYProgress, [0.04, 0.16, 0.36, 0.46], [0, 1, 1, 0]);
   const line2 = useTransform(scrollYProgress, [0.46, 0.58, 0.78, 0.86], [0, 1, 1, 0]);
   const panel = useTransform(scrollYProgress, [0.86, 1], [1, 0]);
-  const hint = useTransform(scrollYProgress, [0, 0.08], [1, 0]);
-  // Once the hint fades, it must not swallow clicks/taps.
-  const hintPointer = useTransform(hint, (v) => (v < 0.15 ? "none" : "auto"));
+  // Slow fade: on phones the address-bar collapse alone scrolls ~100px, and
+  // the old 8%-window killed the Play button (visually AND its pointer
+  // events) before anyone could tap it — "play doesn't work" (client 10/12).
+  const hint = useTransform(scrollYProgress, [0.04, 0.26], [1, 0]);
+  // Stays tappable while it's meaningfully visible; inert only once faded.
+  const hintPointer = useTransform(hint, (v) => (v < 0.4 ? "none" : "auto"));
 
   return (
     <section ref={ref} className="relative h-[260vh]">
@@ -152,8 +155,10 @@ function ColdOpen() {
         </motion.p>
         {/* How to watch: press play (narrated, self-scrolling) or scroll.
             Fades away the moment they start, either way. */}
+        {/* bottom-24 on phones: iOS Safari's floating tab bar overlays the
+            bottom ~50px of the page and eats taps there. */}
         <motion.div
-          className="absolute bottom-10 inset-x-0 flex flex-col items-center gap-5"
+          className="absolute bottom-24 md:bottom-10 inset-x-0 z-10 flex flex-col items-center gap-5"
           style={{ opacity: hint, pointerEvents: hintPointer }}
         >
           <div className="flex flex-col items-center gap-2">
@@ -582,7 +587,7 @@ function ScrollCue() {
   }, []);
   return (
     <div
-      className={`fixed bottom-5 inset-x-0 z-40 flex justify-center pointer-events-none transition-opacity duration-700 ${
+      className={`fixed bottom-16 md:bottom-5 inset-x-0 z-40 flex justify-center pointer-events-none transition-opacity duration-700 ${
         visible ? "opacity-100" : "opacity-0"
       }`}
     >

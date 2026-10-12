@@ -192,7 +192,7 @@ export default function Narrator() {
           armAndPlay(); // audio starts inside the tap (mobile autoplay rules)
         }
       }}
-      className={`fixed bottom-5 left-5 z-50 inline-flex items-center gap-2 pl-3 pr-4 py-2.5 rounded-full text-sm font-bold shadow-lg transition-colors ${
+      className={`fixed bottom-16 md:bottom-5 left-5 z-50 inline-flex items-center gap-2 pl-3 pr-4 py-2.5 rounded-full text-sm font-bold shadow-lg transition-colors ${
         on
           ? "bg-[#e2963f] text-[#241d14]"
           : "bg-[#241d14]/85 text-[#f6f0e4] backdrop-blur hover:bg-[#241d14]"
