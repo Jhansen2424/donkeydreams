@@ -167,10 +167,10 @@ function ColdOpen() {
               className="inline-flex items-center gap-2.5 pl-4 pr-6 py-3.5 rounded-full bg-[#e2963f] text-[#241d14] text-base font-bold hover:bg-[#efc98c] transition-colors shadow-[0_0_30px_rgba(226,150,63,0.35)]"
             >
               <Play className="w-5 h-5" />
-              Play the story
+              Listen to the story
             </button>
             <span className="text-xs text-[#efe8da]/65">
-              sit back — it scrolls itself, with narration
+              a narrator reads each chapter as you scroll
             </span>
           </div>
           <div className="flex flex-col items-center gap-1.5 text-[#efe8da]/55">
@@ -573,7 +573,7 @@ function ScrollCue() {
         const nearBottom =
           window.innerHeight + window.scrollY > document.body.scrollHeight - 900;
         const inColdOpen = window.scrollY < window.innerHeight * 1.5;
-        if (!nearBottom && !inColdOpen && !document.body.dataset.autoscroll) {
+        if (!nearBottom && !inColdOpen) {
           setVisible(true);
         }
       }, 3500);
