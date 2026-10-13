@@ -1164,9 +1164,13 @@ export default function FilmHome() {
         @keyframes filmParaIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes filmParaOut { from { opacity: 1; } to { opacity: 0; } }
         /* movie title cards */
+        /* zoom-settle + focus pull. (Was letter-spacing tracking-in, but on
+           multi-line text that reflows the wraps mid-animation — words hopped
+           between lines, "kinda funky" — client 10/13.) */
         @keyframes filmTitleIn {
-          0% { opacity: 0; letter-spacing: 0.22em; filter: blur(9px); }
-          100% { opacity: 1; letter-spacing: 0.01em; filter: blur(0); }
+          0% { opacity: 0; transform: scale(1.14); filter: blur(10px); }
+          60% { opacity: 1; filter: blur(2px); }
+          100% { opacity: 1; transform: scale(1); filter: blur(0); }
         }
         @keyframes filmPush { from { transform: scale(1); } to { transform: scale(1.05); } }
         @keyframes filmDrift { from { transform: scale(1); } to { transform: scale(1.08); } }
