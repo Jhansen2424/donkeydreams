@@ -174,6 +174,36 @@ function TitleCard({
   );
 }
 
+/** A timed sub-beat inside a scene: fades in at `enter` ms, optionally fades
+    out at `exit` ms. Used to play paragraphs ONE AT A TIME in a compact box
+    instead of reserving a huge empty panel for all of them (client 10/13:
+    "this looks like shit"). */
+function Beat({
+  active,
+  enter,
+  exit,
+  children,
+}: {
+  active: boolean;
+  enter: number;
+  exit?: number;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className="absolute inset-0 flex items-center justify-center px-6 sm:px-10"
+      style={{
+        opacity: 0,
+        animation: active
+          ? `filmParaIn 0.7s ease ${enter}ms both${exit ? `, filmParaOut 0.9s ease ${exit}ms forwards` : ""}`
+          : "none",
+      }}
+    >
+      <div className="w-full">{children}</div>
+    </div>
+  );
+}
+
 function A({
   active,
   anim,
@@ -307,26 +337,33 @@ function buildScenes(): SceneDef[] {
       clipOffset: 7,
       render: (a) => (
         <Bleed src={`${IMG}/pano-sunset-graze.webp`} darker>
-          <div className="absolute inset-0 flex items-center justify-center px-5 sm:px-10 pt-24 overflow-hidden">
-            <div className="bg-black/45 backdrop-blur-sm rounded-2xl px-6 sm:px-10 py-6 sm:py-8 max-w-3xl max-h-[70svh] overflow-hidden space-y-4">
-              <Pour
-                active={a}
-                delay={500}
-                text="In the wild, a burro's life revolves around family — a mother close by, a sibling, a herd they've known for years, grazing together, moving together, watching out for one another. Freedom, for a burro, means family — and it's not just behavior. A burro's limbic system — the part of the brain that governs emotion, memory, and bonding — works the same way ours does. They don't just form those bonds; they feel them, the same way we feel love, and the same way we feel it when we lose someone we love. Those bonds are real, and they run deep."
-                className="text-sm sm:text-lg lg:text-xl text-white/95 leading-relaxed"
-              />
-              <Pour
-                active={a}
-                delay={10500}
-                text="When they're removed from the wild, that changes in an instant. One moment they're part of a herd that's never been apart. The next, they're alone — family scattered, a new world that looks nothing like the one they knew. Too often, what comes next isn't a wild burro habitat at all. It's a pen. A corral. The same four fence lines, every day, for the rest of their lives — with no family left to stand beside. They don't just lose their freedom. They carry what they lost."
-                className="text-sm sm:text-lg lg:text-xl text-white/95 leading-relaxed"
-              />
-              <Pour
-                active={a}
-                delay={21500}
-                text="That's the gap Donkey Dreams exists to close — a place where burros removed from the wild can live out their lives with family intact, in a wild burro habitat catering to who they are, on their own terms."
-                className="text-sm sm:text-lg lg:text-xl font-semibold text-white leading-relaxed"
-              />
+          <div className="absolute inset-0 flex items-center justify-center px-5 sm:px-10 pt-24">
+            {/* one paragraph at a time: pour in → hold → fade → next */}
+            <div className="relative w-full max-w-3xl h-[min(52svh,440px)] bg-black/45 backdrop-blur-sm rounded-2xl">
+              <Beat active={a} enter={800} exit={11300}>
+                <Pour
+                  active={a}
+                  delay={1300}
+                  text="In the wild, a burro's life revolves around family — a mother close by, a sibling, a herd they've known for years, grazing together, moving together, watching out for one another. Freedom, for a burro, means family — and it's not just behavior. A burro's limbic system — the part of the brain that governs emotion, memory, and bonding — works the same way ours does. They don't just form those bonds; they feel them, the same way we feel love, and the same way we feel it when we lose someone we love. Those bonds are real, and they run deep."
+                  className="text-sm sm:text-lg lg:text-xl text-white/95 leading-relaxed"
+                />
+              </Beat>
+              <Beat active={a} enter={12400} exit={21900}>
+                <Pour
+                  active={a}
+                  delay={12900}
+                  text="When they're removed from the wild, that changes in an instant. One moment they're part of a herd that's never been apart. The next, they're alone — family scattered, a new world that looks nothing like the one they knew. Too often, what comes next isn't a wild burro habitat at all. It's a pen. A corral. The same four fence lines, every day, for the rest of their lives — with no family left to stand beside. They don't just lose their freedom. They carry what they lost."
+                  className="text-sm sm:text-lg lg:text-xl text-white/95 leading-relaxed"
+                />
+              </Beat>
+              <Beat active={a} enter={23000}>
+                <Pour
+                  active={a}
+                  delay={23500}
+                  text="That's the gap Donkey Dreams exists to close — a place where burros removed from the wild can live out their lives with family intact, in a wild burro habitat catering to who they are, on their own terms."
+                  className="text-base sm:text-xl lg:text-2xl font-semibold text-white leading-relaxed text-center"
+                />
+              </Beat>
             </div>
           </div>
         </Bleed>
@@ -357,32 +394,36 @@ function buildScenes(): SceneDef[] {
     {
       id: "promisebody",
       title: "Our Promise",
-      dur: 20,
+      dur: 22,
       clip: "promise",
       clipOffset: 5,
       render: (a) => (
         <Bleed src={`${IMG}/pano-white-donkeys.webp`} darker>
-          <div className="absolute inset-0 flex flex-col items-center justify-center px-5 sm:px-10 pt-24 gap-7">
-            <div className="bg-black/45 backdrop-blur-sm rounded-2xl px-6 sm:px-10 py-6 max-w-3xl space-y-4">
-              {/* pillar phrases pour in big, bold, sky — and stay */}
-              <Pour
-                active={a}
-                delay={400}
-                highlights={["families whole", "room to roam", "sovereignty honored"]}
-                text="At Donkey Dreams, burros removed from the wild get back the life they once had. We believe that takes three things: keeping their families whole, because a burro without their herd isn't complete. A wild burro habitat, with room to roam the way they once did. And their sovereignty honored — their right to still be who they are, even in our care."
-                className="text-sm sm:text-lg lg:text-xl text-white/95 leading-relaxed"
-              />
-              <Pour
-                active={a}
-                delay={8500}
-                text="Nearly 100 donkeys and wild burros live at Donkey Dreams today. Most arrived as family; some arrived alone and found one here — either way, no one goes it alone. As long as burros are being removed from the wild, we'll keep finding room for as many families as we can."
-                className="text-sm sm:text-lg lg:text-xl text-white/95 leading-relaxed"
-              />
+          <div className="absolute inset-0 flex flex-col items-center justify-center px-5 sm:px-10 pt-24 gap-6">
+            {/* one paragraph at a time; pillar phrases pour in big, bold, sky */}
+            <div className="relative w-full max-w-3xl h-[min(40svh,330px)] bg-black/45 backdrop-blur-sm rounded-2xl">
+              <Beat active={a} enter={500} exit={9300}>
+                <Pour
+                  active={a}
+                  delay={1000}
+                  highlights={["families whole", "room to roam", "sovereignty honored"]}
+                  text="At Donkey Dreams, burros removed from the wild get back the life they once had. We believe that takes three things: keeping their families whole, because a burro without their herd isn't complete. A wild burro habitat, with room to roam the way they once did. And their sovereignty honored — their right to still be who they are, even in our care."
+                  className="text-sm sm:text-lg lg:text-xl text-white/95 leading-relaxed"
+                />
+              </Beat>
+              <Beat active={a} enter={10300}>
+                <Pour
+                  active={a}
+                  delay={10800}
+                  text="Nearly 100 donkeys and wild burros live at Donkey Dreams today. Most arrived as family; some arrived alone and found one here — either way, no one goes it alone. As long as burros are being removed from the wild, we'll keep finding room for as many families as we can."
+                  className="text-sm sm:text-lg lg:text-xl text-white/95 leading-relaxed"
+                />
+              </Beat>
             </div>
             {/* the three pillars: big, bold, hold */}
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 items-center">
               {["Families whole.", "Room to roam.", "Sovereignty honored."].map((p, i) => (
-                <A key={p} active={a} anim="filmGrowHold" delay={13000 + i * 2200}>
+                <A key={p} active={a} anim="filmGrowHold" delay={15500 + i * 1800}>
                   <p className={`${heading} text-2xl sm:text-4xl text-sky-light [text-shadow:0_2px_16px_rgba(0,0,0,0.6)]`}>
                     {p}
                   </p>
@@ -1124,6 +1165,8 @@ export default function FilmHome() {
         @keyframes filmFromRight { from { opacity: 0; transform: translateX(80px); } to { opacity: 1; transform: none; } }
         @keyframes filmExpand { 0% { opacity: 0; transform: scale(0.7); } 25% { opacity: 1; transform: scale(1); } 100% { opacity: 1; transform: scale(1.35); } }
         @keyframes filmCrossfade { to { opacity: 1; } }
+        @keyframes filmParaIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes filmParaOut { from { opacity: 1; } to { opacity: 0; } }
         /* movie title cards */
         @keyframes filmTitleIn {
           0% { opacity: 0; letter-spacing: 0.22em; filter: blur(9px); }
@@ -1180,28 +1223,28 @@ export default function FilmHome() {
         {/* persistent section headers that hold while scenes swap beneath
             (chapters are gone; TITLES stay — client 10/13) */}
         {["gabriel", "jackjack", "xander", "braveherd"].includes(scenes[idx].id) && (
-          <div className="absolute top-[72px] inset-x-0 z-10 text-center px-6 pointer-events-none">
+          <div className="absolute top-[104px] inset-x-0 z-10 text-center px-6 pointer-events-none">
             <h2 className={`${heading} text-xl sm:text-3xl text-charcoal/90`}>
               Every Burro, Every Family Has a Story
             </h2>
           </div>
         )}
         {scenes[idx].id === "familybody" && (
-          <div className="absolute top-[72px] inset-x-0 z-10 text-center px-6 pointer-events-none">
+          <div className="absolute top-[104px] inset-x-0 z-10 text-center px-6 pointer-events-none">
             <h2 className={`${heading} text-xl sm:text-3xl text-white [text-shadow:0_2px_14px_rgba(0,0,0,0.65)]`}>
               Wild and Free Today. Alone Tomorrow.
             </h2>
           </div>
         )}
         {scenes[idx].id === "promisebody" && (
-          <div className="absolute top-[72px] inset-x-0 z-10 text-center px-6 pointer-events-none">
+          <div className="absolute top-[104px] inset-x-0 z-10 text-center px-6 pointer-events-none">
             <h2 className={`${heading} text-xl sm:text-3xl text-white [text-shadow:0_2px_14px_rgba(0,0,0,0.65)]`}>
               Saving Them Together, Not One at a Time.
             </h2>
           </div>
         )}
         {["graze", "run", "nap"].includes(scenes[idx].id) && (
-          <div className="absolute top-[76px] left-8 z-10 pointer-events-none">
+          <div className="absolute top-[104px] left-8 z-10 pointer-events-none">
             <span className="text-white/85 text-xs sm:text-sm font-extrabold uppercase tracking-[0.3em] [text-shadow:0_1px_8px_rgba(0,0,0,0.6)]">
               Room to Roam
             </span>
