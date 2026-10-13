@@ -1,18 +1,10 @@
 import type { Metadata } from "next";
-import { Fraunces } from "next/font/google";
-import StoryHome from "@/components/home2/StoryHome";
+import FilmHome from "@/components/home2/FilmHome";
 
-// The homepage redesign (Oct 2026): a documentary-style single scroll built
-// from the client's approved 10/8 copy doc. Photos are illustrated
-// placeholder scenes until the final exports arrive. The previous homepage
-// components (Hero, Mission, FeaturedDonkeys, ...) still exist under
-// src/components if we ever need to roll back.
-
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-fraunces",
-  axes: ["opsz", "SOFT", "WONK"],
-});
+// The homepage as a film (10/13 client meeting): no scrolling — one fixed
+// frame, scenes timed like a movie, YouTube-style transport. Old-site
+// branding (Open Sans / cream / sky). The previous scroll version lives on
+// in src/components/home2/StoryHome.tsx if we ever need to roll back.
 
 export const metadata: Metadata = {
   title: "Donkey Dreams Sanctuary — Preserving the Wild Burro Spirit",
@@ -29,9 +21,5 @@ export const metadata: Metadata = {
 };
 
 export default function Home() {
-  return (
-    <div className={fraunces.variable}>
-      <StoryHome />
-    </div>
-  );
+  return <FilmHome />;
 }
