@@ -602,84 +602,72 @@ function buildScenes(): SceneDef[] {
         </div>
       ),
     },
-    ...(
-      [
-        {
-          id: "gabriel",
-          name: "Gabriel",
-          dur: 7,
-          off: 3.5,
-          img: `${IMG}/story-gabriel.webp`,
-
-          text: "Found wild and alone at just a few months old — injured, with no mother in sight. He needed a family, and he needed a prosthetic leg. Today he has both — enough to run, to play, and to stand watch over the family that took him in.",
-        },
-        {
-          id: "jackjack",
-          name: "Jack-Jack",
-          dur: 6.5,
-          off: 10.5,
-          img: `${IMG}/story-jackjack.webp`,
-
-          text: "When Jack-Jack's mother died suddenly, he was only seven months old. Grief like that can be its own kind of danger for a burro. His herd was what kept him going.",
-        },
-        {
-          id: "xander",
-          name: "Xander",
-          dur: 6.5,
-          off: 17,
-          img: `${IMG}/story-xander.webp`,
-
-          text: "Pulled from the slaughter pipeline — separated from his family at a livestock auction, headed to Mexico. It took us a year to bring him home. Now he's the only known father in a herd that includes two of his own sons.",
-        },
-        {
-          id: "braveherd",
-          name: "The Brave Herd",
-          dur: 7.5,
-          off: 23.5,
-          img: `${IMG}/story-brave-herd.webp`,
-
-          text: "Some of the most terrified wild burros we'd ever met. We didn't force anything — we let them learn to trust us in their own time. Now three generations of that family live here together.",
-        },
-      ] as const
-    ).map(
-      (s): SceneDef => ({
-        id: s.id,
-        title: `Their Stories — ${s.name}`,
-        dur: s.dur,
-        clip: "stories",
-        clipOffset: s.off,
-        render: (a) => (
-          // Held frame: the section title stays pinned up top (overlay in the
-          // player) while each story's photo slides in from the left and its
-          // text from the right (Josh, 10/13).
-          <div className="absolute inset-0 bg-cream-dark flex items-center px-5 sm:px-12 pt-24 overflow-hidden">
-            <div className="max-w-5xl mx-auto w-full grid md:grid-cols-2 gap-6 md:gap-10 items-center">
-              <A active={a} anim="filmFromLeft" delay={150}>
-                <div className="relative aspect-[16/11] md:aspect-[4/3] rounded-2xl overflow-hidden shadow-xl">
-                  <div
-                    className="absolute inset-0 bg-cover bg-center"
-                    style={{ backgroundImage: `url(${s.img})` }}
-                  />
-                </div>
-              </A>
-              <div>
-                <A active={a} anim="filmFromRight" delay={300}>
-                  <h3 className={`${heading} text-3xl sm:text-5xl text-charcoal mb-4`}>
-                    {s.name}
-                  </h3>
-                </A>
-                <Pour
+    // One slide: the four story cards animate in one by one — and STAY —
+    // timed to the narrator introducing each donkey (Josh, 10/13: "brave
+    // herd should animate in, then it stays, and another one animates in").
+    {
+      id: "storiesgrid",
+      title: "Their Stories",
+      dur: 26,
+      clip: "stories",
+      clipOffset: 3.5,
+      render: (a) => {
+        const CARDS = [
+          {
+            name: "Gabriel",
+            at: 500,
+            img: `${IMG}/story-gabriel.webp`,
+            text: "Found wild and alone at a few months old — injured, no mother in sight. He needed a family and a prosthetic leg. Today he has both — enough to run, to play, and to stand watch over the family that took him in.",
+          },
+          {
+            name: "Jack-Jack",
+            at: 7000,
+            img: `${IMG}/story-jackjack.webp`,
+            text: "When Jack-Jack's mother died suddenly, he was only seven months old. Grief like that can be its own kind of danger for a burro. His herd was what kept him going.",
+          },
+          {
+            name: "Xander",
+            at: 13500,
+            img: `${IMG}/story-xander.webp`,
+            text: "Pulled from the slaughter pipeline at a livestock auction. It took us a year to bring him home. Now he's the only known father in a herd that includes two of his own sons.",
+          },
+          {
+            name: "The Brave Herd",
+            at: 20000,
+            img: `${IMG}/story-brave-herd.webp`,
+            text: "Some of the most terrified wild burros we'd ever met. We let them learn to trust us in their own time. Now three generations of that family live here together.",
+          },
+        ];
+        return (
+          <div className="absolute inset-0 bg-cream-dark flex items-center justify-center px-4 sm:px-10 pt-28 pb-6 overflow-hidden">
+            <div className="max-w-5xl w-full grid grid-cols-2 gap-3 sm:gap-6">
+              {CARDS.map((c, i) => (
+                <A
+                  key={c.name}
                   active={a}
-                  delay={900}
-                  text={s.text}
-                  className="text-base sm:text-xl text-warm-gray leading-relaxed"
-                />
-              </div>
+                  anim={i % 2 === 0 ? "filmFromLeft" : "filmFromRight"}
+                  delay={c.at}
+                  className="bg-white rounded-xl sm:rounded-2xl shadow-lg overflow-hidden"
+                >
+                  <div
+                    className="h-[14svh] sm:h-[20svh] bg-cover bg-center"
+                    style={{ backgroundImage: `url(${c.img})` }}
+                  />
+                  <div className="p-3 sm:p-4">
+                    <h3 className={`${heading} text-base sm:text-xl text-charcoal mb-1`}>
+                      {c.name}
+                    </h3>
+                    <p className="text-[11px] sm:text-sm text-warm-gray leading-snug line-clamp-3 sm:line-clamp-4">
+                      {c.text}
+                    </p>
+                  </div>
+                </A>
+              ))}
             </div>
           </div>
-        ),
-      })
-    ),
+        );
+      },
+    },
     // ═══ How it started ═══
     {
       id: "howstarted",
@@ -1230,10 +1218,7 @@ export default function FilmHome() {
             graze: { label: "Room to Roam" },
             run: { label: "Room to Roam" },
             nap: { label: "Room to Roam" },
-            gabriel: { label: "Every Burro, Every Family Has a Story", dark: true },
-            jackjack: { label: "Every Burro, Every Family Has a Story", dark: true },
-            xander: { label: "Every Burro, Every Family Has a Story", dark: true },
-            braveherd: { label: "Every Burro, Every Family Has a Story", dark: true },
+            storiesgrid: { label: "Every Burro, Every Family Has a Story", dark: true },
           };
           const sup = SUPERS[scenes[idx].id];
           if (!sup) return null;
