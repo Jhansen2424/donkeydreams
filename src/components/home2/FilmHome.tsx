@@ -307,8 +307,8 @@ function buildScenes(): SceneDef[] {
       clipOffset: 7,
       render: (a) => (
         <Bleed src={`${IMG}/pano-sunset-graze.webp`} darker>
-          <div className="absolute inset-0 flex items-center justify-center px-5 sm:px-10 overflow-hidden">
-            <div className="bg-black/45 backdrop-blur-sm rounded-2xl px-6 sm:px-10 py-6 sm:py-8 max-w-3xl max-h-[72svh] overflow-hidden space-y-4">
+          <div className="absolute inset-0 flex items-center justify-center px-5 sm:px-10 pt-24 overflow-hidden">
+            <div className="bg-black/45 backdrop-blur-sm rounded-2xl px-6 sm:px-10 py-6 sm:py-8 max-w-3xl max-h-[70svh] overflow-hidden space-y-4">
               <Pour
                 active={a}
                 delay={500}
@@ -362,7 +362,7 @@ function buildScenes(): SceneDef[] {
       clipOffset: 5,
       render: (a) => (
         <Bleed src={`${IMG}/pano-white-donkeys.webp`} darker>
-          <div className="absolute inset-0 flex flex-col items-center justify-center px-5 sm:px-10 gap-7">
+          <div className="absolute inset-0 flex flex-col items-center justify-center px-5 sm:px-10 pt-24 gap-7">
             <div className="bg-black/45 backdrop-blur-sm rounded-2xl px-6 sm:px-10 py-6 max-w-3xl space-y-4">
               {/* pillar phrases pour in big, bold, sky — and stay */}
               <Pour
@@ -1177,11 +1177,26 @@ export default function FilmHome() {
           </div>
         ))}
 
-        {/* persistent section headers that hold while scenes swap beneath */}
+        {/* persistent section headers that hold while scenes swap beneath
+            (chapters are gone; TITLES stay — client 10/13) */}
         {["gabriel", "jackjack", "xander", "braveherd"].includes(scenes[idx].id) && (
           <div className="absolute top-[72px] inset-x-0 z-10 text-center px-6 pointer-events-none">
             <h2 className={`${heading} text-xl sm:text-3xl text-charcoal/90`}>
               Every Burro, Every Family Has a Story
+            </h2>
+          </div>
+        )}
+        {scenes[idx].id === "familybody" && (
+          <div className="absolute top-[72px] inset-x-0 z-10 text-center px-6 pointer-events-none">
+            <h2 className={`${heading} text-xl sm:text-3xl text-white [text-shadow:0_2px_14px_rgba(0,0,0,0.65)]`}>
+              Wild and Free Today. Alone Tomorrow.
+            </h2>
+          </div>
+        )}
+        {scenes[idx].id === "promisebody" && (
+          <div className="absolute top-[72px] inset-x-0 z-10 text-center px-6 pointer-events-none">
+            <h2 className={`${heading} text-xl sm:text-3xl text-white [text-shadow:0_2px_14px_rgba(0,0,0,0.65)]`}>
+              Saving Them Together, Not One at a Time.
             </h2>
           </div>
         )}
