@@ -89,19 +89,23 @@ function Pour({
   wordMs?: number;
 }) {
   const words = useMemo(() => text.split(" "), [text]);
+  // The space lives OUTSIDE each animated span: inline-block spans swallow
+  // their trailing whitespace, which jammed every word together (client
+  // screenshot, 10/13).
   return (
     <p className={className}>
       {words.map((w, i) => (
-        <span
-          key={i}
-          className="film-word"
-          style={{
-            animationDelay: active ? `${delay + i * wordMs}ms` : undefined,
-            animationPlayState: active ? "running" : "paused",
-            opacity: active ? undefined : 0,
-          }}
-        >
-          {w}{" "}
+        <span key={i}>
+          <span
+            className="film-word"
+            style={{
+              animationDelay: active ? `${delay + i * wordMs}ms` : undefined,
+              animationPlayState: active ? "running" : "paused",
+              opacity: active ? undefined : 0,
+            }}
+          >
+            {w}
+          </span>{" "}
         </span>
       ))}
     </p>
@@ -872,6 +876,7 @@ export default function FilmHome() {
     (i: number) => {
       const clamped = Math.max(0, Math.min(scenes.length - 1, i));
       elapsedRef.current = 0;
+      idxRef.current = clamped; // immediate, so rapid key presses stack correctly
       setIdx(clamped);
       setProgress(starts[clamped]);
       currentClipRef.current = null; // force clip restart at the right offset
