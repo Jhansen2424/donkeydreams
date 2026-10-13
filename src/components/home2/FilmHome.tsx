@@ -1220,36 +1220,42 @@ export default function FilmHome() {
           </div>
         ))}
 
-        {/* persistent section headers that hold while scenes swap beneath
-            (chapters are gone; TITLES stay — client 10/13) */}
-        {["gabriel", "jackjack", "xander", "braveherd"].includes(scenes[idx].id) && (
-          <div className="absolute top-[104px] inset-x-0 z-10 text-center px-6 pointer-events-none">
-            <h2 className={`${heading} text-xl sm:text-3xl text-charcoal/90`}>
-              Every Burro, Every Family Has a Story
-            </h2>
-          </div>
-        )}
-        {scenes[idx].id === "familybody" && (
-          <div className="absolute top-[104px] inset-x-0 z-10 text-center px-6 pointer-events-none">
-            <h2 className={`${heading} text-xl sm:text-3xl text-white [text-shadow:0_2px_14px_rgba(0,0,0,0.65)]`}>
-              Wild and Free Today. Alone Tomorrow.
-            </h2>
-          </div>
-        )}
-        {scenes[idx].id === "promisebody" && (
-          <div className="absolute top-[104px] inset-x-0 z-10 text-center px-6 pointer-events-none">
-            <h2 className={`${heading} text-xl sm:text-3xl text-white [text-shadow:0_2px_14px_rgba(0,0,0,0.65)]`}>
-              Saving Them Together, Not One at a Time.
-            </h2>
-          </div>
-        )}
-        {["graze", "run", "nap"].includes(scenes[idx].id) && (
-          <div className="absolute top-[104px] left-8 z-10 pointer-events-none">
-            <span className="text-white/85 text-xs sm:text-sm font-extrabold uppercase tracking-[0.3em] [text-shadow:0_1px_8px_rgba(0,0,0,0.6)]">
-              Room to Roam
-            </span>
-          </div>
-        )}
+        {/* persistent section titles — quiet documentary supers, anchored
+            top-left with a short sky underline (the big floating center
+            heading read as "weird" — client 10/13). Chapters stay gone. */}
+        {(() => {
+          const SUPERS: Record<string, { label: string; dark?: boolean }> = {
+            familybody: { label: "Wild and Free Today. Alone Tomorrow." },
+            promisebody: { label: "Saving Them Together, Not One at a Time." },
+            graze: { label: "Room to Roam" },
+            run: { label: "Room to Roam" },
+            nap: { label: "Room to Roam" },
+            gabriel: { label: "Every Burro, Every Family Has a Story", dark: true },
+            jackjack: { label: "Every Burro, Every Family Has a Story", dark: true },
+            xander: { label: "Every Burro, Every Family Has a Story", dark: true },
+            braveherd: { label: "Every Burro, Every Family Has a Story", dark: true },
+          };
+          const sup = SUPERS[scenes[idx].id];
+          if (!sup) return null;
+          return (
+            <div
+              key={sup.label}
+              className="absolute top-[106px] left-6 sm:left-12 z-10 pointer-events-none"
+              style={{ animation: "filmParaIn 0.8s ease 200ms both" }}
+            >
+              <p
+                className={`text-[11px] sm:text-xs font-extrabold uppercase tracking-[0.28em] ${
+                  sup.dark
+                    ? "text-charcoal/75"
+                    : "text-white/90 [text-shadow:0_1px_8px_rgba(0,0,0,0.6)]"
+                }`}
+              >
+                {sup.label}
+              </p>
+              <span className="block w-10 h-[3px] bg-sky mt-1.5 rounded-full" />
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── top chrome: nav + transport ── */}
