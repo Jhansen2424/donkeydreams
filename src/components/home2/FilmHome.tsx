@@ -244,7 +244,7 @@ function buildScenes(): SceneDef[] {
       clip: "hero",
       clipOffset: 0,
       render: (a) => (
-        <Bleed src={`${IMG}/pano-ridge-golden.webp`} darker drift={a}>
+        <Bleed src={`${IMG}/pano-sunrise-hills.webp`} darker drift={a}>
           <div className="absolute inset-0 flex items-center justify-center px-8">
             {/* the photo breathes alone for ~2s before the line arrives */}
             <TitleCard
@@ -265,7 +265,7 @@ function buildScenes(): SceneDef[] {
       clip: "hero",
       clipOffset: 6,
       render: (a) => (
-        <Bleed src={`${IMG}/pano-herd-rocks.webp`} darker drift={a}>
+        <Bleed src={`${IMG}/pano-hillside-herd.webp`} darker drift={a}>
           <div className="absolute inset-0 flex items-center justify-center px-8">
             <TitleCard
               active={a}
@@ -528,7 +528,7 @@ function buildScenes(): SceneDef[] {
           <div
             className="absolute inset-0 bg-cover bg-center"
             style={{
-              backgroundImage: `url(${IMG}/pano-white-donkeys.webp)`,
+              backgroundImage: `url(${IMG}/pano-basecamp-sunset.webp)`,
               opacity: 0,
               animation: a ? "filmCrossfade 4s ease 9s forwards" : "none",
             }}
@@ -1237,7 +1237,13 @@ export default function FilmHome() {
               >
                 {sup.label}
               </p>
-              <span className="block w-10 h-[3px] bg-sky mt-1.5 rounded-full" />
+              {/* cactus green over photos, sky on light scenes — the "green
+                  as a supporting color" note from the 10/13 call */}
+              <span
+                className={`block w-10 h-[3px] mt-1.5 rounded-full ${
+                  sup.dark ? "bg-sky" : "bg-[#6f9b67]"
+                }`}
+              />
             </div>
           );
         })()}
@@ -1247,9 +1253,12 @@ export default function FilmHome() {
       <header className="absolute top-0 inset-x-0 z-20">
         <div className="bg-gradient-to-b from-black/55 to-transparent pb-6">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-            <span className="font-extrabold text-white tracking-tight text-lg [text-shadow:0_1px_6px_rgba(0,0,0,0.5)]">
-              Donkey Dreams
-            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/DDlogo.png"
+              alt="Donkey Dreams Sanctuary"
+              className="h-10 w-auto drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]"
+            />
             <nav className="hidden md:flex items-center gap-5">
               {NAV.map((n) => (
                 <Link key={n.label} href={n.href} className="text-sm font-semibold text-white/85 hover:text-white transition-colors">
