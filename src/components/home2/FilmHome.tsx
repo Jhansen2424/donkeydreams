@@ -50,16 +50,20 @@ const IMG = "/images/film";
 function Bleed({
   src,
   darker,
+  drift,
   children,
 }: {
   src: string;
   darker?: boolean;
+  /** Slow push-in on the photo while the scene holds — the frame never
+      sits frozen (pass the scene's `active`). */
+  drift?: boolean;
   children?: ReactNode;
 }) {
   return (
-    <div className="absolute inset-0">
+    <div className="absolute inset-0 overflow-hidden">
       <div
-        className="absolute inset-0 bg-cover bg-center"
+        className={`absolute inset-0 bg-cover bg-center ${drift ? "film-drift" : ""}`}
         style={{ backgroundImage: `url(${src})` }}
       />
       <div
@@ -130,6 +134,44 @@ function Pour({
   );
 }
 
+/** Movie title card: tracking-in (letters tighten as they arrive), blur
+    resolve, then a slow push while the line holds. */
+function TitleCard({
+  active,
+  delay = 0,
+  className = "",
+  sweep,
+  children,
+}: {
+  active: boolean;
+  delay?: number;
+  className?: string;
+  /** The one showpiece treatment: a warm band of light reveals the text
+      left-to-right (hero title only, so it stays special). */
+  sweep?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        animation: active ? `filmPush 11s linear ${delay}ms forwards` : "none",
+      }}
+    >
+      <div
+        className={`${className} ${sweep ? "film-sweep" : ""}`}
+        style={{
+          opacity: 0,
+          animation: active
+            ? `${sweep ? "filmSweepIn 2.6s" : "filmTitleIn 1.8s"} cubic-bezier(0.25,0.6,0.25,1) ${delay}ms forwards`
+            : "none",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function A({
   active,
   anim,
@@ -166,17 +208,20 @@ function buildScenes(): SceneDef[] {
     {
       id: "cold1",
       title: "Opening",
-      dur: 5,
+      dur: 6,
       clip: "hero",
       clipOffset: 0,
       render: (a) => (
-        <Bleed src={`${IMG}/pano-ridge-golden.webp`} darker>
+        <Bleed src={`${IMG}/pano-ridge-golden.webp`} darker drift={a}>
           <div className="absolute inset-0 flex items-center justify-center px-8">
-            <A active={a} anim="filmFadeUp" delay={600}>
-              <p className={`${heading} text-3xl sm:text-5xl text-white text-center max-w-3xl`}>
-                Somewhere in the Arizona desert…
-              </p>
-            </A>
+            {/* the photo breathes alone for ~2s before the line arrives */}
+            <TitleCard
+              active={a}
+              delay={2000}
+              className={`${heading} text-3xl sm:text-5xl text-white text-center max-w-3xl`}
+            >
+              Somewhere in the Arizona desert…
+            </TitleCard>
           </div>
         </Bleed>
       ),
@@ -184,17 +229,19 @@ function buildScenes(): SceneDef[] {
     {
       id: "cold2",
       title: "Opening",
-      dur: 5,
+      dur: 6,
       clip: "hero",
-      clipOffset: 5,
+      clipOffset: 6,
       render: (a) => (
-        <Bleed src={`${IMG}/pano-herd-rocks.webp`} darker>
+        <Bleed src={`${IMG}/pano-herd-rocks.webp`} darker drift={a}>
           <div className="absolute inset-0 flex items-center justify-center px-8">
-            <A active={a} anim="filmFadeUp" delay={300}>
-              <p className={`${heading} text-3xl sm:text-5xl text-white text-center max-w-4xl`}>
-                …there's a place where wild burro families never have to say goodbye.
-              </p>
-            </A>
+            <TitleCard
+              active={a}
+              delay={1200}
+              className={`${heading} text-3xl sm:text-5xl text-white text-center max-w-4xl`}
+            >
+              …there's a place where wild burro families never have to say goodbye.
+            </TitleCard>
           </div>
         </Bleed>
       ),
@@ -203,18 +250,22 @@ function buildScenes(): SceneDef[] {
     {
       id: "hero",
       title: "Preserving the Wild Burro Spirit",
-      dur: 7,
+      dur: 8,
       clip: "hero",
-      clipOffset: 10,
+      clipOffset: 11,
       render: (a) => (
-        <Bleed src={`${IMG}/pano-sunset-trough.webp`}>
+        <Bleed src={`${IMG}/pano-sunset-trough.webp`} drift={a}>
           <div className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center">
-            <A active={a} anim="filmFadeUp" delay={200}>
-              <h1 className={`${heading} text-4xl sm:text-6xl lg:text-7xl text-white max-w-5xl`}>
-                Preserving the Wild Burro Spirit
-              </h1>
-            </A>
-            <A active={a} anim="filmFadeUp" delay={1700}>
+            {/* the showpiece: first light sweeps the title into view */}
+            <TitleCard
+              active={a}
+              delay={600}
+              sweep
+              className={`${heading} text-4xl sm:text-6xl lg:text-7xl text-white max-w-5xl [text-shadow:0_0_36px_rgba(255,180,90,0.3)]`}
+            >
+              <h1>Preserving the Wild Burro Spirit</h1>
+            </TitleCard>
+            <A active={a} anim="filmFadeUp" delay={2900}>
               <p className="text-lg sm:text-2xl text-white/90 max-w-2xl mt-6 leading-relaxed">
                 We give entire wild burro families a forever home — together, with room
                 to roam, and the freedom to still be who they are.
@@ -1068,6 +1119,26 @@ export default function FilmHome() {
         @keyframes filmFromRight { from { opacity: 0; transform: translateX(80px); } to { opacity: 1; transform: none; } }
         @keyframes filmExpand { 0% { opacity: 0; transform: scale(0.7); } 25% { opacity: 1; transform: scale(1); } 100% { opacity: 1; transform: scale(1.35); } }
         @keyframes filmCrossfade { to { opacity: 1; } }
+        /* movie title cards */
+        @keyframes filmTitleIn {
+          0% { opacity: 0; letter-spacing: 0.22em; filter: blur(9px); }
+          100% { opacity: 1; letter-spacing: 0.01em; filter: blur(0); }
+        }
+        @keyframes filmPush { from { transform: scale(1); } to { transform: scale(1.05); } }
+        @keyframes filmDrift { from { transform: scale(1); } to { transform: scale(1.08); } }
+        .film-drift { animation: filmDrift 18s linear forwards; }
+        /* first-light sweep: a soft-edged mask slides across, revealing the
+           title left to right like dawn raking the desert */
+        .film-sweep {
+          -webkit-mask-image: linear-gradient(100deg, #000 35%, transparent 55%);
+          mask-image: linear-gradient(100deg, #000 35%, transparent 55%);
+          -webkit-mask-size: 300% 100%;
+          mask-size: 300% 100%;
+        }
+        @keyframes filmSweepIn {
+          0% { opacity: 1; -webkit-mask-position: 120% 0; mask-position: 120% 0; }
+          100% { opacity: 1; -webkit-mask-position: 0% 0; mask-position: 0% 0; }
+        }
         /* "Liquid pour": words fall in from just above, soft like liquid,
            then settle sharp — overlapping into a continuous cascade
            (client 10/13: "almost like it's being poured onto the page"). */
