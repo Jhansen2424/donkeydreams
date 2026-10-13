@@ -29,7 +29,7 @@ import {
   type ReactNode,
 } from "react";
 import { Play, Pause, Volume2, VolumeX, RotateCcw, Share2 } from "lucide-react";
-import SceneArt, { type SceneKind, type SceneTone } from "./SceneArt";
+
 
 // ── Narration clips (existing mp3s). playbackRate 1.1 = "a touch faster". ──
 const RATE = 1.1;
@@ -81,14 +81,32 @@ function Pour({
   delay = 0,
   className = "",
   wordMs = 36,
+  highlights = [],
 }: {
   text: string;
   active: boolean;
   delay?: number;
   className?: string;
   wordMs?: number;
+  /** Phrases that pour in big, bold, and sky — the pillar callouts
+      ("highlights, bolds, and stays there" — Edj, 10/13). */
+  highlights?: string[];
 }) {
   const words = useMemo(() => text.split(" "), [text]);
+  // Mark the word indexes covered by any highlight phrase.
+  const marked = useMemo(() => {
+    const flags = new Array<boolean>(words.length).fill(false);
+    const norm = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
+    for (const phrase of highlights) {
+      const pw = phrase.split(" ").map(norm);
+      for (let i = 0; i <= words.length - pw.length; i++) {
+        if (pw.every((p, j) => norm(words[i + j]) === p)) {
+          for (let j = 0; j < pw.length; j++) flags[i + j] = true;
+        }
+      }
+    }
+    return flags;
+  }, [words, highlights]);
   // The space lives OUTSIDE each animated span: inline-block spans swallow
   // their trailing whitespace, which jammed every word together (client
   // screenshot, 10/13).
@@ -97,7 +115,7 @@ function Pour({
       {words.map((w, i) => (
         <span key={i}>
           <span
-            className="film-word"
+            className={`film-word ${marked[i] ? "font-extrabold text-sky-light text-[1.18em]" : ""}`}
             style={{
               animationDelay: active ? `${delay + i * wordMs}ms` : undefined,
               animationPlayState: active ? "running" : "paused",
@@ -152,7 +170,7 @@ function buildScenes(): SceneDef[] {
       clip: "hero",
       clipOffset: 0,
       render: (a) => (
-        <Bleed src={`${IMG}/pano-ridge-golden.png`} darker>
+        <Bleed src={`${IMG}/pano-ridge-golden.webp`} darker>
           <div className="absolute inset-0 flex items-center justify-center px-8">
             <A active={a} anim="filmFadeUp" delay={600}>
               <p className={`${heading} text-3xl sm:text-5xl text-white text-center max-w-3xl`}>
@@ -170,7 +188,7 @@ function buildScenes(): SceneDef[] {
       clip: "hero",
       clipOffset: 5,
       render: (a) => (
-        <Bleed src={`${IMG}/pano-herd-rocks.png`} darker>
+        <Bleed src={`${IMG}/pano-herd-rocks.webp`} darker>
           <div className="absolute inset-0 flex items-center justify-center px-8">
             <A active={a} anim="filmFadeUp" delay={300}>
               <p className={`${heading} text-3xl sm:text-5xl text-white text-center max-w-4xl`}>
@@ -189,7 +207,7 @@ function buildScenes(): SceneDef[] {
       clip: "hero",
       clipOffset: 10,
       render: (a) => (
-        <Bleed src={`${IMG}/pano-sunset-trough.png`}>
+        <Bleed src={`${IMG}/pano-sunset-trough.webp`}>
           <div className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center">
             <A active={a} anim="filmFadeUp" delay={200}>
               <h1 className={`${heading} text-4xl sm:text-6xl lg:text-7xl text-white max-w-5xl`}>
@@ -235,26 +253,26 @@ function buildScenes(): SceneDef[] {
       clip: "familycase",
       clipOffset: 7,
       render: (a) => (
-        <Bleed src={`${IMG}/pano-sunset-graze.png`} darker>
+        <Bleed src={`${IMG}/pano-sunset-graze.webp`} darker>
           <div className="absolute inset-0 flex items-center justify-center px-5 sm:px-10 overflow-hidden">
             <div className="bg-black/45 backdrop-blur-sm rounded-2xl px-6 sm:px-10 py-6 sm:py-8 max-w-3xl max-h-[72svh] overflow-hidden space-y-4">
               <Pour
                 active={a}
                 delay={500}
-                text="In the wild, a burro's life revolves around family — a mother close by, a sibling, a herd they've known for years. Freedom, for a burro, means family — and it's not just behavior. A burro feels those bonds the same way we feel love, and the same way we feel it when we lose someone we love. Those bonds are real, and they run deep."
-                className="text-base sm:text-xl text-white/95 leading-relaxed"
+                text="In the wild, a burro's life revolves around family — a mother close by, a sibling, a herd they've known for years, grazing together, moving together, watching out for one another. Freedom, for a burro, means family — and it's not just behavior. A burro's limbic system — the part of the brain that governs emotion, memory, and bonding — works the same way ours does. They don't just form those bonds; they feel them, the same way we feel love, and the same way we feel it when we lose someone we love. Those bonds are real, and they run deep."
+                className="text-sm sm:text-lg lg:text-xl text-white/95 leading-relaxed"
               />
               <Pour
                 active={a}
-                delay={9000}
-                text="When they're removed from the wild, that changes in an instant. One moment they're part of a herd that's never been apart. The next, they're alone. Too often, what comes next isn't a wild burro habitat at all. It's a pen. A corral. The same four fence lines, every day, for the rest of their lives. They don't just lose their freedom. They carry what they lost."
-                className="text-base sm:text-xl text-white/95 leading-relaxed"
+                delay={10500}
+                text="When they're removed from the wild, that changes in an instant. One moment they're part of a herd that's never been apart. The next, they're alone — family scattered, a new world that looks nothing like the one they knew. Too often, what comes next isn't a wild burro habitat at all. It's a pen. A corral. The same four fence lines, every day, for the rest of their lives — with no family left to stand beside. They don't just lose their freedom. They carry what they lost."
+                className="text-sm sm:text-lg lg:text-xl text-white/95 leading-relaxed"
               />
               <Pour
                 active={a}
-                delay={19500}
-                text="That's the gap Donkey Dreams exists to close — a place where burros removed from the wild can live out their lives with family intact, on their own terms."
-                className="text-base sm:text-xl font-semibold text-white leading-relaxed"
+                delay={21500}
+                text="That's the gap Donkey Dreams exists to close — a place where burros removed from the wild can live out their lives with family intact, in a wild burro habitat catering to who they are, on their own terms."
+                className="text-sm sm:text-lg lg:text-xl font-semibold text-white leading-relaxed"
               />
             </div>
           </div>
@@ -290,20 +308,28 @@ function buildScenes(): SceneDef[] {
       clip: "promise",
       clipOffset: 5,
       render: (a) => (
-        <Bleed src={`${IMG}/pano-white-donkeys.png`} darker>
+        <Bleed src={`${IMG}/pano-white-donkeys.webp`} darker>
           <div className="absolute inset-0 flex flex-col items-center justify-center px-5 sm:px-10 gap-7">
-            <div className="bg-black/45 backdrop-blur-sm rounded-2xl px-6 sm:px-10 py-6 max-w-3xl">
+            <div className="bg-black/45 backdrop-blur-sm rounded-2xl px-6 sm:px-10 py-6 max-w-3xl space-y-4">
+              {/* pillar phrases pour in big, bold, sky — and stay */}
               <Pour
                 active={a}
                 delay={400}
-                text="At Donkey Dreams, burros removed from the wild get back the life they once had. Nearly 100 donkeys and wild burros live here today. Most arrived as family; some arrived alone and found one here — either way, no one goes it alone. We believe that takes three things:"
-                className="text-base sm:text-xl text-white/95 leading-relaxed"
+                highlights={["families whole", "room to roam", "sovereignty honored"]}
+                text="At Donkey Dreams, burros removed from the wild get back the life they once had. We believe that takes three things: keeping their families whole, because a burro without their herd isn't complete. A wild burro habitat, with room to roam the way they once did. And their sovereignty honored — their right to still be who they are, even in our care."
+                className="text-sm sm:text-lg lg:text-xl text-white/95 leading-relaxed"
+              />
+              <Pour
+                active={a}
+                delay={8500}
+                text="Nearly 100 donkeys and wild burros live at Donkey Dreams today. Most arrived as family; some arrived alone and found one here — either way, no one goes it alone. As long as burros are being removed from the wild, we'll keep finding room for as many families as we can."
+                className="text-sm sm:text-lg lg:text-xl text-white/95 leading-relaxed"
               />
             </div>
             {/* the three pillars: big, bold, hold */}
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 items-center">
               {["Families whole.", "Room to roam.", "Sovereignty honored."].map((p, i) => (
-                <A key={p} active={a} anim="filmGrowHold" delay={8000 + i * 2600}>
+                <A key={p} active={a} anim="filmGrowHold" delay={13000 + i * 2200}>
                   <p className={`${heading} text-2xl sm:text-4xl text-sky-light [text-shadow:0_2px_16px_rgba(0,0,0,0.6)]`}>
                     {p}
                   </p>
@@ -336,7 +362,7 @@ function buildScenes(): SceneDef[] {
       clip: "roam",
       clipOffset: 3,
       render: (a) => (
-        <Bleed src={`${IMG}/pano-ridge-golden.png`}>
+        <Bleed src={`${IMG}/pano-ridge-golden.webp`}>
           <div className="absolute inset-0 flex flex-col justify-end items-start p-8 sm:p-14">
             <A active={a} anim="filmFadeUp" delay={300}>
               <h3 className={`${heading} text-4xl sm:text-6xl text-white`}>Graze</h3>
@@ -358,7 +384,7 @@ function buildScenes(): SceneDef[] {
       clip: "roam",
       clipOffset: 11,
       render: (a) => (
-        <Bleed src={`${IMG}/pano-herd-rocks.png`}>
+        <Bleed src={`${IMG}/pano-herd-rocks.webp`}>
           <div className="absolute inset-0 flex flex-col justify-end items-start p-8 sm:p-14">
             <A active={a} anim="filmFadeUp" delay={300}>
               <h3 className={`${heading} text-4xl sm:text-6xl text-white`}>Run</h3>
@@ -399,16 +425,16 @@ function buildScenes(): SceneDef[] {
     {
       id: "trust",
       title: "Trust, Not Control",
-      dur: 15,
+      dur: 16,
       clip: "trust",
       clipOffset: 0,
       render: (a) => (
         <div className="absolute inset-0">
-          <Bleed src={`${IMG}/section-6-trust-amber-dusk.png`} darker />
+          <Bleed src={`${IMG}/section-6-trust-amber-dusk.webp`} darker />
           <div
             className="absolute inset-0 bg-cover bg-center"
             style={{
-              backgroundImage: `url(${IMG}/pano-white-donkeys.png)`,
+              backgroundImage: `url(${IMG}/pano-white-donkeys.webp)`,
               opacity: 0,
               animation: a ? "filmCrossfade 4s ease 9s forwards" : "none",
             }}
@@ -420,12 +446,26 @@ function buildScenes(): SceneDef[] {
                 Trust, Not Control
               </h2>
             </A>
-            <Pour
-              active={a}
-              delay={1600}
-              text="In the wild, a burro decides how to spend their day. Where to graze. When to rest. Who to stand beside. We don't take that away just because they need care. When a donkey needs treatment, our caretakers go to them, wherever they are — we don't run them in herds and we don't chase them. Every donkey gets the care they need, fully. What's different is how we get there."
-              className="text-base sm:text-xl text-white/95 leading-relaxed max-w-2xl [text-shadow:0_1px_10px_rgba(0,0,0,0.7)]"
-            />
+            <div className="space-y-3 max-w-2xl">
+              <Pour
+                active={a}
+                delay={1600}
+                text="In the wild, a burro decides how to spend their day. Where to graze. When to rest. Who to stand beside. We don't take that away just because they need care. Sovereignty, to us, means they get a say — that their needs carry the same weight as ours, the sanctuary's, anyone's. They aren't something we manage. They're someone we listen to."
+                className="text-sm sm:text-base lg:text-lg text-white/95 leading-relaxed [text-shadow:0_1px_10px_rgba(0,0,0,0.7)]"
+              />
+              <Pour
+                active={a}
+                delay={6500}
+                text="When a donkey needs treatment — a sore hoof, medicine, a watchful eye on a healing wound — our caretakers go to them, wherever they are, instead of pulling them away from their family and freedom to make it easier on us. We don't run them in herds to get it done, and we don't chase them to make it quicker — many of them were already chased once, the day they left the wild, and we won't ask them to relive that just to make a checkup easier on us."
+                className="text-sm sm:text-base lg:text-lg text-white/95 leading-relaxed [text-shadow:0_1px_10px_rgba(0,0,0,0.7)]"
+              />
+              <Pour
+                active={a}
+                delay={12500}
+                text="To be clear: every donkey gets the care they need, fully. What's different is how we get there."
+                className="text-sm sm:text-base lg:text-lg font-semibold text-white leading-relaxed [text-shadow:0_1px_10px_rgba(0,0,0,0.7)]"
+              />
+            </div>
           </div>
         </div>
       ),
@@ -433,9 +473,9 @@ function buildScenes(): SceneDef[] {
     {
       id: "sovereignty",
       title: "Sovereignty",
-      dur: 7,
+      dur: 6.5,
       clip: "trust",
-      clipOffset: 15,
+      clipOffset: 16,
       render: (a) => (
         <div className="absolute inset-0 bg-charcoal flex items-center justify-center px-8">
           <A active={a} anim="filmComeAt" delay={300}>
@@ -472,8 +512,8 @@ function buildScenes(): SceneDef[] {
           name: "Gabriel",
           dur: 7,
           off: 3.5,
-          img: null,
-          art: { tone: "gold" as SceneTone, kind: "lone" as SceneKind },
+          img: `${IMG}/story-gabriel.webp`,
+
           text: "Found wild and alone at just a few months old — injured, with no mother in sight. He needed a family, and he needed a prosthetic leg. Today he has both — enough to run, to play, and to stand watch over the family that took him in.",
         },
         {
@@ -481,8 +521,8 @@ function buildScenes(): SceneDef[] {
           name: "Jack-Jack",
           dur: 6.5,
           off: 10.5,
-          img: null,
-          art: { tone: "amber" as SceneTone, kind: "herd" as SceneKind },
+          img: `${IMG}/story-jackjack.webp`,
+
           text: "When Jack-Jack's mother died suddenly, he was only seven months old. Grief like that can be its own kind of danger for a burro. His herd was what kept him going.",
         },
         {
@@ -490,8 +530,8 @@ function buildScenes(): SceneDef[] {
           name: "Xander",
           dur: 6.5,
           off: 17,
-          img: null,
-          art: { tone: "dawn" as SceneTone, kind: "pair" as SceneKind },
+          img: `${IMG}/story-xander.webp`,
+
           text: "Pulled from the slaughter pipeline — separated from his family at a livestock auction, headed to Mexico. It took us a year to bring him home. Now he's the only known father in a herd that includes two of his own sons.",
         },
         {
@@ -500,7 +540,7 @@ function buildScenes(): SceneDef[] {
           dur: 7.5,
           off: 23.5,
           img: `${IMG}/story-brave-herd.webp`,
-          art: null,
+
           text: "Some of the most terrified wild burros we'd ever met. We didn't force anything — we let them learn to trust us in their own time. Now three generations of that family live here together.",
         },
       ] as const
@@ -512,22 +552,21 @@ function buildScenes(): SceneDef[] {
         clip: "stories",
         clipOffset: s.off,
         render: (a) => (
-          <div className="absolute inset-0 bg-cream-dark flex items-center px-5 sm:px-12">
+          // Held frame: the section title stays pinned up top (overlay in the
+          // player) while each story's photo slides in from the left and its
+          // text from the right (Josh, 10/13).
+          <div className="absolute inset-0 bg-cream-dark flex items-center px-5 sm:px-12 pt-24 overflow-hidden">
             <div className="max-w-5xl mx-auto w-full grid md:grid-cols-2 gap-6 md:gap-10 items-center">
-              <A active={a} anim="filmFadeUp" delay={150}>
+              <A active={a} anim="filmFromLeft" delay={150}>
                 <div className="relative aspect-[16/11] md:aspect-[4/3] rounded-2xl overflow-hidden shadow-xl">
-                  {s.img ? (
-                    <div
-                      className="absolute inset-0 bg-cover bg-center"
-                      style={{ backgroundImage: `url(${s.img})` }}
-                    />
-                  ) : (
-                    <SceneArt tone={s.art!.tone} kind={s.art!.kind} parallax={false} />
-                  )}
+                  <div
+                    className="absolute inset-0 bg-cover bg-center"
+                    style={{ backgroundImage: `url(${s.img})` }}
+                  />
                 </div>
               </A>
               <div>
-                <A active={a} anim="filmFadeUp" delay={500}>
+                <A active={a} anim="filmFromRight" delay={300}>
                   <h3 className={`${heading} text-3xl sm:text-5xl text-charcoal mb-4`}>
                     {s.name}
                   </h3>
@@ -565,7 +604,7 @@ function buildScenes(): SceneDef[] {
             <A active={a} anim="filmFromRight" delay={200}>
               <div
                 className="aspect-[4/3] rounded-2xl bg-cover bg-center shadow-xl"
-                style={{ backgroundImage: `url(${IMG}/section-8-how-it-started.png)` }}
+                style={{ backgroundImage: `url(${IMG}/section-8-how-it-started.webp)` }}
               />
             </A>
           </div>
@@ -583,7 +622,7 @@ function buildScenes(): SceneDef[] {
             <A active={a} anim="filmFromLeft" delay={200}>
               <div
                 className="aspect-[4/3] rounded-2xl bg-cover bg-center shadow-xl"
-                style={{ backgroundImage: `url(${IMG}/pano-sunset-graze.png)` }}
+                style={{ backgroundImage: `url(${IMG}/section-9-savemore.webp)` }}
               />
             </A>
             <A active={a} anim="filmFromRight" delay={200}>
@@ -704,7 +743,7 @@ function buildScenes(): SceneDef[] {
       title: "Make an Impact",
       dur: 10,
       render: (a) => (
-        <Bleed src={`${IMG}/section-10-vision.png`} darker>
+        <Bleed src={`${IMG}/section-10-vision.webp`} darker>
           <div className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center">
             <A active={a} anim="filmComeAt" delay={400}>
               <h2 className={`${heading} text-4xl sm:text-6xl text-white mb-6`}>
@@ -743,10 +782,10 @@ function buildScenes(): SceneDef[] {
 function EndScreen({ active }: { active: boolean }) {
   const [copied, setCopied] = useState(false);
   const cards = [
-    { label: "Our Story", href: "/our-story", img: `${IMG}/section-8-how-it-started.png` },
+    { label: "Our Story", href: "/our-story", img: `${IMG}/section-8-how-it-started.webp` },
     { label: "Their Stories", href: "/donkeys", img: `${IMG}/story-brave-herd.webp` },
-    { label: "Save More Families", href: "/how-to-help", img: `${IMG}/pano-white-donkeys.png` },
-    { label: "Make an Impact", href: "/donate", img: `${IMG}/section-10-vision.png` },
+    { label: "Save More Families", href: "/how-to-help", img: `${IMG}/pano-white-donkeys.webp` },
+    { label: "Make an Impact", href: "/donate", img: `${IMG}/section-10-vision.webp` },
   ];
   const share = async () => {
     const data = { title: "Donkey Dreams Sanctuary", text: "Watch their story.", url: "https://donkeydreams.org" };
@@ -1053,6 +1092,22 @@ export default function FilmHome() {
             {sc.render(i === idx)}
           </div>
         ))}
+
+        {/* persistent section headers that hold while scenes swap beneath */}
+        {["gabriel", "jackjack", "xander", "braveherd"].includes(scenes[idx].id) && (
+          <div className="absolute top-[72px] inset-x-0 z-10 text-center px-6 pointer-events-none">
+            <h2 className={`${heading} text-xl sm:text-3xl text-charcoal/90`}>
+              Every Burro, Every Family Has a Story
+            </h2>
+          </div>
+        )}
+        {["graze", "run", "nap"].includes(scenes[idx].id) && (
+          <div className="absolute top-[76px] left-8 z-10 pointer-events-none">
+            <span className="text-white/85 text-xs sm:text-sm font-extrabold uppercase tracking-[0.3em] [text-shadow:0_1px_8px_rgba(0,0,0,0.6)]">
+              Room to Roam
+            </span>
+          </div>
+        )}
       </div>
 
       {/* ── top chrome: nav + transport ── */}
