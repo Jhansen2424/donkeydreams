@@ -1225,7 +1225,7 @@ export default function FilmHome() {
           return (
             <div
               key={sup.label}
-              className="absolute top-[106px] left-6 sm:left-12 z-10 pointer-events-none"
+              className="absolute top-[118px] sm:top-[134px] left-6 sm:left-12 z-10 pointer-events-none"
               style={{ animation: "filmParaIn 0.8s ease 200ms both" }}
             >
               <p
@@ -1252,12 +1252,12 @@ export default function FilmHome() {
       {/* ── top chrome: nav + transport ── */}
       <header className="absolute top-0 inset-x-0 z-20">
         <div className="bg-gradient-to-b from-black/55 to-transparent pb-6">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between gap-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/DDlogo.png"
               alt="Donkey Dreams Sanctuary"
-              className="h-10 w-auto drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]"
+              className="h-14 sm:h-16 w-auto drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]"
             />
             <nav className="hidden md:flex items-center gap-5">
               {NAV.map((n) => (
