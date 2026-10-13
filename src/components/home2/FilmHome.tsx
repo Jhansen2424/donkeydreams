@@ -84,7 +84,9 @@ function Pour({
   active,
   delay = 0,
   className = "",
-  wordMs = 36,
+  // ~85ms between words reads like an actual pour; 36ms was rapid-fire
+  // (client 10/13: "too fast").
+  wordMs = 85,
   highlights = [],
 }: {
   text: string;
@@ -501,18 +503,21 @@ function buildScenes(): SceneDef[] {
               <Pour
                 active={a}
                 delay={1600}
+                wordMs={55}
                 text="In the wild, a burro decides how to spend their day. Where to graze. When to rest. Who to stand beside. We don't take that away just because they need care. Sovereignty, to us, means they get a say — that their needs carry the same weight as ours, the sanctuary's, anyone's. They aren't something we manage. They're someone we listen to."
                 className="text-sm sm:text-base lg:text-lg text-white/95 leading-relaxed [text-shadow:0_1px_10px_rgba(0,0,0,0.7)]"
               />
               <Pour
                 active={a}
-                delay={6500}
+                delay={6800}
+                wordMs={55}
                 text="When a donkey needs treatment — a sore hoof, medicine, a watchful eye on a healing wound — our caretakers go to them, wherever they are, instead of pulling them away from their family and freedom to make it easier on us. We don't run them in herds to get it done, and we don't chase them to make it quicker — many of them were already chased once, the day they left the wild, and we won't ask them to relive that just to make a checkup easier on us."
                 className="text-sm sm:text-base lg:text-lg text-white/95 leading-relaxed [text-shadow:0_1px_10px_rgba(0,0,0,0.7)]"
               />
               <Pour
                 active={a}
-                delay={12500}
+                delay={13000}
+                wordMs={55}
                 text="To be clear: every donkey gets the care they need, fully. What's different is how we get there."
                 className="text-sm sm:text-base lg:text-lg font-semibold text-white leading-relaxed [text-shadow:0_1px_10px_rgba(0,0,0,0.7)]"
               />
@@ -1143,11 +1148,12 @@ export default function FilmHome() {
            then settle sharp — overlapping into a continuous cascade
            (client 10/13: "almost like it's being poured onto the page"). */
         @keyframes filmWordIn {
-          0% { opacity: 0; transform: translateY(-0.5em) scale(1.08); filter: blur(6px); }
-          55% { opacity: 1; filter: blur(1px); }
+          0% { opacity: 0; transform: translateY(-0.9em) scale(0.94, 1.28); filter: blur(10px); }
+          45% { opacity: 1; filter: blur(3px); }
+          75% { transform: translateY(0.07em) scale(1.03, 0.97); filter: blur(0.5px); }
           100% { opacity: 1; transform: none; filter: blur(0); }
         }
-        .film-word { opacity: 0; display: inline-block; animation: filmWordIn 0.6s cubic-bezier(0.2,0.7,0.3,1) forwards; animation-play-state: paused; }
+        .film-word { opacity: 0; display: inline-block; animation: filmWordIn 0.95s cubic-bezier(0.3,0.6,0.25,1) forwards; animation-play-state: paused; }
         @media (prefers-reduced-motion: reduce) {
           .film-word, [style*="filmFadeUp"], [style*="filmComeAt"] { animation-duration: 0.01s !important; }
         }
