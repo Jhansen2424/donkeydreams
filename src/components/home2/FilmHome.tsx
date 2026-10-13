@@ -1068,8 +1068,15 @@ export default function FilmHome() {
         @keyframes filmFromRight { from { opacity: 0; transform: translateX(80px); } to { opacity: 1; transform: none; } }
         @keyframes filmExpand { 0% { opacity: 0; transform: scale(0.7); } 25% { opacity: 1; transform: scale(1); } 100% { opacity: 1; transform: scale(1.35); } }
         @keyframes filmCrossfade { to { opacity: 1; } }
-        @keyframes filmWordIn { to { opacity: 1; } }
-        .film-word { opacity: 0; display: inline-block; animation: filmWordIn 0.3s ease forwards; animation-play-state: paused; }
+        /* "Liquid pour": words fall in from just above, soft like liquid,
+           then settle sharp — overlapping into a continuous cascade
+           (client 10/13: "almost like it's being poured onto the page"). */
+        @keyframes filmWordIn {
+          0% { opacity: 0; transform: translateY(-0.5em) scale(1.08); filter: blur(6px); }
+          55% { opacity: 1; filter: blur(1px); }
+          100% { opacity: 1; transform: none; filter: blur(0); }
+        }
+        .film-word { opacity: 0; display: inline-block; animation: filmWordIn 0.6s cubic-bezier(0.2,0.7,0.3,1) forwards; animation-play-state: paused; }
         @media (prefers-reduced-motion: reduce) {
           .film-word, [style*="filmFadeUp"], [style*="filmComeAt"] { animation-duration: 0.01s !important; }
         }
