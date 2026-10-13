@@ -519,7 +519,7 @@ function buildScenes(): SceneDef[] {
     {
       id: "trust",
       title: "Trust, Not Control",
-      dur: 16,
+      dur: 18,
       clip: "trust",
       clipOffset: 0,
       render: (a) => (
@@ -534,34 +534,42 @@ function buildScenes(): SceneDef[] {
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-black/20" />
-          <div className="absolute inset-0 flex flex-col justify-center px-6 sm:px-14 max-w-4xl">
+          <div className="absolute inset-0 flex flex-col justify-center px-6 sm:px-14 max-w-4xl pt-20">
             <A active={a} anim="filmSlideAcross" delay={200}>
-              <h2 className={`${heading} text-4xl sm:text-6xl text-white mb-6`}>
+              <h2 className={`${heading} text-4xl sm:text-6xl text-white mb-6 [text-shadow:0_2px_16px_rgba(0,0,0,0.6)]`}>
                 Trust, Not Control
               </h2>
             </A>
-            <div className="space-y-3 max-w-2xl">
-              <Pour
-                active={a}
-                delay={1600}
-                wordMs={55}
-                text="In the wild, a burro decides how to spend their day. Where to graze. When to rest. Who to stand beside. We don't take that away just because they need care. Sovereignty, to us, means they get a say — that their needs carry the same weight as ours, the sanctuary's, anyone's. They aren't something we manage. They're someone we listen to."
-                className="text-sm sm:text-base lg:text-lg text-white/95 leading-relaxed [text-shadow:0_1px_10px_rgba(0,0,0,0.7)]"
-              />
-              <Pour
-                active={a}
-                delay={6800}
-                wordMs={55}
-                text="When a donkey needs treatment — a sore hoof, medicine, a watchful eye on a healing wound — our caretakers go to them, wherever they are, instead of pulling them away from their family and freedom to make it easier on us. We don't run them in herds to get it done, and we don't chase them to make it quicker — many of them were already chased once, the day they left the wild, and we won't ask them to relive that just to make a checkup easier on us."
-                className="text-sm sm:text-base lg:text-lg text-white/95 leading-relaxed [text-shadow:0_1px_10px_rgba(0,0,0,0.7)]"
-              />
-              <Pour
-                active={a}
-                delay={13000}
-                wordMs={55}
-                text="To be clear: every donkey gets the care they need, fully. What's different is how we get there."
-                className="text-sm sm:text-base lg:text-lg font-semibold text-white leading-relaxed [text-shadow:0_1px_10px_rgba(0,0,0,0.7)]"
-              />
+            {/* paragraphs play one at a time in a translucent panel — the
+                bare pours over the busy photo were hard to read (10/13) */}
+            <div className="relative w-full max-w-2xl h-[min(42svh,350px)] bg-black/55 backdrop-blur-sm rounded-2xl">
+              <Beat active={a} enter={1400} exit={7000}>
+                <Pour
+                  active={a}
+                  delay={1900}
+                  wordMs={55}
+                  text="In the wild, a burro decides how to spend their day. Where to graze. When to rest. Who to stand beside. We don't take that away just because they need care. Sovereignty, to us, means they get a say — that their needs carry the same weight as ours, the sanctuary's, anyone's. They aren't something we manage. They're someone we listen to."
+                  className="text-sm sm:text-lg lg:text-xl text-white/95 leading-relaxed"
+                />
+              </Beat>
+              <Beat active={a} enter={7800} exit={13600}>
+                <Pour
+                  active={a}
+                  delay={8300}
+                  wordMs={55}
+                  text="When a donkey needs treatment — a sore hoof, medicine, a watchful eye on a healing wound — our caretakers go to them, wherever they are, instead of pulling them away from their family and freedom to make it easier on us. We don't run them in herds to get it done, and we don't chase them to make it quicker — many of them were already chased once, the day they left the wild, and we won't ask them to relive that just to make a checkup easier on us."
+                  className="text-sm sm:text-base lg:text-lg text-white/95 leading-relaxed"
+                />
+              </Beat>
+              <Beat active={a} enter={14400}>
+                <Pour
+                  active={a}
+                  delay={14900}
+                  wordMs={55}
+                  text="To be clear: every donkey gets the care they need, fully. What's different is how we get there."
+                  className="text-base sm:text-xl lg:text-2xl font-semibold text-white leading-relaxed text-center"
+                />
+              </Beat>
             </div>
           </div>
         </div>
@@ -572,7 +580,7 @@ function buildScenes(): SceneDef[] {
       title: "Sovereignty",
       dur: 6.5,
       clip: "trust",
-      clipOffset: 16,
+      clipOffset: 18,
       render: (a) => (
         <div className="absolute inset-0 bg-charcoal flex items-center justify-center px-8">
           <A active={a} anim="filmComeAt" delay={300}>
