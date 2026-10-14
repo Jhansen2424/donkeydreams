@@ -422,7 +422,7 @@ function buildScenes(): SceneDef[] {
       </div>
     )),
     scene("familybody", "Wild and Free Today", (a) => (
-      <Bleed src={`${IMG}/pano-sunset-graze.webp`} darker>
+      <Bleed src={`${IMG}/wild-and-free-rainbow.webp`} darker>
         <div className="absolute inset-0 flex items-center justify-center px-5 sm:px-10 pt-24">
           {/* one paragraph at a time: pour in with the voice → fade → next */}
           <div className="relative w-full max-w-3xl h-[min(52svh,440px)] bg-black/45 backdrop-blur-sm rounded-2xl">
