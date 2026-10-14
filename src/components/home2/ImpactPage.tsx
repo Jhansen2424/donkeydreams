@@ -7,12 +7,57 @@
 // Burro Family Circle + one-time → Zeffy, opened in an on-page modal via
 // Zeffy's embed URL. All links live in src/lib/giving-links.ts.
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { X, Heart, Users, ExternalLink } from "lucide-react";
 import { GIVING, zeffyEmbedUrl } from "@/lib/giving-links";
-import { NewHeader, NewFooter } from "./SiteChrome";
+import { NewHeader, NewFooter, SEALS } from "./SiteChrome";
 
 const heading = "font-extrabold tracking-tight leading-tight text-charcoal";
+
+/** Fades content up as it scrolls into view. Anything already on screen at
+ *  load (or with reduced motion) renders as-is, so nothing is ever stuck hidden. */
+function Reveal({ children, delay = 0, className = "" }: { children: ReactNode; delay?: number; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [phase, setPhase] = useState<"static" | "waiting" | "in">("static");
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !("IntersectionObserver" in window)) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (el.getBoundingClientRect().top < window.innerHeight * 0.92) return;
+    setPhase("waiting");
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) {
+          setPhase("in");
+          io.disconnect();
+        }
+      },
+      { rootMargin: "0px 0px -8% 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      className={`${phase !== "static" ? "transition-[opacity,transform] duration-700 ease-out" : ""} ${
+        phase === "waiting" ? "opacity-0 translate-y-6" : ""
+      } ${className}`}
+      style={phase === "in" ? { transitionDelay: `${delay}ms` } : undefined}
+    >
+      {children}
+    </div>
+  );
+}
+
+const STATS = [
+  { big: "40+", label: "mom and child pairs at the sanctuary today" },
+  { big: "50 yrs", label: "how long a burro can live, and how long our promise lasts" },
+  { big: "0", label: "paid staff, so your gift goes to the herd" },
+  { big: "GFAS", label: "accredited sanctuary" },
+];
 
 /** Patreon can't be framed, so open it in a centered pop-up window. */
 function openPatreon(url: string) {
@@ -29,24 +74,32 @@ const TIERS = [
     key: "buddy" as const,
     name: "Burro Buddy",
     price: 5,
+    img: "/images/impact/tier-buddy.webp",
+    alt: "Two donkeys resting together in the shade",
     copy: "Every month, we'll send you 2–3 behind-the-scenes photos and videos — hay time, naps in the shade, dust baths in the dirt. The quiet, ordinary moments that mean these donkeys are safe, loved, and exactly where they belong. A little piece of the sanctuary, delivered straight to you.",
   },
   {
     key: "explorer" as const,
     name: "Burro Explorer",
     price: 25,
+    img: "/images/impact/tier-explorer.webp",
+    alt: "Three donkeys standing close together in the desert",
     copy: "Everything in Burro Buddy, plus our monthly Inside the Herd spotlight — we'll share stories about one or more of our donkeys, so you can get to know who they really are and feel a deeper connection to the Donkey Dreams herd. Some months, we'll bring you along live for a walk down the trail with the herd, because some things are better felt than described.",
   },
   {
     key: "supporter" as const,
     name: "Burro Supporter",
     price: 55,
+    img: "/images/impact/tier-supporter.webp",
+    alt: "A caretaker sharing a quiet moment with a young donkey",
     copy: "Everything above, plus a quarterly journal straight from the sanctuary — the real story of life here: the magical moments, the solutions to challenging problems, and sometimes the heartbreak, told by the caretakers living it every day. A closer look at what's changing around the sanctuary and at our wild burro families. Consider it your invitation past the fence line, into what preserving the wild burro spirit really looks like.",
   },
   {
     key: "bestie" as const,
     name: "Burro Bestie",
     price: 75,
+    img: "/images/impact/tier-bestie.webp",
+    alt: "A founder sitting with a donkey stretched out for a nap",
     copy: "Everything above, plus a monthly live hangout with our founders and the herd — real time, straight from the sanctuary. Bring your questions, meet the donkeys face to face, and feel, even just for an hour, what it's like to be part of their world.",
   },
 ];
@@ -129,6 +182,19 @@ export default function ImpactPage() {
         </div>
       </section>
 
+      {/* ── By the numbers ── */}
+      <section className="bg-[#2a160b] px-5 sm:px-8 py-10 sm:py-12">
+        <div className="max-w-6xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-y-8 gap-x-6">
+          {STATS.map((s, i) => (
+            <Reveal key={s.big} delay={i * 120} className="text-center">
+              <p className="text-4xl sm:text-5xl font-extrabold text-sunset-light tracking-tight">{s.big}</p>
+              <span className="block w-8 h-0.5 rounded-full bg-sunset/60 mx-auto my-3" />
+              <p className="text-sm sm:text-base text-white/75 leading-snug max-w-[15rem] mx-auto">{s.label}</p>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
       {/* ── Two ways to give ── */}
       <Section id="two-ways" className="py-20 bg-peach">
         <h2 className={`${heading} text-3xl sm:text-5xl text-center mb-6`}>Two Ways to Give</h2>
@@ -139,7 +205,7 @@ export default function ImpactPage() {
             Donkey Dreams herd.
           </p>
         </div>
-        <div className="grid md:grid-cols-2 gap-6 mb-12">
+        <Reveal className="grid md:grid-cols-2 gap-6 mb-12">
           <a
             href="#herd-insider"
             className="group bg-white rounded-2xl border border-card-border p-7 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all"
@@ -181,7 +247,7 @@ export default function ImpactPage() {
             </p>
             <p className="mt-4 text-sm font-extrabold text-[#4f7a48] group-hover:underline">See the options →</p>
           </a>
-        </div>
+        </Reveal>
         <p className="max-w-3xl mx-auto text-center text-base sm:text-lg leading-relaxed text-warm-gray">
           Not sure which fits? If you want to feel close to the herd day to day, start with Herd
           Insider. If you'd rather your gift go toward one specific, ongoing need, look at Burro
@@ -210,14 +276,24 @@ export default function ImpactPage() {
         </p>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {TIERS.map((t, i) => (
+            <Reveal key={t.key} delay={i * 110} className="h-full">
             <div
-              key={t.key}
-              className={`flex flex-col rounded-2xl border-2 p-6 ${
+              className={`group h-full flex flex-col rounded-2xl border-2 overflow-hidden ${
                 i === TIERS.length - 1
                   ? "border-sunset bg-peach shadow-lg"
                   : "border-card-border bg-cream/50"
               }`}
             >
+              <div className="aspect-[4/3] overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={t.img}
+                  alt={t.alt}
+                  loading="lazy"
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                />
+              </div>
+              <div className="flex flex-col flex-1 p-6">
               <span className="block w-8 h-1 rounded-full bg-sky mb-4" />
               <h3 className={`${heading} text-xl`}>{t.name}</h3>
               <p className="mt-1 mb-4">
@@ -231,7 +307,9 @@ export default function ImpactPage() {
               >
                 Join on Patreon <ExternalLink className="w-3.5 h-3.5" />
               </button>
+              </div>
             </div>
+            </Reveal>
           ))}
         </div>
         <div className="text-center mt-10">
@@ -262,8 +340,9 @@ export default function ImpactPage() {
           across the herd, so you can see what that care makes possible.
         </p>
         <div className="grid md:grid-cols-3 gap-6">
-          {CIRCLE.map((c) => (
-            <div key={c.key} className="flex flex-col bg-white rounded-2xl border border-card-border overflow-hidden shadow-sm">
+          {CIRCLE.map((c, i) => (
+            <Reveal key={c.key} delay={i * 120} className="h-full">
+            <div className="h-full flex flex-col bg-white rounded-2xl border border-card-border overflow-hidden shadow-sm">
               <div className="aspect-[4/3] overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -289,6 +368,7 @@ export default function ImpactPage() {
                 </button>
               </div>
             </div>
+            </Reveal>
           ))}
         </div>
       </Section>
@@ -301,7 +381,7 @@ export default function ImpactPage() {
         <p className="max-w-2xl mx-auto text-center text-base sm:text-lg text-warm-gray mb-10">
           Every gift, any size, goes to the herd.
         </p>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <Reveal className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <div className="rounded-2xl border-2 border-sunset bg-peach p-6 text-center flex flex-col">
             <h3 className={`${heading} text-lg mb-2`}>Online</h3>
             <p className="text-sm text-warm-gray flex-1">
@@ -333,7 +413,31 @@ export default function ImpactPage() {
               </p>
             ))}
           </div>
-        </div>
+        </Reveal>
+
+        {/* ── Trust strip ── */}
+        <Reveal className="mt-14 rounded-3xl bg-peach border border-peach-border px-6 py-8 sm:px-10 sm:py-10">
+          <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
+            <div className="text-center lg:text-left lg:max-w-sm">
+              <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-sunset-dark mb-2">
+                Give with confidence
+              </p>
+              <h3 className={`${heading} text-2xl sm:text-3xl mb-3`}>A sanctuary you can trust</h3>
+              <p className="text-sm sm:text-base text-warm-gray leading-relaxed">
+                GFAS accredited and holding Candid&apos;s Platinum Seal of Transparency for 2026. We are a
+                501(c)(3) nonprofit (EIN 81-3650509), and every donation is 100% tax deductible.
+              </p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-4 flex-1">
+              {SEALS.map((s) => (
+                <span key={s.src} className="bg-white rounded-xl p-2 shadow-sm" title={s.alt}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={s.src} alt={s.alt} className="h-20 sm:h-24 w-auto" loading="lazy" />
+                </span>
+              ))}
+            </div>
+          </div>
+        </Reveal>
       </Section>
 
       <NewFooter />

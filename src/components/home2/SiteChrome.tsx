@@ -44,7 +44,7 @@ export function NewHeader() {
 
 // Seals from the current donkeydreams.org footer; Guardian updated to the
 // 2026 seal the client supplied (the old site still shows 2025).
-const SEALS = [
+export const SEALS = [
   { src: "/images/seals/gfas.webp", alt: "Global Federation of Animal Sanctuaries — Accredited" },
   { src: "/images/seals/candid-platinum-2026.webp", alt: "Candid Platinum Seal of Transparency 2026" },
   { src: "/images/seals/homes-for-horses.webp", alt: "Proud Member — Homes for Horses Coalition" },
