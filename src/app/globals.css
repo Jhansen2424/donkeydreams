@@ -13,6 +13,13 @@
   --color-terra: #c87864;
   --color-terra-light: #d4907e;
   --color-terra-dark: #a8604e;
+  /* sunset orange — the "give" color across the redesign (from the logo's
+     warm gradient + the sunset photography) */
+  --color-sunset: #ee8a45;
+  --color-sunset-light: #f6ab73;
+  --color-sunset-dark: #d4732f;
+  --color-peach: #fff3e8;
+  --color-peach-border: #f6d3b5;
   --color-charcoal: #2D2D2D;
   --color-warm-gray: #6B6B6B;
   --color-cream: #FDF8F0;

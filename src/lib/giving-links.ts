@@ -19,8 +19,10 @@ export const GIVING = {
   zeffy: {
     // Support a Senior Burro — $95/mo (client-built, 10/14)
     senior: "https://www.zeffy.com/en-US/ticketing/support-a-senior-burro" as string | null,
-    momChild: null as string | null, // Care for a Mom/Child Pair — $155/mo
-    family: null as string | null, // Feed an Entire Burro Family — $357/mo
+    // Care for a Mom/Child Pair — $155/mo (client-built, 10/14)
+    momChild: "https://www.zeffy.com/en-US/ticketing/care-for-a-momchild-pair" as string | null,
+    // Feed an Entire Burro Family — $357/mo (client-built, 10/14)
+    family: "https://www.zeffy.com/en-US/ticketing/feed-an-entire-burro-family" as string | null,
     // general donation form, any amount (client-built, 10/14)
     oneTime: "https://www.zeffy.com/en-US/donation-form/preserve-the-wild-burro-spirit" as string | null,
   },

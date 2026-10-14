@@ -38,6 +38,7 @@ import {
 } from "react";
 import { Play, Pause, Volume2, VolumeX, RotateCcw, Share2 } from "lucide-react";
 import { NARR } from "./narration-timings";
+import { NewFooter } from "./SiteChrome";
 
 // ── Timeline plan ──
 // lead = seconds before the first line; gap = seconds between lines (or a
@@ -341,8 +342,10 @@ function scene(id: string, title: string, render: (a: boolean) => ReactNode): Sc
 function buildScenes(): SceneDef[] {
   return [
     // ═══ Cold open ═══
+    // Source photo is cropped to drop the corral fencing + stitch notch; the
+    // crop anchors toward the sun so it stays in frame on narrow screens.
     scene("cold1", "Opening", (a) => (
-      <Bleed src={`${IMG}/pano-sunrise-hills.webp`} darker drift={a}>
+      <Bleed src={`${IMG}/pano-sunrise-hills.webp`} darker drift={a} pos="32% center">
         <div className="absolute inset-0 flex items-center justify-center px-8">
           {/* the photo breathes alone before the line arrives */}
           <TitleCard
@@ -796,7 +799,7 @@ function buildScenes(): SceneDef[] {
           <A active={a} anim="filmFadeUp" delay={end("impact", 200)}>
             <Link
               href="/donate"
-              className="inline-block px-10 py-4 rounded-full bg-sky text-charcoal text-lg font-extrabold hover:bg-sky-light transition-colors shadow-2xl"
+              className="inline-block px-10 py-4 rounded-full bg-sunset text-white text-lg font-extrabold hover:bg-sunset-dark transition-colors shadow-2xl"
             >
               Donate Now →
             </Link>
@@ -843,8 +846,11 @@ function EndScreen({ active }: { active: boolean }) {
       }
     } catch {}
   };
+  // Scrolls like a normal page: Explore More fills the first screen, the full
+  // site footer (with the seals) sits below it (client 10/14).
   return (
-    <div className="absolute inset-0 bg-cream flex flex-col items-center justify-center px-5 py-10 overflow-y-auto">
+    <div className="absolute inset-0 bg-cream overflow-y-auto overscroll-contain" data-film-scroll>
+    <div className="min-h-[100svh] flex flex-col items-center justify-center px-5 pt-36 pb-12">
       <A active={active} anim="filmFadeUp" delay={200}>
         <h2 className={`${heading} text-3xl sm:text-5xl text-charcoal text-center mb-8`}>Explore More</h2>
       </A>
@@ -900,13 +906,8 @@ function EndScreen({ active }: { active: boolean }) {
           ))}
         </div>
       </A>
-      <A active={active} anim="filmFadeUp" delay={2100}>
-        <div className="text-center text-xs text-warm-gray space-y-1">
-          <p>Donkey Dreams Sanctuary · A GFAS-Accredited 501(c)(3) Nonprofit · EIN 81-3650509</p>
-          <p>3900 N Stockton Hill Rd, Ste B368, Kingman, AZ 86432 · amber@donkeydreams.org</p>
-          <p>© 2026 Donkey Dreams Sanctuary. All rights reserved.</p>
-        </div>
-      </A>
+    </div>
+    <NewFooter />
     </div>
   );
 }
@@ -1144,6 +1145,9 @@ export default function FilmHome() {
   useEffect(() => {
     let lastWheel = 0;
     const onWheel = (e: WheelEvent) => {
+      // The end screen scrolls like a page (to reach the footer) — the wheel
+      // must not jump scenes there.
+      if (idxRef.current === scenes.length - 1) return;
       const now = Date.now();
       if (now - lastWheel < 700) return;
       lastWheel = now;
@@ -1361,7 +1365,7 @@ export default function FilmHome() {
             </nav>
             <Link
               href="/donate"
-              className="shrink-0 px-4 py-2 rounded-full bg-sky text-charcoal text-sm font-extrabold hover:bg-sky-light transition-colors"
+              className="shrink-0 px-4 py-2 rounded-full bg-sunset text-white text-sm font-extrabold hover:bg-sunset-dark transition-colors"
             >
               Donate Now
             </Link>

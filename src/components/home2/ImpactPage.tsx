@@ -18,7 +18,7 @@ const heading = "font-extrabold tracking-tight leading-tight text-charcoal";
 function PhotoSlot({ label, className = "" }: { label: string; className?: string }) {
   return (
     <div
-      className={`relative overflow-hidden bg-gradient-to-br from-sand-light via-sand to-sand-dark ${className}`}
+      className={`relative overflow-hidden bg-gradient-to-br from-peach via-sand-light to-sunset-light ${className}`}
     >
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
         <Camera className="w-7 h-7 text-charcoal/40" />
@@ -118,10 +118,16 @@ export default function ImpactPage() {
 
       {/* ── Hero ── */}
       <section className="relative overflow-hidden">
-        <PhotoSlot label="Make an Impact hero — full width" className="absolute inset-0" />
-        <div className="absolute inset-0 bg-gradient-to-t from-charcoal/85 via-charcoal/55 to-charcoal/30" />
+        <div
+          className="absolute inset-0 bg-cover"
+          style={{ backgroundImage: "url(/images/film/impact-hero.webp)", backgroundPosition: "center 40%" }}
+        />
+        {/* the photo is already a blazing sunset — darken just enough for the
+            text, and let the sky show through at the top */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#2a160b]/90 via-[#3b1f10]/55 to-[#3b1f10]/15" />
         <div className="relative max-w-4xl mx-auto px-5 sm:px-8 py-24 sm:py-32 text-center text-white">
-          <h1 className="font-extrabold tracking-tight leading-tight text-4xl sm:text-6xl mb-8">Make an Impact</h1>
+          <h1 className="font-extrabold tracking-tight leading-tight text-4xl sm:text-6xl mb-5">Make an Impact</h1>
+          <span className="block w-20 h-1.5 rounded-full bg-gradient-to-r from-sunset-light to-sunset mx-auto mb-8" />
           <p className="text-lg sm:text-2xl leading-relaxed text-white/95 mb-6">
             Everything at Donkey Dreams exists because people were inspired to give them a home.
             Give, and you're part of it — for every family already home, and every one still waiting.
@@ -135,7 +141,7 @@ export default function ImpactPage() {
       </section>
 
       {/* ── Two ways to give ── */}
-      <Section id="two-ways" className="py-20">
+      <Section id="two-ways" className="py-20 bg-peach">
         <h2 className={`${heading} text-3xl sm:text-5xl text-center mb-6`}>Two Ways to Give</h2>
         <div className="max-w-3xl mx-auto space-y-4 text-base sm:text-lg leading-relaxed text-warm-gray text-center mb-12">
           <p>
@@ -192,8 +198,8 @@ export default function ImpactPage() {
           Insider. If you'd rather your gift go toward one specific, ongoing need, look at Burro
           Family Circle. And if you'd rather give once instead of monthly, that option's always here
           too —{" "}
-          <a href="#give-once" className="font-bold text-sky-dark underline underline-offset-2">
-            give once
+          <a href="#give-once" className="font-bold text-sunset-dark underline underline-offset-2">
+            choose your own donation amount and frequency
           </a>
           .
         </p>
@@ -201,7 +207,7 @@ export default function ImpactPage() {
 
       {/* ── Herd Insider ── */}
       <Section id="herd-insider" className="py-20 bg-white">
-        <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-sky-dark text-center mb-3">
+        <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-sunset-dark text-center mb-3">
           Monthly memberships
         </p>
         <h2 className={`${heading} text-3xl sm:text-5xl text-center mb-6`}>Herd Insider Memberships</h2>
@@ -217,19 +223,22 @@ export default function ImpactPage() {
           {TIERS.map((t, i) => (
             <div
               key={t.key}
-              className={`flex flex-col rounded-2xl border p-6 ${
-                i === TIERS.length - 1 ? "border-sky bg-sky/5 shadow-md" : "border-card-border bg-cream/50"
+              className={`flex flex-col rounded-2xl border-2 p-6 ${
+                i === TIERS.length - 1
+                  ? "border-sunset bg-peach shadow-lg"
+                  : "border-card-border bg-cream/50"
               }`}
             >
+              <span className="block w-8 h-1 rounded-full bg-sky mb-4" />
               <h3 className={`${heading} text-xl`}>{t.name}</h3>
               <p className="mt-1 mb-4">
-                <span className="text-4xl font-extrabold text-charcoal">${t.price}</span>
+                <span className="text-4xl font-extrabold text-sunset-dark">${t.price}</span>
                 <span className="text-sm font-semibold text-warm-gray">/month</span>
               </p>
               <p className="text-sm leading-relaxed text-warm-gray flex-1">{t.copy}</p>
               <button
                 onClick={() => openPatreon(GIVING.patreon[t.key] ?? GIVING.patreon.page)}
-                className="mt-6 inline-flex items-center justify-center gap-1.5 w-full py-3 rounded-full bg-charcoal text-white text-sm font-extrabold hover:bg-sky-dark transition-colors"
+                className="mt-6 inline-flex items-center justify-center gap-1.5 w-full py-3 rounded-full bg-charcoal text-white text-sm font-extrabold hover:bg-sunset-dark transition-colors"
               >
                 Join on Patreon <ExternalLink className="w-3.5 h-3.5" />
               </button>
@@ -239,7 +248,7 @@ export default function ImpactPage() {
         <div className="text-center mt-10">
           <button
             onClick={() => openPatreon(GIVING.patreon.page)}
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-sky text-charcoal text-base font-extrabold hover:bg-sky-light transition-colors shadow-lg"
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-sunset text-white text-base font-extrabold hover:bg-sunset-dark transition-colors shadow-lg shadow-sunset/30"
           >
             Join Herd Insider <ExternalLink className="w-4 h-4" />
           </button>
@@ -248,7 +257,7 @@ export default function ImpactPage() {
       </Section>
 
       {/* ── Burro Family Circle ── */}
-      <Section id="family-circle" className="py-20">
+      <Section id="family-circle" className="py-20 bg-peach">
         <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-[#4f7a48] text-center mb-3">
           Higher-tier monthly giving
         </p>
@@ -268,15 +277,16 @@ export default function ImpactPage() {
             <div key={c.key} className="flex flex-col bg-white rounded-2xl border border-card-border overflow-hidden shadow-sm">
               <PhotoSlot label={c.photo} className="aspect-[4/3]" />
               <div className="flex flex-col flex-1 p-6">
+                <span className="block w-8 h-1 rounded-full bg-[#6f9b67] mb-4" />
                 <h3 className={`${heading} text-xl`}>{c.name}</h3>
                 <p className="mt-1 mb-4">
-                  <span className="text-4xl font-extrabold text-charcoal">${c.price}</span>
+                  <span className="text-4xl font-extrabold text-sunset-dark">${c.price}</span>
                   <span className="text-sm font-semibold text-warm-gray">/month</span>
                 </p>
                 <p className="text-sm leading-relaxed text-warm-gray flex-1">{c.copy}</p>
                 <button
                   onClick={() => setModal({ title: c.name, url: GIVING.zeffy[c.key] })}
-                  className="mt-6 w-full py-3 rounded-full bg-[#4f7a48] text-white text-sm font-extrabold hover:bg-[#3f6439] transition-colors"
+                  className="mt-6 w-full py-3 rounded-full bg-sunset text-white text-sm font-extrabold hover:bg-sunset-dark transition-colors shadow-md shadow-sunset/25"
                 >
                   Give Monthly
                 </button>
@@ -288,19 +298,24 @@ export default function ImpactPage() {
 
       {/* ── Give once ── */}
       <Section id="give-once" className="py-20 bg-white">
-        <h2 className={`${heading} text-3xl sm:text-4xl text-center mb-4`}>Rather Give Once?</h2>
+        <h2 className={`${heading} text-3xl sm:text-4xl text-center mb-4`}>
+          Choose Your Own Donation Amount and Frequency
+        </h2>
         <p className="max-w-2xl mx-auto text-center text-base sm:text-lg text-warm-gray mb-10">
           Every gift, any size, goes to the herd.
         </p>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <div className="rounded-2xl border border-sky bg-sky/5 p-6 text-center flex flex-col">
+          <div className="rounded-2xl border-2 border-sunset bg-peach p-6 text-center flex flex-col">
             <h3 className={`${heading} text-lg mb-2`}>Online</h3>
-            <p className="text-sm text-warm-gray flex-1">Card or bank, through Zeffy — 100% of your gift reaches the sanctuary.</p>
+            <p className="text-sm text-warm-gray flex-1">
+              Any amount — one-time, monthly, quarterly, or yearly. Card or bank, through Zeffy,
+              so 100% of your gift reaches the sanctuary.
+            </p>
             <button
-              onClick={() => setModal({ title: "One-Time Gift", url: GIVING.zeffy.oneTime })}
-              className="mt-5 w-full py-3 rounded-full bg-sky text-charcoal text-sm font-extrabold hover:bg-sky-light transition-colors"
+              onClick={() => setModal({ title: "Choose Your Amount & Frequency", url: GIVING.zeffy.oneTime })}
+              className="mt-5 w-full py-3 rounded-full bg-sunset text-white text-sm font-extrabold hover:bg-sunset-dark transition-colors shadow-md shadow-sunset/25"
             >
-              Give Once
+              Choose Amount &amp; Frequency
             </button>
           </div>
           <div className="rounded-2xl border border-card-border bg-cream/50 p-6 text-center">

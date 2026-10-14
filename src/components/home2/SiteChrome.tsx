@@ -33,7 +33,7 @@ export function NewHeader() {
         </nav>
         <Link
           href="/donate#two-ways"
-          className="shrink-0 px-4 py-2 rounded-full bg-sky text-charcoal text-sm font-extrabold hover:bg-sky-light transition-colors"
+          className="shrink-0 px-4 py-2 rounded-full bg-sunset text-white text-sm font-extrabold hover:bg-sunset-dark transition-colors"
         >
           Donate Now
         </Link>
@@ -42,18 +42,32 @@ export function NewHeader() {
   );
 }
 
+// Seals from the current donkeydreams.org footer; Guardian updated to the
+// 2026 seal the client supplied (the old site still shows 2025).
+const SEALS = [
+  { src: "/images/seals/gfas.webp", alt: "Global Federation of Animal Sanctuaries — Accredited" },
+  { src: "/images/seals/candid-platinum-2026.webp", alt: "Candid Platinum Seal of Transparency 2026" },
+  { src: "/images/seals/homes-for-horses.webp", alt: "Proud Member — Homes for Horses Coalition" },
+  { src: "/images/seals/guardian-2026.webp", alt: "EQUUS Foundation Guardian — 2026 Approved" },
+];
+
 export function NewFooter() {
   return (
-    <footer className="bg-charcoal text-white/80">
+    <footer className="bg-charcoal text-white/80 border-t-4 border-sunset">
       <div className="max-w-6xl mx-auto px-6 py-14 grid gap-10 md:grid-cols-4 text-sm">
         <div className="md:col-span-2 space-y-2">
           <p className="text-lg font-extrabold text-white">Donkey Dreams Sanctuary</p>
           <p className="text-white/70">Preserving the Wild Burro Spirit</p>
           <p>A GFAS-Accredited 501(c)(3) Nonprofit · EIN 81-3650509</p>
           <p>All donations are 100% tax deductible.</p>
-          <p className="pt-3 text-[11px] uppercase tracking-[0.2em] text-white/50">
-            GFAS Accredited · Candid Platinum Seal of Transparency · Homes for Horses Coalition · Guardian Seal 2026
-          </p>
+          <div className="flex flex-wrap gap-3 pt-4">
+            {SEALS.map((s) => (
+              <span key={s.src} className="bg-white rounded-lg p-1.5 shadow-sm" title={s.alt}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={s.src} alt={s.alt} className="h-16 sm:h-20 w-auto" loading="lazy" />
+              </span>
+            ))}
+          </div>
         </div>
         <div className="space-y-2">
           <p className="text-[11px] font-extrabold uppercase tracking-[0.25em] text-white/50 mb-3">Explore</p>
