@@ -517,13 +517,14 @@ function buildScenes(): SceneDef[] {
     )),
     ...(
       [
-        ["graze", "Graze", `${IMG}/pano-ridge-golden.webp`, "No rush to breakfast at base camp. Just hanging on the ridge with friends and family, picking up a few nibbles along the way."],
-        ["run", "Run", `${IMG}/pano-herd-rocks.webp`, "Dinner, then out to run — rocky, steep ground where their bodies are designed to thrive."],
-        ["nap", "Nap", `${IMG}/story-brave-herd.webp`, "Shade, family, and nowhere they have to be. Reunited pairs rest nose-to-tail — inseparable ever since."],
+        ["graze", "Graze", `${IMG}/pano-ridge-golden.webp`, "center", "No rush to breakfast at base camp. Just hanging on the ridge with friends and family, picking up a few nibbles along the way."],
+        ["run", "Run", `${IMG}/pano-herd-rocks.webp`, "center", "Dinner, then out to run — rocky, steep ground where their bodies are designed to thrive."],
+        // 4:3 photo: anchor below center so the pair + shade survive the crop
+        ["nap", "Nap", `${IMG}/nap.webp`, "center 62%", "Shade, family, and nowhere they have to be. Reunited pairs rest nose-to-tail — inseparable ever since."],
       ] as const
-    ).map(([id, head, img, caption]) =>
+    ).map(([id, head, img, pos, caption]) =>
       scene(id, `Room to Roam — ${head}`, (a) => (
-        <Bleed src={img} drift={a}>
+        <Bleed src={img} pos={pos} drift={a}>
           <div className="absolute inset-0 flex flex-col justify-end items-start p-8 sm:p-14">
             <A active={a} anim="filmFadeUp" delay={at(id, -300)}>
               <h3 className={`${heading} text-4xl sm:text-6xl text-white`}>{head}</h3>
