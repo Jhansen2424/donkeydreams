@@ -17,10 +17,12 @@ export const GIVING = {
     bestie: null as string | null, // $75
   },
   zeffy: {
-    senior: null as string | null, // Support a Senior Burro — $95/mo
+    // Support a Senior Burro — $95/mo (client-built, 10/14)
+    senior: "https://www.zeffy.com/en-US/ticketing/support-a-senior-burro" as string | null,
     momChild: null as string | null, // Care for a Mom/Child Pair — $155/mo
     family: null as string | null, // Feed an Entire Burro Family — $357/mo
-    oneTime: null as string | null, // one-time gifts, any amount
+    // general donation form, any amount (client-built, 10/14)
+    oneTime: "https://www.zeffy.com/en-US/donation-form/preserve-the-wild-burro-spirit" as string | null,
   },
   // Carried over from the previous donate page — confirm still current.
   venmo: "@DonkeyDreamsSanctuary",
