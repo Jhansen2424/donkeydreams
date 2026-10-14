@@ -33,7 +33,7 @@ export function NewHeader() {
         </nav>
         <Link
           href="/donate#two-ways"
-          className="shrink-0 px-4 py-2 rounded-full bg-sunset text-white text-sm font-extrabold hover:bg-sunset-dark transition-colors"
+          className="shrink-0 px-4 py-2 rounded-full bg-sky text-charcoal text-sm font-extrabold hover:bg-sky-light transition-colors"
         >
           Donate Now
         </Link>
@@ -53,7 +53,7 @@ const SEALS = [
 
 export function NewFooter() {
   return (
-    <footer className="bg-charcoal text-white/80 border-t-4 border-sunset">
+    <footer className="bg-charcoal text-white/80 border-t-4 border-sky">
       <div className="max-w-6xl mx-auto px-6 py-14 grid gap-10 md:grid-cols-4 text-sm">
         <div className="md:col-span-2 space-y-2">
           <p className="text-lg font-extrabold text-white">Donkey Dreams Sanctuary</p>

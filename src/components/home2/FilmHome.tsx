@@ -799,7 +799,7 @@ function buildScenes(): SceneDef[] {
           <A active={a} anim="filmFadeUp" delay={end("impact", 200)}>
             <Link
               href="/donate"
-              className="inline-block px-10 py-4 rounded-full bg-sunset text-white text-lg font-extrabold hover:bg-sunset-dark transition-colors shadow-2xl"
+              className="inline-block px-10 py-4 rounded-full bg-sky text-charcoal text-lg font-extrabold hover:bg-sky-light transition-colors shadow-2xl"
             >
               Donate Now →
             </Link>
@@ -1365,7 +1365,7 @@ export default function FilmHome() {
             </nav>
             <Link
               href="/donate"
-              className="shrink-0 px-4 py-2 rounded-full bg-sunset text-white text-sm font-extrabold hover:bg-sunset-dark transition-colors"
+              className="shrink-0 px-4 py-2 rounded-full bg-sky text-charcoal text-sm font-extrabold hover:bg-sky-light transition-colors"
             >
               Donate Now
             </Link>
