@@ -6,27 +6,13 @@
 // embedded, so a pop-up is the closest to "don't take them off our site").
 // Burro Family Circle + one-time → Zeffy, opened in an on-page modal via
 // Zeffy's embed URL. All links live in src/lib/giving-links.ts.
-// Photos are labeled placeholders until the client's picks arrive.
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Camera, X, Heart, Users, ExternalLink } from "lucide-react";
+import { X, Heart, Users, ExternalLink } from "lucide-react";
 import { GIVING, zeffyEmbedUrl } from "@/lib/giving-links";
 import { NewHeader, NewFooter } from "./SiteChrome";
 
 const heading = "font-extrabold tracking-tight leading-tight text-charcoal";
-
-function PhotoSlot({ label, className = "" }: { label: string; className?: string }) {
-  return (
-    <div
-      className={`relative overflow-hidden bg-gradient-to-br from-peach via-sand-light to-sunset-light ${className}`}
-    >
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
-        <Camera className="w-7 h-7 text-charcoal/40" />
-        <p className="text-[11px] font-bold uppercase tracking-wider text-charcoal/55">Photo · {label}</p>
-      </div>
-    </div>
-  );
-}
 
 /** Patreon can't be framed, so open it in a centered pop-up window. */
 function openPatreon(url: string) {
@@ -70,21 +56,24 @@ const CIRCLE = [
     key: "senior" as const,
     name: "Support a Senior Burro",
     price: 95,
-    photo: "Reddish donkey next to a tree",
+    photo: "A senior burro resting in the shade of a juniper",
+    img: "/images/impact/senior.webp",
     copy: "Our seniors — burros over 30 — carry decades of history in their bones, and their bodies need specialized care to keep going. Custom-made meals are the difference between just getting by and truly thriving in their golden years. Step in for one of our elders, and help them grow old with the dignity they've earned. $95 is roughly what it costs each month for the specialized feed and supplements one of our elders needs to stay strong.",
   },
   {
     key: "momChild" as const,
     name: "Care for a Mom/Child Pair",
     price: 155,
-    photo: "Dusk and Dawn staring at the camera",
+    photo: "Dusk and Dawn, a mom and her child, looking into the camera",
+    img: "/images/impact/mom-child.webp",
     copy: "Most of our moms arrive already caring for a child and/or arrive pregnant and have their baby right here with us. We have more than 40 of these mom/child pairs at the sanctuary today, each one precious in its own way, and we treat that bond as sacred, not optional. What they need varies pair to pair: forage, soaked hay pellets, supplements — whatever keeps a particular mom and her child thriving together that month. Your gift helps make sure neither one goes without.",
   },
   {
     key: "family" as const,
     name: "Feed an Entire Burro Family",
     price: 357,
-    photo: "Donkeys at the feeder",
+    photo: "A burro family eating together at the feeder",
+    img: "/images/impact/entire-family.webp",
     copy: "When we take in an entire burro family, we make them a promise: they will never be separated, and they will eat together, every single day, for the rest of their lives — just as they would in the wild. Burros can live up to 50 years. That's not a small promise, it's a lifetime one. Your monthly gift keeps it — forage for an entire family, together, for good.",
   },
 ];
@@ -275,7 +264,15 @@ export default function ImpactPage() {
         <div className="grid md:grid-cols-3 gap-6">
           {CIRCLE.map((c) => (
             <div key={c.key} className="flex flex-col bg-white rounded-2xl border border-card-border overflow-hidden shadow-sm">
-              <PhotoSlot label={c.photo} className="aspect-[4/3]" />
+              <div className="aspect-[4/3] overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={c.img}
+                  alt={c.photo}
+                  loading="lazy"
+                  className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+                />
+              </div>
               <div className="flex flex-col flex-1 p-6">
                 <span className="block w-8 h-1 rounded-full bg-[#6f9b67] mb-4" />
                 <h3 className={`${heading} text-xl`}>{c.name}</h3>
