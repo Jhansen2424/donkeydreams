@@ -450,10 +450,12 @@ function buildScenes(): SceneDef[] {
     // ═══ Cold open ═══
     // Source photo is cropped to drop the corral fencing + stitch notch; the
     // crop anchors toward the sun so it stays in frame on narrow screens.
+    // The client's "Somewhere in the Arizona desert…" clip (YouTube), muted +
+    // looping like "Run"; the sunrise photo is its poster while it loads.
     scene("cold1", "Opening", (a) => (
-      <Bleed src={`${IMG}/pano-sunrise-hills.webp`} darker drift={a} pos="32% center">
+      <VideoBleed youtubeId="Wlle7AmcBB8" scene="cold1" near={["cold2"]} poster={`${IMG}/pano-sunrise-hills.webp`} pos="32% center">
         <div className="absolute inset-0 flex items-center justify-center px-8">
-          {/* the photo breathes alone before the line arrives */}
+          {/* the clip plays alone before the line arrives */}
           <TitleCard
             active={a}
             delay={at("cold1", -300)}
@@ -462,7 +464,7 @@ function buildScenes(): SceneDef[] {
             Somewhere in the Arizona desert…
           </TitleCard>
         </div>
-      </Bleed>
+      </VideoBleed>
     )),
     scene("cold2", "Opening", (a) => (
       <Bleed src={`${IMG}/pano-hillside-herd.webp`} darker drift={a}>
