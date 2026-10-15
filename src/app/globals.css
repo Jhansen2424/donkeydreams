@@ -20,6 +20,13 @@
   --color-sunset-dark: #d4732f;
   --color-peach: #fff3e8;
   --color-peach-border: #f6d3b5;
+  /* Our Story: high-desert juniper greens (Impact's sibling to its sunset orange) */
+  --color-juniper: #6f9b67;
+  --color-juniper-light: #a6c89c;
+  --color-juniper-dark: #4f7a48;
+  --color-juniper-deep: #1d2a1e;
+  --color-mist: #f0f5eb;
+  --color-mist-border: #d3e2c9;
   --color-charcoal: #2D2D2D;
   --color-warm-gray: #6B6B6B;
   --color-cream: #FDF8F0;
