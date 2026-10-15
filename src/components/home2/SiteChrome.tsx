@@ -6,10 +6,17 @@
 import Link from "next/link";
 import { MobileMenu } from "./MobileMenu";
 
+// Never link to the old site's pages (client, 10/15). Sections without a
+// redesigned page yet open the homepage film at that chapter instead.
+export const FILM_CHAPTERS: Record<string, string> = {
+  "their-stories": "storiesheader",
+  "save-more-families": "savemore",
+};
+
 export const NEW_NAV = [
   { label: "Our Story", href: "/our-story" },
-  { label: "Their Stories", href: "/donkeys" },
-  { label: "Save More Families", href: "/how-to-help" },
+  { label: "Their Stories", href: "/#their-stories" },
+  { label: "Save More Families", href: "/#save-more-families" },
   { label: "Make an Impact", href: "/donate" },
 ];
 

@@ -18,7 +18,7 @@ const body = "text-warm-gray text-base sm:text-lg leading-relaxed";
 const PHOTOS: Record<string, string | null> = {
   hero: null,
   "first-spark": null,
-  calling: null,
+  calling: "/images/our-story/calling.webp",
   family: "/images/our-story/family.webp",
   "pink-and-eli": "/images/our-story/pink-and-eli.webp",
   eli: "/images/our-story/eli.webp",
@@ -216,7 +216,7 @@ export default function OurStoryPage() {
         title="The Calling"
         flip
         className="bg-white"
-        photo={{ k: "calling", label: "The Calling", alt: "Burros in the open desert" }}
+        photo={{ k: "calling", label: "The Calling", alt: "Sitting in the hay on a hillside, talking it over, mountains behind", pos: "28% center" }}
       >
         <p className={body}>
           We assumed, naturally, that if we ever opened a sanctuary of our own, it would be for horses. But
@@ -493,7 +493,7 @@ export default function OurStoryPage() {
             Here&apos;s how we&apos;re working to reach them — and how you can help.
           </p>
           <Link
-            href="/how-to-help"
+            href="/#save-more-families"
             className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-juniper-light text-juniper-deep text-base font-extrabold hover:bg-white transition-colors shadow-lg shadow-black/20"
           >
             Save More Families <ArrowRight className="w-4 h-4" />

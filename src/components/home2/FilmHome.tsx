@@ -38,7 +38,7 @@ import {
 } from "react";
 import { Play, Pause, Volume2, VolumeX, RotateCcw, Share2 } from "lucide-react";
 import { NARR } from "./narration-timings";
-import { NewFooter, SOCIALS } from "./SiteChrome";
+import { FILM_CHAPTERS, NEW_NAV, NewFooter, SOCIALS } from "./SiteChrome";
 import { MobileMenu } from "./MobileMenu";
 
 // ── Timeline plan ──
@@ -1016,8 +1016,8 @@ function EndScreen({ active }: { active: boolean }) {
   const [copied, setCopied] = useState(false);
   const cards = [
     { label: "Our Story", href: "/our-story", img: `${IMG}/section-8-how-it-started.webp` },
-    { label: "Their Stories", href: "/donkeys", img: `${IMG}/story-brave-herd.webp` },
-    { label: "Save More Families", href: "/how-to-help", img: `${IMG}/pano-white-donkeys.webp` },
+    { label: "Their Stories", href: "/#their-stories", img: `${IMG}/story-brave-herd.webp` },
+    { label: "Save More Families", href: "/#save-more-families", img: `${IMG}/pano-white-donkeys.webp` },
     { label: "Make an Impact", href: "/donate", img: `${IMG}/section-10-vision.webp` },
   ];
   const share = async () => {
@@ -1099,12 +1099,7 @@ function EndScreen({ active }: { active: boolean }) {
 
 // ── The player ──
 
-const NAV = [
-  { label: "Our Story", href: "/our-story" },
-  { label: "Their Stories", href: "/donkeys" },
-  { label: "Save More Families", href: "/how-to-help" },
-  { label: "Make an Impact", href: "/donate" },
-];
+const NAV = NEW_NAV;
 
 const UNLOCK = "__unlock";
 
@@ -1249,6 +1244,34 @@ export default function FilmHome() {
     },
     [scenes, starts, total, setBuf, syncAudio]
   );
+
+  // "/#their-stories"-style links (from any page's nav) open the film at that
+  // chapter. Same-page clicks go through Next's router, which changes the URL
+  // without a hashchange event, so link clicks are caught here as well.
+  const jumpRef = useRef<(hash: string) => void>(() => {});
+  useEffect(() => {
+    jumpRef.current = (hash: string) => {
+      const id = FILM_CHAPTERS[hash.replace(/^#/, "")];
+      const i = id ? scenes.findIndex((s) => s.id === id) : -1;
+      if (i >= 0) seekTo(starts[i]);
+    };
+  }, [scenes, starts, seekTo]);
+  useEffect(() => {
+    jumpRef.current(window.location.hash);
+    const onClick = (e: MouseEvent) => {
+      const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a) return;
+      const url = new URL(a.href, window.location.href);
+      if (url.origin === window.location.origin && url.pathname === "/" && url.hash) jumpRef.current(url.hash);
+    };
+    const onHash = () => jumpRef.current(window.location.hash);
+    document.addEventListener("click", onClick, true);
+    window.addEventListener("hashchange", onHash);
+    return () => {
+      document.removeEventListener("click", onClick, true);
+      window.removeEventListener("hashchange", onHash);
+    };
+  }, []);
 
   const stepScene = useCallback(
     (dir: 1 | -1) => {
