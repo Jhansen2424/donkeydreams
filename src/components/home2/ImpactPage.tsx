@@ -75,7 +75,7 @@ const TIERS = [
     name: "Burro Buddy",
     price: 5,
     img: "/images/impact/tier-buddy.webp",
-    alt: "Two donkeys resting together in the shade",
+    alt: "Two young donkeys lying together in the sun, one with a prosthetic leg",
     copy: "Every month, we'll send you 2–3 behind-the-scenes photos and videos — hay time, naps in the shade, dust baths in the dirt. The quiet, ordinary moments that mean these donkeys are safe, loved, and exactly where they belong. A little piece of the sanctuary, delivered straight to you.",
   },
   {
@@ -83,7 +83,7 @@ const TIERS = [
     name: "Burro Explorer",
     price: 25,
     img: "/images/impact/tier-explorer.webp",
-    alt: "Three donkeys standing close together in the desert",
+    alt: "A curious donkey walking up to say hello on the trail",
     copy: "Everything in Burro Buddy, plus our monthly Inside the Herd spotlight — we'll share stories about one or more of our donkeys, so you can get to know who they really are and feel a deeper connection to the Donkey Dreams herd. Some months, we'll bring you along live for a walk down the trail with the herd, because some things are better felt than described.",
   },
   {
@@ -91,7 +91,7 @@ const TIERS = [
     name: "Burro Supporter",
     price: 55,
     img: "/images/impact/tier-supporter.webp",
-    alt: "A caretaker sharing a quiet moment with a young donkey",
+    alt: "A caretaker smiling beside a donkey leaning in close",
     copy: "Everything above, plus a quarterly journal straight from the sanctuary — the real story of life here: the magical moments, the solutions to challenging problems, and sometimes the heartbreak, told by the caretakers living it every day. A closer look at what's changing around the sanctuary and at our wild burro families. Consider it your invitation past the fence line, into what preserving the wild burro spirit really looks like.",
   },
   {
@@ -99,7 +99,7 @@ const TIERS = [
     name: "Burro Bestie",
     price: 75,
     img: "/images/impact/tier-bestie.webp",
-    alt: "A founder sitting with a donkey stretched out for a nap",
+    alt: "A kiss on the forehead for a donkey resting on the ground",
     copy: "Everything above, plus a monthly live hangout with our founders and the herd — real time, straight from the sanctuary. Bring your questions, meet the donkeys face to face, and feel, even just for an hour, what it's like to be part of their world.",
   },
 ];
