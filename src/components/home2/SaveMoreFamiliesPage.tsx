@@ -62,7 +62,7 @@ export default function SaveMoreFamiliesPage() {
 
       {/* ── Hero: the sanctuary under its big sky, title in the open blue ── */}
       <SkyBand minH="min-h-[88svh]" pos="center 70%">
-        <div className="relative max-w-5xl mx-auto px-5 sm:px-8 pt-20 sm:pt-28 text-center">
+        <div className="relative max-w-5xl mx-auto px-5 sm:px-8 pt-28 sm:pt-40 text-center">
           <p className={`text-xs sm:text-sm font-extrabold uppercase tracking-[0.3em] mb-5 ${sky}`}>
             Donkey Dreams Sanctuary
           </p>
