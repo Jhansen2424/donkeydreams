@@ -19,12 +19,13 @@ const PHOTOS: Record<string, string | null> = {
   hero: null,
   "first-spark": null,
   calling: null,
-  family: null,
-  "pink-and-eli": null,
+  family: "/images/our-story/family.webp",
+  "pink-and-eli": "/images/our-story/pink-and-eli.webp",
+  eli: "/images/our-story/eli.webp",
   "five-years": null,
   "donkey-joy": null,
-  "family-by-family": null,
-  "move-home": null,
+  "family-by-family": "/images/our-story/family-by-family.webp",
+  "move-home": "/images/our-story/move-home.webp",
 };
 
 const STAND_IN: Record<string, string> = {
@@ -230,7 +231,7 @@ export default function OurStoryPage() {
       <Chapter
         n={3}
         title="What We Learned About Family"
-        photo={{ k: "family", label: "What We Learned About Family", alt: "A burro mother staying close to her baby" }}
+        photo={{ k: "family", label: "What We Learned About Family", alt: "A smiling selfie with two fuzzy young burros at the rescue", pos: "center 30%" }}
       >
         <p className={body}>
           Not long after, we found a wild burro rescue nearby and started working there. Burro families came
@@ -251,12 +252,20 @@ export default function OurStoryPage() {
             <p className="text-2xl sm:text-3xl font-bold text-juniper-dark">Then came Pink and Eli.</p>
           </Reveal>
           <div className="grid lg:grid-cols-5 gap-10 lg:gap-14 items-center">
-            <Reveal className="lg:col-span-3">
+            {/* two portrait frames, staggered */}
+            <Reveal className="lg:col-span-3 grid grid-cols-2 gap-5 sm:gap-8 items-start">
               <Photo
                 k="pink-and-eli"
                 label="Pink and Eli"
-                alt="Pink and Eli with their mothers, Sandy and Rizzo"
-                className="aspect-[4/3] mr-3 sm:mr-4"
+                alt="Pink and Eli as foals, standing side by side at the gate"
+                className="aspect-[3/4] mr-3 sm:mr-4"
+              />
+              <Photo
+                k="eli"
+                label="Eli"
+                alt="Baby Eli getting a hug at the rescue"
+                pos="center 40%"
+                className="aspect-[3/4] mr-3 sm:mr-4 mt-12 sm:mt-20"
               />
             </Reveal>
             <Reveal delay={120} className="lg:col-span-2 space-y-8">
@@ -371,7 +380,7 @@ export default function OurStoryPage() {
         title="Family by Family"
         flip
         className="bg-white"
-        photo={{ k: "family-by-family", label: "Family by Family", alt: "Burro families together at the sanctuary" }}
+        photo={{ k: "family-by-family", label: "Family by Family", alt: "A burro family stepping out of the trailer together", pos: "center 72%" }}
       >
         <p className={body}>
           Year after year, more families found their way to us — some still carrying that same wild spirit,
@@ -385,11 +394,12 @@ export default function OurStoryPage() {
       <section className="relative overflow-hidden px-5 sm:px-8 py-20 sm:py-32">
         <div
           className="absolute inset-0 bg-cover"
-          style={{ backgroundImage: `url(${bg("move-home")})`, backgroundPosition: "center" }}
+          style={{ backgroundImage: `url(${bg("move-home")})`, backgroundPosition: "25% center" }}
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-juniper-deep/95 via-juniper-deep/80 to-juniper-deep/30" />
+        {/* the pair stands left of center, so the text sits on the right */}
+        <div className="absolute inset-0 bg-juniper-deep/70 lg:bg-transparent lg:bg-gradient-to-l lg:from-juniper-deep/95 lg:via-juniper-deep/75 lg:to-juniper-deep/10" />
         <div className="relative max-w-6xl mx-auto">
-          <Reveal className="max-w-2xl text-white">
+          <Reveal className="max-w-2xl lg:max-w-xl lg:ml-auto text-white">
             <ChapterMark n={8} place="Scenic to Kingman, Arizona" light />
             <h2 className="font-extrabold tracking-tight leading-tight text-3xl sm:text-5xl mb-8">The Move Home</h2>
             <div className="space-y-5 text-base sm:text-lg leading-relaxed text-white/85">
