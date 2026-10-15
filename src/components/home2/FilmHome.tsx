@@ -53,7 +53,8 @@ type Plan = {
 };
 
 const PLAN: Record<string, Plan> = {
-  cold1: { lead: 2.0, segs: ["cold1"], tail: 1.3 },
+  // Longer, so the opening clip gets room to play (client, 2026-10-15).
+  cold1: { lead: 5.0, segs: ["cold1"], tail: 4.0 },
   cold2: { lead: 0.9, segs: ["cold2"], tail: 1.3 },
   hero: { lead: 0.8, segs: ["hero1", ["hero2", 0.9]], tail: 1.8 },
   wildfree: { lead: 0.6, segs: ["wild", ["alone", 1.0]], tail: 2.8 },
@@ -251,6 +252,8 @@ function VideoBleed({
   const here = id === sceneId;
   const frame = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState(false);
+  // Reveal waits out YouTube's start-up controls (see below).
+  const revealTimer = useRef<number | undefined>(undefined);
 
   const cmd = useCallback((func: string, args: unknown[] = []) => {
     frame.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func, args }), "*");
@@ -258,6 +261,7 @@ function VideoBleed({
 
   useEffect(() => {
     if (!mounted) {
+      window.clearTimeout(revealTimer.current);
       setReady(false);
       return;
     }
@@ -283,12 +287,34 @@ function VideoBleed({
        * autoplay (iOS Low Power Mode) just keeps the poster. Buffering (3)
        * and the loop's end (0) leave it as it is, so looping doesn't flash.
        */
-      if (state === 1) setReady(true);
-      else if (state === 2 || state === -1) setReady(false);
+      /*
+       * YouTube draws its own back / pause / next controls over the first
+       * couple of seconds of play, inside the frame where nothing on this
+       * page can hide them (client, 2026-10-15). So the photo stays up until
+       * the clip has been playing long enough for them to fade.
+       */
+      if (state === 1) {
+        if (revealTimer.current === undefined) {
+          revealTimer.current = window.setTimeout(() => setReady(true), 2800);
+        }
+      } else if (state === 2 || state === -1) {
+        window.clearTimeout(revealTimer.current);
+        revealTimer.current = undefined;
+        setReady(false);
+      } else if (state === 0) {
+        // Looped by hand: YouTube's own loop needs a one-clip playlist, and a
+        // playlist is what adds the back and next buttons.
+        cmd("seekTo", [0, true]);
+        cmd("playVideo");
+      }
     };
     window.addEventListener("message", onMsg);
-    return () => window.removeEventListener("message", onMsg);
-  }, [mounted]);
+    return () => {
+      window.removeEventListener("message", onMsg);
+      window.clearTimeout(revealTimer.current);
+      revealTimer.current = undefined;
+    };
+  }, [mounted, cmd]);
 
   // the frame starts each visit from the top of the clip
   useEffect(() => {
@@ -302,7 +328,7 @@ function VideoBleed({
   }, [mounted, paused, ready, cmd]);
 
   const src =
-    `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&mute=1&loop=1&playlist=${youtubeId}` +
+    `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&mute=1` +
     `&controls=0&disablekb=1&fs=0&rel=0&iv_load_policy=3&modestbranding=1&playsinline=1&enablejsapi=1`;
 
   return (
