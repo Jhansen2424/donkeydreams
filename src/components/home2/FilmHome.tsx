@@ -493,7 +493,7 @@ function buildScenes(): SceneDef[] {
             <h1>Preserving the Wild Burro Spirit</h1>
           </TitleCard>
           <A active={a} anim="filmFadeUp" delay={at("hero2", -400)}>
-            <p className="text-lg sm:text-2xl text-white/90 max-w-2xl mt-6 leading-relaxed">
+            <p className="text-xl sm:text-3xl text-white/90 max-w-2xl mt-6 leading-relaxed">
               We give entire wild burro families a forever home — together, with room
               to roam, and the freedom to still be who they are.
             </p>
@@ -542,7 +542,7 @@ function buildScenes(): SceneDef[] {
                 active={a}
                 seg="fam1"
                 text="In the wild, a burro's life revolves around family — a mother close by, a sibling, a herd they've known for years, grazing together, moving together, watching out for one another. Freedom, for a burro, means family — and it's not just behavior. A burro's limbic system — the part of the brain that governs emotion, memory, and bonding — works the same way ours does. They don't just form those bonds; they feel them, the same way we feel love, and the same way we feel it when we lose someone we love. Those bonds are real, and they run deep."
-                className="text-sm sm:text-lg lg:text-xl text-white/95 leading-relaxed"
+                className="text-base sm:text-xl lg:text-2xl text-white/95 leading-relaxed"
               />
             </Beat>
             <Beat active={a} enter={at("fam2", -500)} exit={end("fam2", 300)}>
@@ -550,7 +550,7 @@ function buildScenes(): SceneDef[] {
                 active={a}
                 seg="fam2"
                 text="When they're removed from the wild, that changes in an instant. One moment they're part of a herd that's never been apart. The next, they're alone — family scattered, a new world that looks nothing like the one they knew. Too often, what comes next isn't a wild burro habitat at all. It's a pen. A corral. The same four fence lines, every day, for the rest of their lives — with no family left to stand beside. They don't just lose their freedom. They carry what they lost."
-                className="text-sm sm:text-lg lg:text-xl text-white/95 leading-relaxed"
+                className="text-base sm:text-xl lg:text-2xl text-white/95 leading-relaxed"
               />
             </Beat>
             <Beat active={a} enter={at("fam3", -500)}>
@@ -558,7 +558,7 @@ function buildScenes(): SceneDef[] {
                 active={a}
                 seg="fam3"
                 text="That's the gap Donkey Dreams exists to close — a place where burros removed from the wild can live out their lives with family intact, in a wild burro habitat catering to who they are, on their own terms."
-                className="text-base sm:text-xl lg:text-2xl font-semibold text-white leading-relaxed text-center"
+                className="text-lg sm:text-2xl lg:text-3xl font-semibold text-white leading-relaxed text-center"
               />
             </Beat>
           </div>
@@ -587,7 +587,7 @@ function buildScenes(): SceneDef[] {
                 seg="prom1"
                 highlights={["families whole", "room to roam", "sovereignty honored"]}
                 text="At Donkey Dreams, burros removed from the wild get back the life they once had. We believe that takes three things: keeping their families whole, because a burro without their herd isn't complete. A wild burro habitat, with room to roam the way they once did. And their sovereignty honored — their right to still be who they are, even in our care."
-                className="text-sm sm:text-lg lg:text-xl text-white/95 leading-relaxed"
+                className="text-base sm:text-xl lg:text-2xl text-white/95 leading-relaxed"
               />
             </Beat>
             <Beat active={a} enter={at("prom2", -500)}>
@@ -595,7 +595,7 @@ function buildScenes(): SceneDef[] {
                 active={a}
                 seg="prom2"
                 text="Nearly 100 donkeys and wild burros live at Donkey Dreams today. Most arrived as family; some arrived alone and found one here — either way, no one goes it alone. As long as burros are being removed from the wild, we'll keep finding room for as many families as we can."
-                className="text-sm sm:text-lg lg:text-xl text-white/95 leading-relaxed"
+                className="text-base sm:text-xl lg:text-2xl text-white/95 leading-relaxed"
               />
             </Beat>
           </div>
@@ -642,7 +642,7 @@ function buildScenes(): SceneDef[] {
               <h3 className={`${heading} text-4xl sm:text-6xl text-white`}>{head}</h3>
             </A>
             <A active={a} anim="filmFadeUp" delay={at(id, 700)}>
-              <p className="text-white/85 text-base sm:text-lg max-w-xl mt-3">{caption}</p>
+              <p className="text-white/85 text-lg sm:text-xl max-w-xl mt-3">{caption}</p>
             </A>
           </div>
         );
@@ -683,7 +683,7 @@ function buildScenes(): SceneDef[] {
                 active={a}
                 seg="trust1"
                 text="In the wild, a burro decides how to spend their day. Where to graze. When to rest. Who to stand beside. We don't take that away just because they need care. Sovereignty, to us, means they get a say — that their needs carry the same weight as ours, the sanctuary's, anyone's. They aren't something we manage. They're someone we listen to."
-                className="text-sm sm:text-lg lg:text-xl text-white/95 leading-relaxed"
+                className="text-base sm:text-xl lg:text-2xl text-white/95 leading-relaxed"
               />
             </Beat>
             <Beat active={a} enter={at("trust2", -500)} exit={end("trust2", 300)}>
@@ -691,7 +691,7 @@ function buildScenes(): SceneDef[] {
                 active={a}
                 seg="trust2"
                 text="When a donkey needs treatment — a sore hoof, medicine, a watchful eye on a healing wound — our caretakers go to them, wherever they are, instead of pulling them away from their family and freedom to make it easier on us. We don't run them in herds to get it done, and we don't chase them to make it quicker — many of them were already chased once, the day they left the wild, and we won't ask them to relive that just to make a checkup easier on us."
-                className="text-sm sm:text-base lg:text-lg text-white/95 leading-relaxed"
+                className="text-base sm:text-lg lg:text-xl text-white/95 leading-relaxed"
               />
             </Beat>
             <Beat active={a} enter={at("trust3", -500)}>
@@ -699,7 +699,7 @@ function buildScenes(): SceneDef[] {
                 active={a}
                 seg="trust3"
                 text="To be clear: every donkey gets the care they need, fully. What's different is how we get there."
-                className="text-base sm:text-xl lg:text-2xl font-semibold text-white leading-relaxed text-center"
+                className="text-lg sm:text-2xl lg:text-3xl font-semibold text-white leading-relaxed text-center"
               />
             </Beat>
           </div>
@@ -777,7 +777,7 @@ function buildScenes(): SceneDef[] {
                     active={a}
                     seg={c.seg}
                     text={c.text}
-                    className="text-base sm:text-xl text-warm-gray leading-relaxed"
+                    className="text-lg sm:text-2xl text-warm-gray leading-relaxed"
                   />
                 </Timed>
               ))}
@@ -792,7 +792,7 @@ function buildScenes(): SceneDef[] {
         <div className="max-w-5xl mx-auto w-full grid md:grid-cols-2 gap-6 md:gap-10 items-center">
           <A active={a} anim="filmFromLeft" delay={200}>
             <h2 className={`${heading} text-3xl sm:text-5xl text-charcoal mb-5`}>How It Started</h2>
-            <p className="text-base sm:text-xl text-warm-gray leading-relaxed">
+            <p className="text-lg sm:text-2xl text-warm-gray leading-relaxed">
               "We'd already set out to start a wild burro sanctuary — rooted in habitat,
               sovereignty, and keeping bonds intact. We gave ourselves five years. Then
               Pink and Eli came along, and five years became one."
@@ -819,7 +819,7 @@ function buildScenes(): SceneDef[] {
           </A>
           <A active={a} anim="filmFromRight" delay={200}>
             <h2 className={`${heading} text-3xl sm:text-5xl text-charcoal mb-5`}>Save More Families</h2>
-            <p className="text-base sm:text-xl text-warm-gray leading-relaxed">
+            <p className="text-lg sm:text-2xl text-warm-gray leading-relaxed">
               "We've seen what this way of life gives them — peace, calm, joy. More
               families deserve exactly that: land to roam, people who've earned their
               trust, the same care every family here already has."
@@ -908,7 +908,7 @@ function buildScenes(): SceneDef[] {
             <h2 className={`${heading} text-4xl sm:text-6xl text-white mb-6`}>Make an Impact</h2>
           </A>
           <A active={a} anim="filmFadeUp" delay={at("impact", 1300)}>
-            <p className="text-lg sm:text-2xl text-white/90 max-w-2xl leading-relaxed mb-8">
+            <p className="text-xl sm:text-3xl text-white/90 max-w-2xl leading-relaxed mb-8">
               Everything at Donkey Dreams exists because people were inspired to give
               them a home. Give, and you're part of it — for every family already home,
               and every one still waiting.
@@ -1004,7 +1004,7 @@ function EndScreen({ active }: { active: boolean }) {
       {/* Follow the herd — prominent socials (client 10/14). Links verified
           against the current donkeydreams.org; YouTube/TikTok pending URLs. */}
       <A active={active} anim="filmFadeUp" delay={1800} className="mb-8">
-        <p className="text-center text-xs font-extrabold uppercase tracking-[0.28em] text-charcoal/70 mb-3">
+        <p className="text-center text-sm font-extrabold uppercase tracking-[0.28em] text-charcoal/70 mb-3">
           Follow the herd
         </p>
         <div className="flex flex-wrap justify-center gap-3">
@@ -1455,7 +1455,7 @@ export default function FilmHome() {
               style={{ animation: "filmParaIn 0.8s ease 200ms both" }}
             >
               <p
-                className={`text-[11px] sm:text-xs font-extrabold uppercase tracking-[0.28em] ${
+                className={`text-xs sm:text-sm font-extrabold uppercase tracking-[0.28em] ${
                   sup.dark ? "text-charcoal/75" : "text-white/90 [text-shadow:0_1px_8px_rgba(0,0,0,0.6)]"
                 }`}
               >
