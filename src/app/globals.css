@@ -27,12 +27,10 @@
   --color-juniper-deep: #1d2a1e;
   --color-mist: #f0f5eb;
   --color-mist-border: #d3e2c9;
-  /* Save More Families: dawn sky over the region (brand sky + deep dusk blue) */
-  --color-dusk: #12263a;
-  --color-dusk-light: #1d3a55;
-  --color-sky-ink: #1b6f90;
-  --color-horizon: #edf6fa;
-  --color-horizon-border: #cde5f0;
+  /* Save More Families: warm desert clay (terra) with ember-dark bands */
+  --color-ember: #24161a;
+  --color-blush: #fbf1ed;
+  --color-blush-border: #f0dbd2;
   --color-charcoal: #2D2D2D;
   --color-warm-gray: #6B6B6B;
   --color-cream: #FDF8F0;
