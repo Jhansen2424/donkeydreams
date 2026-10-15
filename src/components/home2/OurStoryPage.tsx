@@ -17,13 +17,13 @@ const body = "text-warm-gray text-base sm:text-lg leading-relaxed";
 
 const PHOTOS: Record<string, string | null> = {
   hero: null,
-  "first-spark": null,
+  "first-spark": "/images/our-story/first-spark.webp",
   calling: "/images/our-story/calling.webp",
   family: "/images/our-story/family.webp",
   "pink-and-eli": "/images/our-story/pink-and-eli.webp",
   eli: "/images/our-story/eli.webp",
-  "five-years": null,
-  "donkey-joy": null,
+  "five-years": "/images/our-story/five-years.webp",
+  "donkey-joy": "/images/our-story/donkey-joy.webp",
   "family-by-family": "/images/our-story/family-by-family.webp",
   "move-home": "/images/our-story/move-home.webp",
 };
@@ -198,7 +198,7 @@ export default function OurStoryPage() {
         n={1}
         title="The First Spark"
         place="Park City, Utah"
-        photo={{ k: "first-spark", label: "The First Spark", alt: "Wild mustangs in the high desert" }}
+        photo={{ k: "first-spark", label: "The First Spark", alt: "A quiet moment with a chestnut horse at the fence", pos: "center 35%" }}
       >
         <p className={body}>
           We felt that spirit for the first time years before Donkey Dreams existed, standing in the high
@@ -341,7 +341,8 @@ export default function OurStoryPage() {
             <Photo
               k="five-years"
               label="Five Years Became One"
-              alt="The first sanctuary ranch in Scenic, Arizona"
+              alt="Two in Donkey Dreams Sanctuary shirts, looking out over the desert together"
+              pos="center 38%"
               className="aspect-[4/5] mr-3 sm:mr-4"
             />
           </Reveal>
@@ -355,7 +356,8 @@ export default function OurStoryPage() {
             <Photo
               k="donkey-joy"
               label="Spreading Donkey Joy"
-              alt="A donkey sharing a joyful moment with a visitor"
+              alt="A fuzzy donkey leaning in for a hug at sunset"
+              pos="35% center"
               className="aspect-[4/5] sm:aspect-[5/4] lg:aspect-[4/5] mr-3 sm:mr-4"
             />
           </Reveal>
