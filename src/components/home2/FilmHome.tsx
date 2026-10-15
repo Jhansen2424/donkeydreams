@@ -254,6 +254,21 @@ function VideoBleed({
   const [ready, setReady] = useState(false);
   // Reveal waits out YouTube's start-up controls (see below).
   const revealTimer = useRef<number | undefined>(undefined);
+  /*
+   * What the player last reported. Every play or pause command makes YouTube
+   * flash its own play/pause icon for half a second in the middle of the
+   * clip (client, 2026-10-15), so commands are only sent when they would
+   * change something, and the loop seeks back before the end instead of
+   * replaying after it.
+   */
+  const playerState = useRef<number | undefined>(undefined);
+  const lastLoopSeek = useRef(0);
+  /** Back to the photo, and reveal again once the clip has played a while. */
+  const hide = useCallback(() => {
+    window.clearTimeout(revealTimer.current);
+    revealTimer.current = undefined;
+    setReady(false);
+  }, []);
 
   const cmd = useCallback((func: string, args: unknown[] = []) => {
     frame.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func, args }), "*");
@@ -261,19 +276,40 @@ function VideoBleed({
 
   useEffect(() => {
     if (!mounted) {
-      window.clearTimeout(revealTimer.current);
-      setReady(false);
+      hide();
+      playerState.current = undefined;
       return;
     }
+    /*
+     * Keep telling the player we are listening until it answers. One message
+     * on load can land before the player is ready for it, and then it never
+     * reports its state and the clip stays behind the photo.
+     */
+    let heard = false;
+    const knock = window.setInterval(() => {
+      if (heard) return window.clearInterval(knock);
+      frame.current?.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: sceneId, channel: "widget" }), "*");
+    }, 400);
     const onMsg = (e: MessageEvent) => {
       if (e.source !== frame.current?.contentWindow) return;
+      heard = true;
       let d: { event?: string; info?: unknown } | null = null;
       try {
         d = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
       } catch {
         return;
       }
-      const info = d?.info as { playerState?: number } | number | undefined;
+      const info = d?.info as { playerState?: number; currentTime?: number; duration?: number } | number | undefined;
+      // Seamless loop: back to the top just before the end, while still
+      // playing, so YouTube never stops or shows anything.
+      if (d?.event === "infoDelivery" && typeof info === "object" && info) {
+        const t = info.currentTime;
+        const len = info.duration;
+        if (typeof t === "number" && typeof len === "number" && len > 2 && t >= len - 0.6 && Date.now() - lastLoopSeek.current > 1500) {
+          lastLoopSeek.current = Date.now();
+          cmd("seekTo", [0, true]);
+        }
+      }
       const state =
         d?.event === "onStateChange" && typeof info === "number"
           ? info
@@ -293,39 +329,46 @@ function VideoBleed({
        * page can hide them (client, 2026-10-15). So the photo stays up until
        * the clip has been playing long enough for them to fade.
        */
+      if (typeof state === "number") playerState.current = state;
       if (state === 1) {
         if (revealTimer.current === undefined) {
           revealTimer.current = window.setTimeout(() => setReady(true), 2800);
         }
       } else if (state === 2 || state === -1) {
-        window.clearTimeout(revealTimer.current);
-        revealTimer.current = undefined;
-        setReady(false);
+        hide();
       } else if (state === 0) {
-        // Looped by hand: YouTube's own loop needs a one-clip playlist, and a
-        // playlist is what adds the back and next buttons.
+        // Ended despite the loop above: restart it behind the photo, so the
+        // icon the play command brings up is never seen.
+        hide();
         cmd("seekTo", [0, true]);
         cmd("playVideo");
       }
     };
     window.addEventListener("message", onMsg);
     return () => {
+      window.clearInterval(knock);
       window.removeEventListener("message", onMsg);
       window.clearTimeout(revealTimer.current);
       revealTimer.current = undefined;
     };
-  }, [mounted, cmd]);
+  }, [mounted, sceneId, cmd, hide]);
 
-  // the frame starts each visit from the top of the clip
+  // The frame starts each visit from the top of the clip, behind the photo.
   useEffect(() => {
-    if (here) cmd("seekTo", [0, true]);
-  }, [here, cmd]);
+    if (!here) return;
+    hide();
+    cmd("seekTo", [0, true]);
+  }, [here, cmd, hide]);
 
+  // Play or pause with the film, but only when that changes something: a
+  // command to a clip already doing it still flashes YouTube's icon.
   useEffect(() => {
     if (!mounted) return;
     cmd("mute");
-    cmd(paused ? "pauseVideo" : "playVideo");
-  }, [mounted, paused, ready, cmd]);
+    const playing = playerState.current === 1 || playerState.current === 3;
+    if (paused && playing) cmd("pauseVideo");
+    else if (!paused && !playing) cmd("playVideo");
+  }, [mounted, paused, cmd]);
 
   const src =
     `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&mute=1` +
