@@ -31,7 +31,7 @@ export const GIVING = {
   zelle: "donkeydreamssanctuary@gmail.com",
   // Address from the approved 10/8 copy doc footer (the old page listed a
   // Littlefield PO box) — confirm which one takes mailed checks.
-  mail: ["Donkey Dreams Sanctuary", "3900 N Stockton Hill Rd, Ste B368", "Kingman, AZ 86432"],
+  mail: ["Donkey Dreams Sanctuary", "3900 N Stockton Hill Rd, Ste B368", "Kingman, AZ 86409"],
 };
 
 /** Normalize any Zeffy form link to its embeddable URL (for the pop-up). */

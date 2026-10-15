@@ -85,7 +85,7 @@ export function NewFooter() {
           <p>
             3900 N Stockton Hill Rd, Ste B368
             <br />
-            Kingman, AZ 86432
+            Kingman, AZ 86409
           </p>
           <a href="mailto:amber@donkeydreams.org" className="block hover:text-white transition-colors">
             amber@donkeydreams.org
