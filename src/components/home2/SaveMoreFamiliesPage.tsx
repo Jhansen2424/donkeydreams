@@ -12,6 +12,7 @@ import { NewHeader, NewFooter } from "./SiteChrome";
 import { Reveal } from "./Reveal";
 import { StickyStory, type StoryPhoto } from "./StickyStory";
 import { ZeffyGive } from "./ZeffyGive";
+import { LoopVideo } from "./LoopVideo";
 
 const heading = "font-extrabold tracking-tight leading-tight text-charcoal";
 const body = "text-warm-gray text-base sm:text-lg leading-relaxed";
@@ -55,6 +56,21 @@ function SkyBand({ children, minH, pos }: { children: ReactNode; minH: string; p
 
 const sky = "text-white [text-shadow:0_2px_30px_rgba(10,40,80,0.45)]";
 
+/** The fund is the page's one ask (client 10/15: "pretty prominent"), so it
+ *  appears in the hero, in its own section, and again at the close. */
+function GiveToFund({ className = "" }: { className?: string }) {
+  if (!GIVING.zeffy.saveMoreFamilies) return null;
+  return (
+    <ZeffyGive
+      url={GIVING.zeffy.saveMoreFamilies}
+      title="The Save More Families Fund"
+      className={`inline-flex items-center gap-2 px-8 sm:px-9 py-4 rounded-full bg-terra text-white text-base sm:text-lg font-extrabold hover:bg-terra-dark transition-colors shadow-lg shadow-black/30 ${className}`}
+    >
+      Give to the Fund <ArrowRight className="w-5 h-5" />
+    </ZeffyGive>
+  );
+}
+
 export default function SaveMoreFamiliesPage() {
   return (
     <div className="bg-cream text-charcoal">
@@ -70,6 +86,7 @@ export default function SaveMoreFamiliesPage() {
             Save More Families
           </h1>
           <span className="block w-24 h-1.5 rounded-full bg-terra mx-auto mt-8 shadow" />
+          <GiveToFund className="mt-9" />
         </div>
       </SkyBand>
 
@@ -164,15 +181,8 @@ export default function SaveMoreFamiliesPage() {
             they&apos;ve been removed from the wild, and give them that same lifelong chance to be kept whole, roam
             freely, and hold onto their wild spirit for good. Give what you can; any amount moves us closer.
           </p>
-          {GIVING.zeffy.saveMoreFamilies && (
-            <ZeffyGive
-              url={GIVING.zeffy.saveMoreFamilies}
-              title="The Save More Families Fund"
-              className="inline-flex items-center gap-2 px-9 py-4 rounded-full bg-terra text-white text-base sm:text-lg font-extrabold hover:bg-terra-light transition-colors shadow-lg shadow-black/30"
-            >
-              Give to the Fund <ArrowRight className="w-5 h-5" />
-            </ZeffyGive>
-          )}
+          <GiveToFund />
+          <p className="mt-5 text-sm text-white/60">Opens a secure Zeffy form right here on the page.</p>
         </Reveal>
       </section>
 
@@ -205,15 +215,23 @@ export default function SaveMoreFamiliesPage() {
         </Reveal>
       </section>
 
-      {/* ── Closing: back under the same sky ── */}
-      <SkyBand minH="min-h-[75svh]" pos="center 60%">
-        <Reveal className="relative max-w-4xl mx-auto px-5 sm:px-8 pt-12 sm:pt-16 pb-56 text-center">
-          <p className={`text-2xl sm:text-4xl font-extrabold leading-snug ${sky}`}>
+      {/* ── Closing: the client's clip of two burros walking at golden hour,
+          looping behind the last line ── */}
+      <section className="relative overflow-hidden min-h-[80svh] bg-ember">
+        <LoopVideo
+          src="/video/smf-closing.mp4"
+          poster="/images/save-more-families/closing-poster.webp"
+          className="absolute inset-0 w-full h-full object-cover object-[38%_center]"
+        />
+        <div className="absolute inset-x-0 top-0 h-3/4 bg-gradient-to-b from-ember/80 via-ember/40 to-transparent" />
+        <Reveal className="relative max-w-4xl mx-auto px-5 sm:px-8 pt-16 sm:pt-20 pb-64 text-center">
+          <p className="text-2xl sm:text-4xl font-extrabold leading-snug text-white [text-shadow:0_2px_24px_rgba(0,0,0,0.4)]">
             However you take part, you&apos;re helping make sure the right to still be who they are reaches more
             than just the families already home.
           </p>
+          <GiveToFund className="mt-10" />
         </Reveal>
-      </SkyBand>
+      </section>
 
       <NewFooter />
     </div>
