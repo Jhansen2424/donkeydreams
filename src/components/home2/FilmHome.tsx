@@ -220,6 +220,112 @@ function Bleed({
   );
 }
 
+/** Which scene is on screen and whether the film is paused — for the few
+ *  things (embedded video) that can't ride the CSS animation clock. */
+const FilmNowCtx = createContext({ id: "", paused: false });
+
+/** A muted, looping YouTube clip filling the frame like Bleed's photo.
+ *  The player only exists while the film is in or next to `scene` (YouTube
+ *  is heavy), the poster photo covers it until it's actually playing, and it
+ *  pauses with the film. Talks to the player over YouTube's postMessage API. */
+function VideoBleed({
+  youtubeId,
+  scene: sceneId,
+  near,
+  poster,
+  pos = "center",
+  children,
+}: {
+  youtubeId: string;
+  scene: string;
+  /** Scene ids where the player should already be loaded (preload/fade-out). */
+  near: readonly string[];
+  poster: string;
+  pos?: string;
+  children?: ReactNode;
+}) {
+  const { id, paused } = useContext(FilmNowCtx);
+  const mounted = id === sceneId || near.includes(id);
+  const here = id === sceneId;
+  const frame = useRef<HTMLIFrameElement>(null);
+  const fallback = useRef<number | undefined>(undefined);
+  const [ready, setReady] = useState(false);
+
+  const cmd = useCallback((func: string, args: unknown[] = []) => {
+    frame.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func, args }), "*");
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) {
+      window.clearTimeout(fallback.current);
+      setReady(false);
+      return;
+    }
+    const onMsg = (e: MessageEvent) => {
+      if (e.source !== frame.current?.contentWindow) return;
+      let d: { event?: string; info?: unknown } | null = null;
+      try {
+        d = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
+      } catch {
+        return;
+      }
+      const info = d?.info as { playerState?: number } | number | undefined;
+      const playing =
+        (d?.event === "onStateChange" && info === 1) ||
+        (d?.event === "infoDelivery" && typeof info === "object" && info?.playerState === 1);
+      if (playing) setReady(true);
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, [mounted]);
+
+  // the frame starts each visit from the top of the clip
+  useEffect(() => {
+    if (here) cmd("seekTo", [0, true]);
+  }, [here, cmd]);
+
+  useEffect(() => {
+    if (!mounted) return;
+    cmd("mute");
+    cmd(paused ? "pauseVideo" : "playVideo");
+  }, [mounted, paused, ready, cmd]);
+
+  const src =
+    `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&mute=1&loop=1&playlist=${youtubeId}` +
+    `&controls=0&disablekb=1&fs=0&rel=0&iv_load_policy=3&modestbranding=1&playsinline=1&enablejsapi=1`;
+
+  return (
+    <div className="absolute inset-0 overflow-hidden bg-charcoal">
+      <div className="absolute inset-0 bg-cover" style={{ backgroundImage: `url(${poster})`, backgroundPosition: pos }} />
+      {mounted && (
+        <iframe
+          ref={frame}
+          src={src}
+          title=""
+          aria-hidden
+          tabIndex={-1}
+          allow="autoplay; encrypted-media; picture-in-picture"
+          onLoad={() => {
+            frame.current?.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: sceneId, channel: "widget" }), "*");
+            // if the player never reports in, show it anyway
+            fallback.current = window.setTimeout(() => setReady(true), 3500);
+          }}
+          // 16:9 scaled to cover any viewport; slightly oversized so YouTube's
+          // edge overlays fall outside the frame
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border-0 pointer-events-none transition-opacity duration-1000"
+          style={{
+            width: "max(115vw, 204.4vh)",
+            height: "max(115vh, 64.7vw)",
+            opacity: ready ? 1 : 0,
+          }}
+        />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/20 to-black/10" />
+      {children}
+    </div>
+  );
+}
+
 /** Words pour onto the page in step with the narrator: the line's words are
     spread across ~90% of the time the voice spends on it, so each word lands
     just as it's spoken. */
@@ -520,14 +626,15 @@ function buildScenes(): SceneDef[] {
     )),
     ...(
       [
-        ["graze", "Graze", `${IMG}/pano-ridge-golden.webp`, "center", "No rush to breakfast at base camp. Just hanging on the ridge with friends and family, picking up a few nibbles along the way."],
-        ["run", "Run", `${IMG}/pano-herd-rocks.webp`, "center", "Dinner, then out to run — rocky, steep ground where their bodies are designed to thrive."],
+        ["graze", "Graze", `${IMG}/pano-ridge-golden.webp`, "center", "No rush to breakfast at base camp. Just hanging on the ridge with friends and family, picking up a few nibbles along the way.", null],
+        // the client's "Run" clip (YouTube), muted + looping; the photo is its poster
+        ["run", "Run", `${IMG}/pano-herd-rocks.webp`, "center", "Dinner, then out to run — rocky, steep ground where their bodies are designed to thrive.", "I6i5KiYTfNc"],
         // 4:3 photo: anchor below center so the pair + shade survive the crop
-        ["nap", "Nap", `${IMG}/nap.webp`, "center 62%", "Shade, family, and nowhere they have to be. Reunited pairs rest nose-to-tail — inseparable ever since."],
+        ["nap", "Nap", `${IMG}/nap.webp`, "center 62%", "Shade, family, and nowhere they have to be. Reunited pairs rest nose-to-tail — inseparable ever since.", null],
       ] as const
-    ).map(([id, head, img, pos, caption]) =>
-      scene(id, `Room to Roam — ${head}`, (a) => (
-        <Bleed src={img} pos={pos} drift={a}>
+    ).map(([id, head, img, pos, caption, video]) =>
+      scene(id, `Room to Roam — ${head}`, (a) => {
+        const text = (
           <div className="absolute inset-0 flex flex-col justify-end items-start p-8 sm:p-14">
             <A active={a} anim="filmFadeUp" delay={at(id, -300)}>
               <h3 className={`${heading} text-4xl sm:text-6xl text-white`}>{head}</h3>
@@ -536,8 +643,17 @@ function buildScenes(): SceneDef[] {
               <p className="text-white/85 text-base sm:text-lg max-w-xl mt-3">{caption}</p>
             </A>
           </div>
-        </Bleed>
-      ))
+        );
+        return video ? (
+          <VideoBleed youtubeId={video} scene={id} near={["graze", "nap"]} poster={img} pos={pos}>
+            {text}
+          </VideoBleed>
+        ) : (
+          <Bleed src={img} pos={pos} drift={a}>
+            {text}
+          </Bleed>
+        );
+      })
     ),
     // ═══ Trust, not control ═══
     scene("trust", "Trust, Not Control", (a) => (
@@ -1238,6 +1354,8 @@ export default function FilmHome() {
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
   const paused = !playing || buffering;
+  const nowId = scenes[idx]?.id ?? "";
+  const now = useMemo(() => ({ id: nowId, paused }), [nowId, paused]);
 
   return (
     <div className="fixed inset-0 bg-cream text-charcoal overflow-hidden select-none">
@@ -1299,6 +1417,7 @@ export default function FilmHome() {
         onPointerUp={onStageUp}
         onPointerCancel={onStageUp}
       >
+        <FilmNowCtx.Provider value={now}>
         {scenes.map((sc, i) => {
           const on = i === idx || i === fading;
           const st = seekState[sc.id];
@@ -1313,6 +1432,7 @@ export default function FilmHome() {
             </div>
           );
         })}
+        </FilmNowCtx.Provider>
 
         {/* persistent section titles — quiet documentary supers */}
         {(() => {
