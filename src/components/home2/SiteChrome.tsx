@@ -4,6 +4,7 @@
 // from the old SiteShell chrome (see SiteShell.tsx).
 
 import Link from "next/link";
+import { MobileMenu } from "./MobileMenu";
 
 export const NEW_NAV = [
   { label: "Our Story", href: "/our-story" },
@@ -31,12 +32,15 @@ export function NewHeader() {
             </Link>
           ))}
         </nav>
-        <Link
-          href="/donate#two-ways"
-          className="shrink-0 px-4 py-2 rounded-full bg-sky text-charcoal text-sm font-extrabold hover:bg-sky-light transition-colors"
-        >
-          Donate Now
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/donate#two-ways"
+            className="shrink-0 px-4 py-2 rounded-full bg-sky text-charcoal text-sm font-extrabold hover:bg-sky-light transition-colors"
+          >
+            Donate Now
+          </Link>
+          <MobileMenu links={NEW_NAV} donateHref="/donate#two-ways" tone="dark" />
+        </div>
       </div>
     </header>
   );

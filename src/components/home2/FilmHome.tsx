@@ -39,6 +39,7 @@ import {
 import { Play, Pause, Volume2, VolumeX, RotateCcw, Share2 } from "lucide-react";
 import { NARR } from "./narration-timings";
 import { NewFooter } from "./SiteChrome";
+import { MobileMenu } from "./MobileMenu";
 
 // ── Timeline plan ──
 // lead = seconds before the first line; gap = seconds between lines (or a
@@ -248,7 +249,6 @@ function VideoBleed({
   const mounted = id === sceneId || near.includes(id);
   const here = id === sceneId;
   const frame = useRef<HTMLIFrameElement>(null);
-  const fallback = useRef<number | undefined>(undefined);
   const [ready, setReady] = useState(false);
 
   const cmd = useCallback((func: string, args: unknown[] = []) => {
@@ -257,7 +257,6 @@ function VideoBleed({
 
   useEffect(() => {
     if (!mounted) {
-      window.clearTimeout(fallback.current);
       setReady(false);
       return;
     }
@@ -270,10 +269,21 @@ function VideoBleed({
         return;
       }
       const info = d?.info as { playerState?: number } | number | undefined;
-      const playing =
-        (d?.event === "onStateChange" && info === 1) ||
-        (d?.event === "infoDelivery" && typeof info === "object" && info?.playerState === 1);
-      if (playing) setReady(true);
+      const state =
+        d?.event === "onStateChange" && typeof info === "number"
+          ? info
+          : d?.event === "infoDelivery" && typeof info === "object"
+            ? info?.playerState
+            : undefined;
+      /*
+       * Shown only while YouTube says it is playing (client, 2026-10-15).
+       * Paused (2) or never started (-1) goes back to the photo, so YouTube's
+       * own play button or paused overlay never shows: a phone that blocks
+       * autoplay (iOS Low Power Mode) just keeps the poster. Buffering (3)
+       * and the loop's end (0) leave it as it is, so looping doesn't flash.
+       */
+      if (state === 1) setReady(true);
+      else if (state === 2 || state === -1) setReady(false);
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
@@ -307,8 +317,8 @@ function VideoBleed({
           allow="autoplay; encrypted-media; picture-in-picture"
           onLoad={() => {
             frame.current?.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: sceneId, channel: "widget" }), "*");
-            // if the player never reports in, show it anyway
-            fallback.current = window.setTimeout(() => setReady(true), 3500);
+            // No reveal-anyway fallback: a player that never reports playing
+            // is one showing YouTube's play button, and the photo is better.
           }}
           // 16:9 scaled to cover any viewport; slightly oversized so YouTube's
           // edge overlays fall outside the frame
@@ -712,7 +722,7 @@ function buildScenes(): SceneDef[] {
           <p className={`${heading} text-2xl sm:text-4xl lg:text-5xl text-white text-center max-w-4xl leading-snug`}>
             We call it <span className="text-sky-light">sovereignty</span>: their right
             to still be who they are — not managed, not overridden, but met as an
-            equal — even while we're taking care of them.
+            equal — even while they are in our care.
           </p>
         </A>
       </div>
@@ -1485,12 +1495,15 @@ export default function FilmHome() {
                 </Link>
               ))}
             </nav>
-            <Link
-              href="/donate"
-              className="shrink-0 px-4 py-2 rounded-full bg-sky text-charcoal text-sm font-extrabold hover:bg-sky-light transition-colors"
-            >
-              Donate Now
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/donate"
+                className="shrink-0 px-4 py-2 rounded-full bg-sky text-charcoal text-sm font-extrabold hover:bg-sky-light transition-colors"
+              >
+                Donate Now
+              </Link>
+              <MobileMenu links={NAV} donateHref="/donate" tone="light" />
+            </div>
           </div>
           {/* transport */}
           <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center gap-3 mt-1">
@@ -1551,26 +1564,25 @@ export default function FilmHome() {
             <button
               onClick={soundOn ? disableSound : enableSound}
               className={`shrink-0 inline-flex items-center gap-1.5 px-3 h-8 rounded-full text-xs font-bold transition-colors ${
-                soundOn ? "bg-sky text-charcoal" : "bg-white/15 backdrop-blur text-white hover:bg-white/30"
+                soundOn ? "bg-sky text-charcoal" : "bg-white/15 backdrop-blur text-white hover:bg-white/30 ring-2 ring-sky/70 animate-pulse"
               }`}
             >
               {soundOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-              <span className="hidden sm:inline">{soundOn ? "Narration on" : "Narration"}</span>
+              {soundOn ? (
+                <span className="hidden sm:inline">Narration on</span>
+              ) : (
+                <>
+                  <span className="sm:hidden">Narration</span>
+                  <span className="hidden sm:inline">Tap for narration</span>
+                </>
+              )}
             </button>
           </div>
         </div>
       </header>
 
-      {/* tap-for-sound chip (until armed) */}
-      {!soundOn && idx < scenes.length - 1 && (
-        <button
-          onClick={enableSound}
-          className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-black/60 backdrop-blur text-white text-sm font-bold hover:bg-black/80 transition-colors"
-        >
-          <Volume2 className="w-4 h-4" />
-          Tap for narration
-        </button>
-      )}
+      {/* The floating "Tap for narration" chip sat over the scenes' text; the
+          invitation now lives on the narration button in the top bar. */}
     </div>
   );
 }
