@@ -177,17 +177,18 @@ export default function OurStoryPage() {
 
       {/* ── The three things it all comes back to ── */}
       <section className="bg-juniper-deep px-5 sm:px-8 py-12 sm:py-14">
-        <div className="max-w-6xl mx-auto grid sm:grid-cols-3 gap-8">
+        <div className="max-w-6xl mx-auto grid gap-8 lg:flex lg:justify-between">
+
           {PILLARS.map(({ icon: Icon, title }, i) => (
-            <Reveal key={title} delay={i * 120} className="flex items-center gap-4">
-              <span className="shrink-0 w-12 h-12 rounded-full border border-juniper-light/40 bg-juniper/20 flex items-center justify-center">
-                <Icon className="w-5 h-5 text-juniper-light" />
+            <Reveal key={title} delay={i * 120} className="flex items-center gap-3 sm:gap-4">
+              <span className="shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-juniper-light/40 bg-juniper/20 flex items-center justify-center">
+                <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-juniper-light" />
               </span>
               <div>
                 <p className="text-[11px] font-extrabold uppercase tracking-[0.25em] text-juniper-light/70">
                   0{i + 1}
                 </p>
-                <p className="text-lg sm:text-xl font-extrabold text-white leading-snug">{title}</p>
+                <p className="text-[15px] min-[400px]:text-base sm:text-xl font-extrabold text-white leading-snug min-[380px]:whitespace-nowrap">{title}</p>
               </div>
             </Reveal>
           ))}
@@ -259,8 +260,9 @@ export default function OurStoryPage() {
           <div className="relative max-w-6xl mx-auto px-5 sm:px-8 -mt-24 sm:-mt-32 lg:mt-0 pb-36 sm:pb-44 lg:pt-36 lg:pb-52">
             <Reveal className="lg:max-w-[52%]">
               <ChapterMark n={4} place="Born at the rescue" light />
-              <h2 className="font-extrabold tracking-tight leading-[0.95] text-white text-5xl sm:text-7xl lg:text-8xl">
-                Then came Pink and Eli.
+              <h2 className="font-extrabold tracking-tight leading-[0.95] text-white text-[2.6rem] sm:text-7xl lg:text-[5rem]">
+                <span className="block">Then came</span>
+                <span className="block whitespace-nowrap">Pink and Eli.</span>
               </h2>
             </Reveal>
           </div>
