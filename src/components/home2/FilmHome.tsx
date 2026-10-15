@@ -76,8 +76,9 @@ const PLAN: Record<string, Plan> = {
   sovereignty: { lead: 0.7, segs: ["sov"], tail: 2.0 },
   storiesheader: { lead: 0.4, segs: ["stories"], tail: 0.9 },
   storiesgrid: { lead: 0.8, segs: ["gabriel", "jackjack", "xander", "brave"], gap: 1.0, tail: 2.4 },
-  howstarted: { lead: 1.2, segs: ["started"], tail: 1.8 },
-  savemore: { lead: 1.2, segs: ["savemore"], tail: 1.8 },
+  // Trimmed to the voice (client, 2026-10-15: "a bit shorter").
+  howstarted: { lead: 0.5, segs: ["started"], tail: 0.8 },
+  savemore: { lead: 0.5, segs: ["savemore"], tail: 0.8 },
   visiontitle: { lead: 0.6, segs: ["vtitle"], tail: 1.6 },
   visionpen: { lead: 0.6, segs: ["vpen"], tail: 1.6 },
   visionquiet: { lead: 0.9, segs: ["vquiet"], tail: 2.2 },
