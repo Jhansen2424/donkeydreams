@@ -242,33 +242,43 @@ export default function OurStoryPage() {
       </Chapter>
 
       {/* ── Pink and Eli: the family that started it all ── */}
-      <section className="bg-mist border-y border-mist-border px-5 sm:px-8 py-16 sm:py-24">
-        <div className="max-w-6xl mx-auto">
-          <Reveal className="text-center max-w-3xl mx-auto mb-12">
-            <div className="flex justify-center">
-              <ChapterMark n={4} place="Born at the rescue" />
-            </div>
-            <h2 className={`${heading} text-4xl sm:text-6xl mb-5`}>Pink and Eli</h2>
-            <p className="text-2xl sm:text-3xl font-bold text-juniper-dark">Then came Pink and Eli.</p>
-          </Reveal>
-          <div className="grid lg:grid-cols-5 gap-10 lg:gap-14 items-center">
-            {/* two portrait frames, staggered */}
-            <Reveal className="lg:col-span-3 grid grid-cols-2 gap-5 sm:gap-8 items-start">
-              <Photo
-                k="pink-and-eli"
-                label="Pink and Eli"
-                alt="Pink and Eli as foals, standing side by side at the gate"
-                className="aspect-[3/4] mr-3 sm:mr-4"
-              />
+      <section>
+        {/* opener: the line itself is the headline; the (portrait) gate photo
+            runs tall to the right edge and melts into the green */}
+        <div className="relative bg-juniper-deep overflow-hidden">
+          <div className="relative aspect-[4/5] sm:aspect-[16/10] lg:aspect-auto lg:absolute lg:inset-y-0 lg:right-0 lg:w-[46%]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={PHOTOS["pink-and-eli"] ?? ""}
+              alt="Pink and Eli as foals, standing side by side at the gate"
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{ objectPosition: "center 55%", filter: "brightness(0.9) contrast(1.06) saturate(1.05)" }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-juniper-deep via-transparent to-transparent lg:bg-gradient-to-r lg:from-juniper-deep lg:via-juniper-deep/10" />
+          </div>
+          <div className="relative max-w-6xl mx-auto px-5 sm:px-8 -mt-24 sm:-mt-32 lg:mt-0 pb-36 sm:pb-44 lg:pt-36 lg:pb-52">
+            <Reveal className="lg:max-w-[52%]">
+              <ChapterMark n={4} place="Born at the rescue" light />
+              <h2 className="font-extrabold tracking-tight leading-[0.95] text-white text-5xl sm:text-7xl lg:text-8xl">
+                Then came Pink and Eli.
+              </h2>
+            </Reveal>
+          </div>
+        </div>
+
+        {/* the story, with Eli's photo overlapping up into the opener */}
+        <div className="bg-mist px-5 sm:px-8 pb-16 sm:pb-24">
+          <div className="max-w-6xl mx-auto grid lg:grid-cols-12 gap-10 lg:gap-16">
+            <Reveal className="lg:col-span-5 relative z-10 -mt-28 sm:-mt-36">
               <Photo
                 k="eli"
                 label="Eli"
                 alt="Baby Eli getting a hug at the rescue"
-                pos="center 40%"
-                className="aspect-[3/4] mr-3 sm:mr-4 mt-12 sm:mt-20"
+                pos="center 45%"
+                className="aspect-[4/5] mr-3 sm:mr-4"
               />
             </Reveal>
-            <Reveal delay={120} className="lg:col-span-2 space-y-8">
+            <Reveal delay={120} className="lg:col-span-7 lg:pt-14">
               <p className={body}>
                 They were born at the rescue. Pink&apos;s mom, Sandy, needed extra time to bond with her — so
                 Rizzo, Eli&apos;s mom, stepped in and nursed Pink too, the two mothers sharing the job between
@@ -276,7 +286,21 @@ export default function OurStoryPage() {
                 together, and it was impossible not to feel the weight of what family really meant to these
                 animals — not an idea anymore, but something we&apos;d seen with our own eyes.
               </p>
-              <FamilyTree />
+              <PullQuote>Two mothers quietly caring for one family together.</PullQuote>
+              {/* the family, like film credits */}
+              <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-4 pt-6 border-t border-mist-border">
+                {[
+                  ["Sandy", "Pink's mom"],
+                  ["Rizzo", "Eli's mom"],
+                  ["Pink", "Sandy's daughter"],
+                  ["Eli", "Rizzo's foal"],
+                ].map(([name, role]) => (
+                  <div key={name}>
+                    <dt className="text-xl font-extrabold text-charcoal">{name}</dt>
+                    <dd className="text-[11px] font-bold uppercase tracking-[0.2em] text-juniper-dark mt-1">{role}</dd>
+                  </div>
+                ))}
+              </dl>
             </Reveal>
           </div>
         </div>
@@ -390,16 +414,24 @@ export default function OurStoryPage() {
         <PullQuote>One family, one bond, at a time.</PullQuote>
       </Chapter>
 
-      {/* ── The Move Home: full-bleed ── */}
-      <section className="relative overflow-hidden px-5 sm:px-8 py-20 sm:py-32">
-        <div
-          className="absolute inset-0 bg-cover"
-          style={{ backgroundImage: `url(${bg("move-home")})`, backgroundPosition: "25% center" }}
-        />
-        {/* the pair stands left of center, so the text sits on the right */}
-        <div className="absolute inset-0 bg-juniper-deep/70 lg:bg-transparent lg:bg-gradient-to-l lg:from-juniper-deep/95 lg:via-juniper-deep/75 lg:to-juniper-deep/10" />
-        <div className="relative max-w-6xl mx-auto">
-          <Reveal className="max-w-2xl lg:max-w-xl lg:ml-auto text-white">
+      {/* ── The Move Home: photo shown whole on the left (the pair must stay
+          visible at every width), text on solid green beside it ── */}
+      <section className="bg-juniper-deep text-white lg:grid lg:grid-cols-12 lg:items-stretch">
+        <div className="relative aspect-[4/3] lg:aspect-auto lg:col-span-7 lg:min-h-[640px]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={bg("move-home")}
+            alt="Two burros sharing shade on the Kingman land, mountains behind them"
+            loading="lazy"
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ objectPosition: "18% center" }}
+          />
+          {/* melt only the outer edge into the green, never over the pair */}
+          <div className="absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-b from-transparent to-juniper-deep lg:hidden" />
+          <div className="hidden lg:block absolute inset-y-0 right-0 w-1/6 bg-gradient-to-r from-transparent to-juniper-deep" />
+        </div>
+        <div className="lg:col-span-5 flex items-center px-5 sm:px-8 lg:pl-6 lg:pr-12 pt-4 pb-16 sm:pb-20 lg:py-20">
+          <Reveal className="max-w-2xl">
             <ChapterMark n={8} place="Scenic to Kingman, Arizona" light />
             <h2 className="font-extrabold tracking-tight leading-tight text-3xl sm:text-5xl mb-8">The Move Home</h2>
             <div className="space-y-5 text-base sm:text-lg leading-relaxed text-white/85">
@@ -471,40 +503,5 @@ export default function OurStoryPage() {
 
       <NewFooter />
     </div>
-  );
-}
-
-/** Pink & Eli's family, drawn: each foal under their own mother, plus the
- *  line that made the story — Rizzo nursing Pink too. */
-function FamilyTree() {
-  const chip = "absolute -translate-x-1/2 -translate-y-1/2 text-center rounded-2xl px-3 py-2 shadow-sm";
-  return (
-    <figure className="relative w-full max-w-sm mx-auto lg:mx-0 aspect-[10/7]">
-      <svg viewBox="0 0 400 280" className="absolute inset-0 w-full h-full" aria-hidden>
-        <line x1="100" y1="70" x2="100" y2="210" className="stroke-juniper" strokeWidth="3" />
-        <line x1="300" y1="70" x2="300" y2="210" className="stroke-juniper" strokeWidth="3" />
-        <line x1="300" y1="70" x2="100" y2="210" className="stroke-juniper-dark" strokeWidth="3" strokeDasharray="8 8" />
-      </svg>
-      <div className={`${chip} left-1/4 top-[25%] bg-white`}>
-        <p className="font-extrabold text-charcoal">Sandy</p>
-        <p className="text-[11px] text-warm-gray">Pink&apos;s mom</p>
-      </div>
-      <div className={`${chip} left-3/4 top-[25%] bg-white`}>
-        <p className="font-extrabold text-charcoal">Rizzo</p>
-        <p className="text-[11px] text-warm-gray">Eli&apos;s mom</p>
-      </div>
-      <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-juniper-dark text-white text-[11px] font-bold px-2.5 py-1 whitespace-nowrap">
-        nursed Pink too
-      </span>
-      <div className={`${chip} left-1/4 top-[75%] bg-juniper text-white`}>
-        <p className="font-extrabold">Pink</p>
-      </div>
-      <div className={`${chip} left-3/4 top-[75%] bg-juniper text-white`}>
-        <p className="font-extrabold">Eli</p>
-      </div>
-      <figcaption className="sr-only">
-        Sandy is Pink&apos;s mother and Rizzo is Eli&apos;s mother; Rizzo also nursed Pink.
-      </figcaption>
-    </figure>
   );
 }
