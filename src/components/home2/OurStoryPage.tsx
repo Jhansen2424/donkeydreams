@@ -497,7 +497,7 @@ export default function OurStoryPage() {
             Here&apos;s how we&apos;re working to reach them — and how you can help.
           </p>
           <Link
-            href="/#save-more-families"
+            href="/save-more-families"
             className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-juniper-light text-juniper-deep text-base font-extrabold hover:bg-white transition-colors shadow-lg shadow-black/20"
           >
             Save More Families <ArrowRight className="w-4 h-4" />

@@ -10,13 +10,12 @@ import { MobileMenu } from "./MobileMenu";
 // redesigned page yet open the homepage film at that chapter instead.
 export const FILM_CHAPTERS: Record<string, string> = {
   "their-stories": "storiesheader",
-  "save-more-families": "savemore",
 };
 
 export const NEW_NAV = [
   { label: "Our Story", href: "/our-story" },
   { label: "Their Stories", href: "/#their-stories" },
-  { label: "Save More Families", href: "/#save-more-families" },
+  { label: "Save More Families", href: "/save-more-families" },
   { label: "Make an Impact", href: "/donate" },
 ];
 

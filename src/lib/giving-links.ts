@@ -25,7 +25,11 @@ export const GIVING = {
     family: "https://www.zeffy.com/en-US/ticketing/feed-an-entire-burro-family" as string | null,
     // general donation form, any amount (client-built, 10/14)
     oneTime: "https://www.zeffy.com/en-US/donation-form/preserve-the-wild-burro-spirit" as string | null,
+    // The Save More Families Fund, any amount (Save More Families copy doc, 10/15)
+    saveMoreFamilies: "https://www.zeffy.com/en-US/donation-form/the-save-more-families-fund" as string | null,
   },
+  // "Talk to Us" on Save More Families
+  contact: { email: "amber@donkeydreams.org", saveMoreFamiliesSubject: "Save More Families" },
   // Carried over from the previous donate page — confirm still current.
   venmo: "@DonkeyDreamsSanctuary",
   zelle: "donkeydreamssanctuary@gmail.com",
