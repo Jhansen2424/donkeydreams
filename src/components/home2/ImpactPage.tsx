@@ -325,9 +325,6 @@ export default function ImpactPage() {
 
       {/* ── Burro Family Circle ── */}
       <Section id="family-circle" className="py-20 bg-peach">
-        <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-[#4f7a48] text-center mb-3">
-          Higher-tier monthly giving
-        </p>
         <h2 className={`${heading} text-3xl sm:text-5xl text-center mb-6`}>Burro Family Circle</h2>
         <p className="max-w-3xl mx-auto text-center text-base sm:text-lg leading-relaxed text-warm-gray mb-12">
           Family is at the center of everything we do here. Most of the families at Donkey Dreams
