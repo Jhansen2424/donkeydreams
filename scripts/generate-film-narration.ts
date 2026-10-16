@@ -22,7 +22,14 @@ const OUT = join(ROOT, "public", "audio", "film");
 const DUR_JSON = join(OUT, "durations.json");
 const TS_OUT = join(ROOT, "src", "components", "home2", "narration-timings.ts");
 mkdirSync(OUT, { recursive: true });
-const FORCE = process.argv.includes("--force");
+// Untrimmed takes (gitignored). --retrim re-cuts every clip from these
+// without calling the voice API again.
+const RAW = join(ROOT, "scripts", ".narration-raw");
+mkdirSync(RAW, { recursive: true });
+const RETRIM = process.argv.includes("--retrim");
+const FORCE = process.argv.includes("--force") || RETRIM;
+// --only=id1,id2 redoes just those clips (e.g. a take that misread a word)
+const ONLY = (process.argv.find((a) => a.startsWith("--only=")) ?? "").slice(7).split(",").filter(Boolean);
 
 // A touch brisker than a slow nature doc (client 10/13: "just a touch faster").
 const STYLE =
@@ -75,18 +82,43 @@ export const SEGMENTS: Array<[string, string]> = [
 
 const RATE_HZ = 24000;
 
-/** Trim leading/trailing near-silence (16-bit mono PCM), keep ~60ms pad. */
+/**
+ * Trim leading/trailing silence (16-bit mono PCM) without clipping words.
+ * Speech is found by 10ms-window loudness at -50 dBFS, not single samples,
+ * so soft endings ("s", "th", a trailing-off voice) count as speech. Keeps
+ * 120ms before and 320ms after, then fades the edges so nothing clicks.
+ * (A per-sample cutoff at ~-35 dBFS used to shave word endings off: client
+ * 10/15, "some of the words get cut off".)
+ */
 function trimSilence(pcm: Buffer): Buffer {
   const n = Math.floor(pcm.length / 2);
-  const thresh = 600;
-  let first = 0;
-  let last = n - 1;
-  while (first < n && Math.abs(pcm.readInt16LE(first * 2)) < thresh) first++;
-  while (last > first && Math.abs(pcm.readInt16LE(last * 2)) < thresh) last--;
-  const pad = Math.round(RATE_HZ * 0.06);
-  first = Math.max(0, first - pad);
-  last = Math.min(n - 1, last + pad);
-  return pcm.subarray(first * 2, (last + 1) * 2);
+  const win = Math.round(RATE_HZ * 0.01);
+  const thresh = 32768 * Math.pow(10, -50 / 20);
+  const loud = (w: number) => {
+    let sum = 0;
+    const end = Math.min(n, (w + 1) * win);
+    for (let i = w * win; i < end; i++) sum += pcm.readInt16LE(i * 2) ** 2;
+    return Math.sqrt(sum / Math.max(1, end - w * win)) >= thresh;
+  };
+  const windows = Math.ceil(n / win);
+  let firstW = 0;
+  let lastW = windows - 1;
+  while (firstW < windows && !loud(firstW)) firstW++;
+  while (lastW > firstW && !loud(lastW)) lastW--;
+  const first = Math.max(0, firstW * win - Math.round(RATE_HZ * 0.12));
+  const last = Math.min(n - 1, (lastW + 1) * win + Math.round(RATE_HZ * 0.32));
+  const out = Buffer.from(pcm.subarray(first * 2, (last + 1) * 2));
+  const len = out.length / 2;
+  const fade = (from: number, count: number, rising: boolean) => {
+    for (let i = 0; i < count && from + i < len; i++) {
+      const g = rising ? i / count : 1 - i / count;
+      out.writeInt16LE(Math.round(out.readInt16LE((from + i) * 2) * g), (from + i) * 2);
+    }
+  };
+  fade(0, Math.round(RATE_HZ * 0.01), true);
+  const tail = Math.round(RATE_HZ * 0.08);
+  fade(Math.max(0, len - tail), tail, false);
+  return out;
 }
 
 function wavFromPcm(pcm: Buffer): Buffer {
@@ -137,18 +169,85 @@ async function synth(text: string): Promise<Buffer> {
   throw lastErr;
 }
 
+/** Same-sounding spellings a transcriber may pick; not reading errors. */
+const SOUNDS_SAME: Record<string, string> = {
+  burrow: "burro", borough: "burro", burreau: "burro", bureau: "burro", burrows: "burros", boroughs: "burros",
+  "100": "one hundred", everyone: "every one", sanctuaries: "sanctuarys", familys: "families",
+  rome: "roam", grays: "graze", grace: "graze",
+};
+
+/** Words only, lowercased, for comparing a transcript to the script. */
+const words = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[’']/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean)
+    .flatMap((w) => (SOUNDS_SAME[w] ?? w).split(" "));
+
+/**
+ * --verify: transcribe every clip and compare it to its line, so a take that
+ * drops, swaps or clips a word is caught. Prints the ids that need --only=.
+ */
+async function verify() {
+  const bad: string[] = [];
+  for (const [id, text] of SEGMENTS) {
+    const audio = readFileSync(join(OUT, `${id}.mp3`)).toString("base64");
+    let heard = "";
+    for (let attempt = 1; attempt <= 4 && !heard; attempt++) {
+      try {
+        const res = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { inlineData: { mimeType: "audio/mp3", data: audio } },
+                { text: "Transcribe this audio exactly, word for word, including any cut-off final word as you hear it. Output only the transcript." },
+              ],
+            },
+          ],
+        });
+        heard = res.text?.trim() ?? "";
+      } catch (e) {
+        await new Promise((r) => setTimeout(r, /429|quota|rate/i.test((e as Error).message) ? 20000 : 3000));
+      }
+    }
+    const want = words(text);
+    const got = words(heard);
+    const ok = want.length === got.length && want.every((w, i) => w === got[i]);
+    console.log(`${ok ? "ok  " : "DIFF"} ${id}${ok ? "" : `\n     want: ${want.join(" ")}\n     got:  ${got.join(" ")}`}`);
+    if (!ok) bad.push(id);
+    await new Promise((r) => setTimeout(r, 700));
+  }
+  console.log(bad.length ? `\nRe-voice with: --only=${bad.join(",")}` : "\nAll clips match their lines.");
+}
+
 async function main() {
+  if (process.argv.includes("--verify")) return verify();
   const durations: Record<string, number> =
-    existsSync(DUR_JSON) && !FORCE ? JSON.parse(readFileSync(DUR_JSON, "utf-8")) : {};
+    existsSync(DUR_JSON) && (!FORCE || ONLY.length) ? JSON.parse(readFileSync(DUR_JSON, "utf-8")) : {};
 
   for (const [id, text] of SEGMENTS) {
     const mp3 = join(OUT, `${id}.mp3`);
-    if (!FORCE && existsSync(mp3) && durations[id]) {
+    const redo = ONLY.length ? ONLY.includes(id) : FORCE;
+    if (!redo && existsSync(mp3) && durations[id]) {
       console.log(`${id}: cached (${durations[id].toFixed(2)}s)`);
       continue;
     }
-    console.log(`${id}: synthesizing…`);
-    const pcm = trimSilence(await synth(text));
+    const rawPath = join(RAW, `${id}.pcm`);
+    let raw: Buffer;
+    if (RETRIM && existsSync(rawPath)) {
+      console.log(`${id}: re-trimming saved take…`);
+      raw = readFileSync(rawPath);
+    } else {
+      console.log(`${id}: synthesizing…`);
+      raw = await synth(text);
+      writeFileSync(rawPath, raw); // the untrimmed take, so trimming can change without re-voicing
+    }
+    const pcm = trimSilence(raw);
     const seconds = pcm.length / 2 / RATE_HZ;
     const wav = join(OUT, `${id}.wav`);
     writeFileSync(wav, wavFromPcm(pcm));

@@ -48,3 +48,6 @@ certificates
 # Spreadsheet working copies + pre-import backups (data lives in the app)
 src/*.xlsx
 src/lib/data/*.backup-pre-xlsx
+
+# untrimmed narration takes (scripts/generate-film-narration.ts --retrim)
+scripts/.narration-raw/

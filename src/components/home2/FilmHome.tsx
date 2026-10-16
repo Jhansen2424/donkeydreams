@@ -1117,10 +1117,13 @@ export default function FilmHome() {
       void audio.play().catch(() => {});
       return;
     }
-    // drift guard (clip seconds = film seconds × RATE)
+    // Drift guard (clip seconds = film seconds × RATE). The voice leads: if
+    // it has fallen behind (slow load, a stall) the film's clock steps back
+    // to it rather than skipping the voice ahead, which dropped words at
+    // slide changes (client 10/15).
     if (!audio.paused && audio.readyState >= 3) {
       const want = (t - START[seg]) * RATE;
-      if (Math.abs(audio.currentTime - want) > 0.4) audio.currentTime = want;
+      if (Math.abs(audio.currentTime - want) > 0.3) elapsedRef.current = START[seg] + audio.currentTime / RATE;
     }
   }, [activeSegAt, startSeg]);
 
