@@ -917,7 +917,7 @@ function EndScreen({ active }: { active: boolean }) {
   const [copied, setCopied] = useState(false);
   const cards = [
     { label: "Our Story", href: "/our-story", img: `${IMG}/section-8-how-it-started.webp` },
-    { label: "Their Stories", href: "/#their-stories", img: `${IMG}/story-brave-herd.webp` },
+    { label: "Their Stories", href: "/their-stories", img: `${IMG}/story-brave-herd.webp` },
     { label: "Save More Families", href: "/save-more-families", img: `${IMG}/pano-white-donkeys.webp` },
     { label: "Make an Impact", href: "/donate", img: `${IMG}/section-10-vision.webp` },
   ];

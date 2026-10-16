@@ -31,6 +31,13 @@
   --color-ember: #24161a;
   --color-blush: #fbf1ed;
   --color-blush-border: #f0dbd2;
+  /* Their Stories: night indigo with lantern gold, like a storybook read by lamplight */
+  --color-night: #171d33;
+  --color-night-light: #252e4d;
+  --color-gold: #e2ad5f;
+  --color-gold-light: #f2cf95;
+  --color-gold-dark: #a8722a;
+  --color-parchment: #fbf6ec;
   --color-charcoal: #2D2D2D;
   --color-warm-gray: #6B6B6B;
   --color-cream: #FDF8F0;

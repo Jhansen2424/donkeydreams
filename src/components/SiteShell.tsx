@@ -13,7 +13,7 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
   // pages keep the classic navbar until they're redesigned too.
   const isStoryHome = pathname === "/" || pathname.startsWith("/new-home");
   // Redesigned pages carry the new header/footer (home2/SiteChrome).
-  const isRedesigned = pathname.startsWith("/donate") || pathname.startsWith("/our-story") || pathname.startsWith("/save-more-families");
+  const isRedesigned = pathname.startsWith("/donate") || pathname.startsWith("/our-story") || pathname.startsWith("/save-more-families") || pathname.startsWith("/their-stories");
 
   // /app and /auth render their own layout chrome — skip the public navbar
   // and footer so signing in / using the dashboard isn't framed by the

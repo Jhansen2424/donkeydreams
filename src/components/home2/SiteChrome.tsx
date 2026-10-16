@@ -14,7 +14,7 @@ export const FILM_CHAPTERS: Record<string, string> = {
 
 export const NEW_NAV = [
   { label: "Our Story", href: "/our-story" },
-  { label: "Their Stories", href: "/#their-stories" },
+  { label: "Their Stories", href: "/their-stories" },
   { label: "Save More Families", href: "/save-more-families" },
   { label: "Make an Impact", href: "/donate" },
 ];
