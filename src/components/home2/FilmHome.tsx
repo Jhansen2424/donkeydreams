@@ -227,177 +227,79 @@ function Bleed({
  *  things (embedded video) that can't ride the CSS animation clock. */
 const FilmNowCtx = createContext({ id: "", paused: false });
 
-/** A muted, looping YouTube clip filling the frame like Bleed's photo.
- *  The player only exists while the film is in or next to `scene` (YouTube
- *  is heavy), the poster photo covers it until it's actually playing, and it
- *  pauses with the film. Talks to the player over YouTube's postMessage API. */
+/** A muted, looping clip (the client's own video files) filling the frame
+ *  like Bleed's photo. It loads while the film is in or next to `scene`,
+ *  sits on its first frame until it's actually playing, follows the film's
+ *  pause and scrubber, and keeps playing through the cross-fade out. */
 function VideoBleed({
-  youtubeId,
+  src,
   scene: sceneId,
   near,
   poster,
   pos = "center",
   children,
 }: {
-  youtubeId: string;
+  src: string;
   scene: string;
-  /** Scene ids where the player should already be loaded (preload/fade-out). */
+  /** Scene ids where the clip should already be loaded (preload/fade-out). */
   near: readonly string[];
+  /** The clip's first frame, shown until it plays. */
   poster: string;
   pos?: string;
   children?: ReactNode;
 }) {
   const { id, paused } = useContext(FilmNowCtx);
+  const off = useOff();
   const mounted = id === sceneId || near.includes(id);
   const here = id === sceneId;
-  const frame = useRef<HTMLIFrameElement>(null);
-  const [ready, setReady] = useState(false);
-  // Reveal waits out YouTube's start-up controls (see below).
-  const revealTimer = useRef<number | undefined>(undefined);
-  /*
-   * What the player last reported. Every play or pause command makes YouTube
-   * flash its own play/pause icon for half a second in the middle of the
-   * clip (client, 2026-10-15), so commands are only sent when they would
-   * change something, and the loop seeks back before the end instead of
-   * replaying after it.
-   */
-  const playerState = useRef<number | undefined>(undefined);
-  const lastLoopSeek = useRef(0);
-  /** Back to the photo, and reveal again once the clip has played a while. */
-  const hide = useCallback(() => {
-    window.clearTimeout(revealTimer.current);
-    revealTimer.current = undefined;
-    setReady(false);
-  }, []);
+  const video = useRef<HTMLVideoElement>(null);
+  const [playing, setPlaying] = useState(false);
 
-  const cmd = useCallback((func: string, args: unknown[] = []) => {
-    frame.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func, args }), "*");
-  }, []);
-
+  // Each visit starts where the film is in this scene (0 unless scrubbed in).
   useEffect(() => {
-    if (!mounted) {
-      hide();
-      playerState.current = undefined;
+    const v = video.current;
+    if (!here || !v) return;
+    const t = off / 1000;
+    const seek = () => {
+      v.currentTime = Number.isFinite(v.duration) && v.duration > 0 ? t % v.duration : t;
+    };
+    if (v.readyState >= 1) seek();
+    else v.addEventListener("loadedmetadata", seek, { once: true });
+  }, [here, off]);
+
+  // Play while this scene is up and the film runs; let it play on through
+  // the cross-fade out, then stop.
+  useEffect(() => {
+    const v = video.current;
+    if (!v) return;
+    if (here && !paused) {
+      v.play().catch(() => {}); // autoplay blocked (e.g. iOS Low Power): first frame stays
       return;
     }
-    /*
-     * Keep telling the player we are listening until it answers. One message
-     * on load can land before the player is ready for it, and then it never
-     * reports its state and the clip stays behind the photo.
-     */
-    let heard = false;
-    const knock = window.setInterval(() => {
-      if (heard) return window.clearInterval(knock);
-      frame.current?.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: sceneId, channel: "widget" }), "*");
-    }, 400);
-    const onMsg = (e: MessageEvent) => {
-      if (e.source !== frame.current?.contentWindow) return;
-      heard = true;
-      let d: { event?: string; info?: unknown } | null = null;
-      try {
-        d = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
-      } catch {
-        return;
-      }
-      const info = d?.info as { playerState?: number; currentTime?: number; duration?: number } | number | undefined;
-      // Seamless loop: back to the top just before the end, while still
-      // playing, so YouTube never stops or shows anything.
-      if (d?.event === "infoDelivery" && typeof info === "object" && info) {
-        const t = info.currentTime;
-        const len = info.duration;
-        if (typeof t === "number" && typeof len === "number" && len > 2 && t >= len - 0.6 && Date.now() - lastLoopSeek.current > 1500) {
-          lastLoopSeek.current = Date.now();
-          cmd("seekTo", [0, true]);
-        }
-      }
-      const state =
-        d?.event === "onStateChange" && typeof info === "number"
-          ? info
-          : d?.event === "infoDelivery" && typeof info === "object"
-            ? info?.playerState
-            : undefined;
-      /*
-       * Shown only while YouTube says it is playing (client, 2026-10-15).
-       * Paused (2) or never started (-1) goes back to the photo, so YouTube's
-       * own play button or paused overlay never shows: a phone that blocks
-       * autoplay (iOS Low Power Mode) just keeps the poster. Buffering (3)
-       * and the loop's end (0) leave it as it is, so looping doesn't flash.
-       */
-      /*
-       * YouTube draws its own back / pause / next controls over the first
-       * couple of seconds of play, inside the frame where nothing on this
-       * page can hide them (client, 2026-10-15). So the photo stays up until
-       * the clip has been playing long enough for them to fade.
-       */
-      if (typeof state === "number") playerState.current = state;
-      if (state === 1) {
-        if (revealTimer.current === undefined) {
-          revealTimer.current = window.setTimeout(() => setReady(true), 2800);
-        }
-      } else if (state === 2 || state === -1) {
-        hide();
-      } else if (state === 0) {
-        // Ended despite the loop above: restart it behind the photo, so the
-        // icon the play command brings up is never seen.
-        hide();
-        cmd("seekTo", [0, true]);
-        cmd("playVideo");
-      }
-    };
-    window.addEventListener("message", onMsg);
-    return () => {
-      window.clearInterval(knock);
-      window.removeEventListener("message", onMsg);
-      window.clearTimeout(revealTimer.current);
-      revealTimer.current = undefined;
-    };
-  }, [mounted, sceneId, cmd, hide]);
-
-  // The frame starts each visit from the top of the clip, behind the photo.
-  useEffect(() => {
-    if (!here) return;
-    hide();
-    cmd("seekTo", [0, true]);
-  }, [here, cmd, hide]);
-
-  // Play or pause with the film, but only when that changes something: a
-  // command to a clip already doing it still flashes YouTube's icon.
-  useEffect(() => {
-    if (!mounted) return;
-    cmd("mute");
-    const playing = playerState.current === 1 || playerState.current === 3;
-    if (paused && playing) cmd("pauseVideo");
-    else if (!paused && !playing) cmd("playVideo");
-  }, [mounted, paused, cmd]);
-
-  const src =
-    `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&mute=1` +
-    `&controls=0&disablekb=1&fs=0&rel=0&iv_load_policy=3&modestbranding=1&playsinline=1&enablejsapi=1`;
+    if (paused) {
+      v.pause();
+      return;
+    }
+    const t = window.setTimeout(() => v.pause(), 1200);
+    return () => window.clearTimeout(t);
+  }, [here, paused]);
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-charcoal">
       <div className="absolute inset-0 bg-cover" style={{ backgroundImage: `url(${poster})`, backgroundPosition: pos }} />
       {mounted && (
-        <iframe
-          ref={frame}
+        <video
+          ref={video}
           src={src}
-          title=""
+          muted
+          loop
+          playsInline
+          preload="auto"
           aria-hidden
           tabIndex={-1}
-          allow="autoplay; encrypted-media; picture-in-picture"
-          onLoad={() => {
-            frame.current?.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: sceneId, channel: "widget" }), "*");
-            // No reveal-anyway fallback: a player that never reports playing
-            // is one showing YouTube's play button, and the photo is better.
-          }}
-          // 16:9 scaled to cover any viewport; slightly oversized so YouTube's
-          // edge overlays fall outside the frame
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border-0 pointer-events-none transition-opacity duration-1000"
-          style={{
-            width: "max(115vw, 204.4vh)",
-            height: "max(115vh, 64.7vw)",
-            opacity: ready ? 1 : 0,
-          }}
+          onPlaying={() => setPlaying(true)}
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-500"
+          style={{ objectPosition: pos, opacity: playing ? 1 : 0 }}
         />
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/20 to-black/10" />
@@ -528,12 +430,10 @@ function scene(id: string, title: string, render: (a: boolean) => ReactNode): Sc
 function buildScenes(): SceneDef[] {
   return [
     // ═══ Cold open ═══
-    // Source photo is cropped to drop the corral fencing + stitch notch; the
-    // crop anchors toward the sun so it stays in frame on narrow screens.
-    // The client's "Somewhere in the Arizona desert…" clip (YouTube), muted +
-    // looping like "Run"; the sunrise photo is its poster while it loads.
+    // The client's sunrise clip over the herd (public/video), muted and
+    // looping like "Run"; its first frame shows while it loads.
     scene("cold1", "Opening", (a) => (
-      <VideoBleed youtubeId="Wlle7AmcBB8" scene="cold1" near={["cold2"]} poster={`${IMG}/pano-sunrise-hills.webp`} pos="32% center">
+      <VideoBleed src="/video/film-opening.mp4" scene="cold1" near={["cold2"]} poster={`${IMG}/opening-poster.webp`}>
         <div className="absolute inset-0 flex items-center justify-center px-8">
           {/* the clip plays alone before the line arrives */}
           <TitleCard
@@ -709,8 +609,9 @@ function buildScenes(): SceneDef[] {
     ...(
       [
         ["graze", "Graze", `${IMG}/pano-ridge-golden.webp`, "center", "No rush to breakfast at base camp. Just hanging on the ridge with friends and family, picking up a few nibbles along the way.", null],
-        // the client's "Run" clip (YouTube), muted + looping; the photo is its poster
-        ["run", "Run", `${IMG}/pano-herd-rocks.webp`, "center", "Dinner, then out to run — rocky, steep ground where their bodies are designed to thrive.", "I6i5KiYTfNc"],
+        // the client's "Run" clip (public/video, trimmed to what the scene
+        // shows), muted + looping; its first frame is the poster
+        ["run", "Run", `${IMG}/run-poster.webp`, "center", "Dinner, then out to run — rocky, steep ground where their bodies are designed to thrive.", "/video/film-run.mp4"],
         // 4:3 photo: anchor below center so the pair + shade survive the crop
         ["nap", "Nap", `${IMG}/nap.webp`, "center 62%", "Shade, family, and nowhere they have to be. Reunited pairs rest nose-to-tail — inseparable ever since.", null],
       ] as const
@@ -727,7 +628,7 @@ function buildScenes(): SceneDef[] {
           </div>
         );
         return video ? (
-          <VideoBleed youtubeId={video} scene={id} near={["graze", "nap"]} poster={img} pos={pos}>
+          <VideoBleed src={video} scene={id} near={["graze", "nap"]} poster={img} pos={pos}>
             {text}
           </VideoBleed>
         ) : (
