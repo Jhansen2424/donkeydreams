@@ -11,22 +11,25 @@ const openSans = Open_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Donkey Dreams Sanctuary | Where Donkeys Are Free to Dream",
+  // Absolute base for share-preview images (opengraph-image.jpg) and links.
+  metadataBase: new URL("https://www.donkeydreams.org"),
+  title: "Donkey Dreams Sanctuary | Preserving the Wild Burro Spirit",
   description:
-    "Donkey Dreams Sanctuary rescues, rehabilitates, and provides forever homes for donkeys in Scenic, Arizona. Donate today to help us care for donkeys in need.",
+    "Donkey Dreams Sanctuary gives entire wild burro families a forever home in Kingman, Arizona: together, with room to roam, and the freedom to still be who they are.",
+  twitter: { card: "summary_large_image" },
   keywords: [
     "donkey sanctuary",
     "donkey rescue",
-    "Scenic AZ",
+    "wild burro sanctuary",
+    "Kingman AZ",
     "animal rescue",
     "donate",
     "nonprofit",
   ],
   openGraph: {
-    title: "Donkey Dreams Sanctuary | Where Donkeys Are Free to Dream",
+    title: "Donkey Dreams Sanctuary | Preserving the Wild Burro Spirit",
     description:
-      "Rescuing and providing forever homes for donkeys in the Arizona desert.",
-    url: "https://donkeydreams.org",
+      "Entire wild burro families, kept whole, with room to roam and the freedom to still be who they are.",
     siteName: "Donkey Dreams Sanctuary",
     type: "website",
   },

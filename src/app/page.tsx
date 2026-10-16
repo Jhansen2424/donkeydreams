@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     title: "Donkey Dreams Sanctuary — Preserving the Wild Burro Spirit",
     description:
       "We give entire wild burro families a forever home — together, with room to roam, and the freedom to still be who they are.",
-    url: "https://donkeydreams.org",
+    url: "https://www.donkeydreams.org",
     siteName: "Donkey Dreams Sanctuary",
     type: "website",
   },
