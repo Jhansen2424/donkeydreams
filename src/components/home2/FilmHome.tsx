@@ -145,14 +145,16 @@ function Timed({
   children,
 }: {
   active: boolean;
-  layers: Array<[name: string, durS: number, delayMs: number, ease?: string]>;
+  /** fill defaults to "forwards"; "backwards" (with a visible base style)
+   *  lets an entrance end as plain, unfiltered, untransformed text. */
+  layers: Array<[name: string, durS: number, delayMs: number, ease?: string, fill?: "forwards" | "backwards"]>;
   className?: string;
   style?: CSSProperties;
   children?: ReactNode;
 }) {
   const off = useOff();
   const animation = active
-    ? layers.map(([n, d, del, e]) => `${n} ${d}s ${e ?? EASE} ${del - off}ms forwards`).join(", ")
+    ? layers.map(([n, d, del, e, fill]) => `${n} ${d}s ${e ?? EASE} ${del - off}ms ${fill ?? "forwards"}`).join(", ")
     : "none";
   return (
     <div className={className} style={{ opacity: 0, ...style, animation }}>
@@ -353,7 +355,7 @@ function Pour({
             className={`film-word ${marked[i] ? "font-extrabold text-sky-light text-[1.18em]" : ""}`}
             style={{
               animation: active
-                ? `filmWordIn 0.95s cubic-bezier(0.3,0.6,0.25,1) ${Math.round(startMs + i * wordMs - off)}ms forwards`
+                ? `filmWordIn 0.95s cubic-bezier(0.3,0.6,0.25,1) ${Math.round(startMs + i * wordMs - off)}ms backwards`
                 : "none",
             }}
           >
@@ -365,7 +367,10 @@ function Pour({
   );
 }
 
-/** Movie title card: zoom-settle + focus pull, then a slow push while held. */
+/** Movie title card: zoom-settle + focus pull, then held still. (A slow push
+ *  on the words while held made browsers draw them as a scaled bitmap, so
+ *  titles went soft for the whole hold: client 10/19. The photo behind
+ *  still drifts.) */
 function TitleCard({
   active,
   delay = 0,
@@ -381,14 +386,15 @@ function TitleCard({
   children: ReactNode;
 }) {
   return (
-    <Timed active={active} layers={[["filmPush", 11, delay, "linear"]]} style={{ opacity: 1 }}>
-      <Timed
-        active={active}
-        layers={[[sweep ? "filmSweepIn" : "filmTitleIn", sweep ? 2.6 : 1.8, delay, "cubic-bezier(0.25,0.6,0.25,1)"]]}
-        className={`${className} ${sweep ? "film-sweep" : ""}`}
-      >
-        {children}
-      </Timed>
+    // Once landed the animation lets go ("backwards"), so the title is plain
+    // text: a held end state keeps a zero-blur filter that renders it soft.
+    <Timed
+      active={active}
+      layers={[[sweep ? "filmSweepIn" : "filmTitleIn", sweep ? 2.6 : 1.8, delay, "cubic-bezier(0.25,0.6,0.25,1)", "backwards"]]}
+      className={`${className} ${sweep ? "film-sweep" : ""}`}
+      style={{ opacity: 1 }}
+    >
+      {children}
     </Timed>
   );
 }
@@ -1380,9 +1386,8 @@ export default function FilmHome() {
         @keyframes filmTitleIn {
           0% { opacity: 0; transform: scale(1.14); filter: blur(10px); }
           60% { opacity: 1; filter: blur(2px); }
-          100% { opacity: 1; transform: scale(1); filter: blur(0); }
+          100% { opacity: 1; transform: none; filter: none; }
         }
-        @keyframes filmPush { from { transform: scale(1); } to { transform: scale(1.05); } }
         @keyframes filmDrift { from { transform: scale(1); } to { transform: scale(1.08); } }
         .film-sweep {
           -webkit-mask-image: linear-gradient(100deg, #000 35%, transparent 55%);
@@ -1399,9 +1404,11 @@ export default function FilmHome() {
           0% { opacity: 0; transform: translateY(-0.9em) scale(0.94, 1.28); filter: blur(10px); }
           45% { opacity: 1; filter: blur(3px); }
           75% { transform: translateY(0.07em) scale(1.03, 0.97); filter: blur(0.5px); }
-          100% { opacity: 1; transform: none; filter: blur(0); }
+          100% { opacity: 1; transform: none; filter: none; }
         }
-        .film-word { opacity: 0; display: inline-block; }
+        /* hidden before its turn by the animation's backwards fill; after it,
+           the word is plain text (no leftover filter softening it) */
+        .film-word { display: inline-block; }
         /* the film clock owns every animation: paused = frozen frame */
         .film-paused * { animation-play-state: paused !important; }
       `}</style>
