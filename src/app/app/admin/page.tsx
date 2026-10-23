@@ -20,6 +20,7 @@ import {
   Trash2,
   Pencil,
   Save,
+  CalendarClock,
 } from "lucide-react";
 import {
   volunteers as initialVolunteers,
@@ -34,7 +35,7 @@ import {
   type UserRole,
 } from "@/lib/volunteer-data";
 import { formatDate } from "@/lib/format-date";
-import { useSchedule } from "@/lib/schedule-context";
+import { useSchedule, localToday } from "@/lib/schedule-context";
 import { useAnimals } from "@/lib/animals-context";
 import { type ScheduleTask, type TaskCategory } from "@/lib/sanctuary-data";
 import ExpandableText from "@/components/app/ExpandableText";
@@ -1247,11 +1248,30 @@ function AdminTasksCard({
 }: {
   adminTasks: { task: ScheduleTask; blockIdx: number; taskIdx: number }[];
 }) {
-  const { addTask, toggleTask, deleteTask } = useSchedule();
+  const { addTask, toggleTask, deleteTask, setDueDate } = useSchedule();
   const [draft, setDraft] = useState("");
   const [draftNote, setDraftNote] = useState("");
+  const [draftDue, setDraftDue] = useState("");
   const [adding, setAdding] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [editingDue, setEditingDue] = useState<string | null>(null);
+  const today = localToday();
+
+  // Open tasks first, soonest deadline first (undated after dated, in their
+  // existing order); finished tasks last.
+  const sorted = useMemo(
+    () =>
+      adminTasks
+        .map((t, i) => ({ ...t, i }))
+        .sort((a, b) => {
+          if (a.task.done !== b.task.done) return a.task.done ? 1 : -1;
+          const ad = a.task.dueDate, bd = b.task.dueDate;
+          if (ad && bd && ad !== bd) return ad < bd ? -1 : 1;
+          if (!!ad !== !!bd) return ad ? -1 : 1;
+          return a.i - b.i;
+        }),
+    [adminTasks]
+  );
 
   async function handleAdd() {
     const text = draft.trim();
@@ -1265,9 +1285,11 @@ function AdminTasksCard({
         category: "admin",
         note: draftNote.trim() || undefined,
         sticky: true,
+        dueDate: draftDue || undefined,
       });
       setDraft("");
       setDraftNote("");
+      setDraftDue("");
       setShowForm(false);
     } finally {
       setAdding(false);
@@ -1319,6 +1341,22 @@ function AdminTasksCard({
             rows={3}
             className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal placeholder:text-warm-gray/50 focus:outline-none focus:ring-2 focus:ring-sand/50"
           />
+          <label className="flex flex-wrap items-center gap-2 text-xs font-medium text-charcoal">
+            <CalendarClock className="w-4 h-4 text-purple-600" />
+            Due date <span className="text-warm-gray/60 font-normal">(optional)</span>
+            <input
+              type="date"
+              value={draftDue}
+              min={today}
+              onChange={(e) => setDraftDue(e.target.value)}
+              className="px-2 py-1.5 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+            />
+            {draftDue && (
+              <button type="button" onClick={() => setDraftDue("")} className="text-warm-gray hover:text-red-500">
+                Clear
+              </button>
+            )}
+          </label>
           <div className="flex justify-end gap-2">
             <button
               onClick={() => setShowForm(false)}
@@ -1343,7 +1381,7 @@ function AdminTasksCard({
         </p>
       ) : (
         <ul className="space-y-1.5">
-          {adminTasks.map(({ task, blockIdx, taskIdx }) => (
+          {sorted.map(({ task, blockIdx, taskIdx }) => (
             <li
               key={task.serverId ?? `${blockIdx}-${taskIdx}`}
               className={`flex items-start gap-3 p-2.5 rounded-lg border group ${
@@ -1379,6 +1417,17 @@ function AdminTasksCard({
                 {task.assignedTo && (
                   <p className="text-[11px] text-emerald-700 mt-0.5">{task.assignedTo}</p>
                 )}
+                {task.serverId && (
+                  <DueDateControl
+                    due={task.dueDate}
+                    done={task.done}
+                    today={today}
+                    editing={editingDue === task.serverId}
+                    onEdit={() => setEditingDue(task.serverId ?? null)}
+                    onDone={() => setEditingDue(null)}
+                    onChange={(d) => void setDueDate(task.serverId!, d)}
+                  />
+                )}
                 {task.note && (
                   <div className="mt-0.5">
                     <ExpandableText
@@ -1401,6 +1450,96 @@ function AdminTasksCard({
         </ul>
       )}
     </div>
+  );
+}
+
+/** An admin task's deadline: a chip (red when due or overdue, amber within
+ *  three days) that turns into a date picker when tapped, or "Add due date". */
+function DueDateControl({
+  due,
+  done,
+  today,
+  editing,
+  onEdit,
+  onDone,
+  onChange,
+}: {
+  due?: string;
+  done: boolean;
+  today: string;
+  editing: boolean;
+  onEdit: () => void;
+  onDone: () => void;
+  onChange: (date: string | null) => void;
+}) {
+  if (editing) {
+    return (
+      <div className="mt-1 flex items-center gap-2">
+        <input
+          type="date"
+          autoFocus
+          defaultValue={due ?? ""}
+          onChange={(e) => {
+            if (e.target.value) onChange(e.target.value);
+          }}
+          onBlur={onDone}
+          className="px-2 py-1 text-xs border border-card-border rounded-md text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+        />
+        {due && (
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              onChange(null);
+              onDone();
+            }}
+            className="text-[11px] text-warm-gray hover:text-red-500"
+          >
+            Remove
+          </button>
+        )}
+        <button type="button" onClick={onDone} className="text-[11px] font-semibold text-sidebar">
+          Done
+        </button>
+      </div>
+    );
+  }
+  if (!due) {
+    if (done) return null;
+    return (
+      <button
+        type="button"
+        onClick={onEdit}
+        className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-warm-gray/70 hover:text-sidebar"
+      >
+        <CalendarClock className="w-3 h-3" />
+        Add due date
+      </button>
+    );
+  }
+  const soon = new Date(today + "T00:00:00");
+  soon.setDate(soon.getDate() + 3);
+  const soonIso = soon.toLocaleDateString("en-CA");
+  const tone = done
+    ? "text-warm-gray/60 bg-cream/60 border-card-border"
+    : due < today
+      ? "text-red-700 bg-red-50 border-red-200"
+      : due === today
+        ? "text-red-700 bg-red-50 border-red-200"
+        : due <= soonIso
+          ? "text-amber-700 bg-amber-50 border-amber-200"
+          : "text-purple-700 bg-purple-50 border-purple-200";
+  const label = done ? "Was due" : due < today ? "Overdue" : due === today ? "Due today" : "Due";
+  return (
+    <button
+      type="button"
+      onClick={onEdit}
+      title="Change the due date"
+      className={`mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[11px] font-semibold ${tone}`}
+    >
+      <CalendarClock className="w-3 h-3" />
+      {label} {formatDate(due)}
+    </button>
   );
 }
 

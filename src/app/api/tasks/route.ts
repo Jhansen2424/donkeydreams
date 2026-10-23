@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { unlogged } from "@/lib/audit";
 
 // Server shape matches the ScheduleTask UI shape closely, plus `id` and `block`
 // so the client can group tasks into blocks.
@@ -19,6 +20,7 @@ interface ApiTask {
   sticky: boolean;
   outcome: string;
   outcomeNote: string;
+  dueDate: string | null;
   createdAt: string;
 }
 
@@ -37,6 +39,7 @@ function toApi(row: {
   sticky: boolean;
   outcome: string;
   outcomeNote: string;
+  dueDate: string | null;
   createdAt: Date;
 }, animalSpecific: string | null): ApiTask {
   return {
@@ -55,8 +58,13 @@ function toApi(row: {
     sticky: row.sticky,
     outcome: row.outcome,
     outcomeNote: row.outcomeNote,
+    dueDate: row.dueDate,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+function isIsoDate(v: unknown): v is string {
+  return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 }
 
 // Sanitize a client-provided tags payload down to a clean string array.
@@ -106,8 +114,19 @@ async function materializeTemplates(date: string): Promise<void> {
   const templates = await db.taskTemplate.findMany({ where: { active: true } });
   if (templates.length === 0) return;
   const weekday = new Date(date + "T12:00:00Z").getUTCDay();
+  // Skip routines already copied onto this day (one query, instead of trying
+  // every create and letting the duplicates fail, which made each load slow).
+  const have = new Set(
+    (
+      await db.taskCompletion.findMany({
+        where: { date, templateId: { not: null } },
+        select: { templateId: true },
+      })
+    ).map((r) => r.templateId)
+  );
 
   for (const t of templates) {
+    if (have.has(t.id)) continue;
     if (t.repeatDays.length > 0 && !t.repeatDays.includes(weekday)) continue;
     if (t.skipDates.includes(date)) continue;
     // A routine never materializes into days BEFORE it was created — adding
@@ -120,7 +139,8 @@ async function materializeTemplates(date: string): Promise<void> {
     });
     if (date < createdIso) continue;
     try {
-      await db.taskCompletion.create({
+      // Automatic daily copy, not a person's change: kept out of the history.
+      await unlogged(() => db.taskCompletion.create({
         data: {
           templateId: t.id,
           task: t.task,
@@ -133,7 +153,7 @@ async function materializeTemplates(date: string): Promise<void> {
           done: false,
           sortOrder: t.sortOrder,
         },
-      });
+      }));
     } catch {
       // Unique (templateId, date) violation — already materialized. Fine.
     }
@@ -184,7 +204,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { task, block, category, assignedTo, note, animalSpecific, date, templateId, sortOrder, sticky } = body ?? {};
+    const { task, block, category, assignedTo, note, animalSpecific, date, templateId, sortOrder, sticky, dueDate } = body ?? {};
 
     if (!task || typeof task !== "string") {
       return NextResponse.json({ error: "Missing 'task'" }, { status: 400 });
@@ -207,6 +227,7 @@ export async function POST(req: NextRequest) {
         templateId: templateId || null,
         sortOrder: typeof sortOrder === "number" ? sortOrder : 0,
         sticky: sticky === true,
+        dueDate: isIsoDate(dueDate) ? dueDate : null,
       },
     });
     const { animal, cleanNote } = extractAnimal(row.note);
@@ -222,29 +243,46 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
 
     // Bulk reorder: { reorder: [{ id, sortOrder, templateId? }], date? }.
-    // Sequential awaits — the Neon HTTP adapter does not support transactions.
     // When an item carries its templateId, the template AND any already-
-    // materialized future copies get the same sortOrder in this ONE request.
-    // (The old client fired template updates as separate fire-and-forget
-    // fetches; closing the app right after a drag cancelled them, so the
-    // order reverted the next day — client 9/26, "especially PM tasks".)
+    // materialized future copies get the same sortOrder in this ONE request
+    // (separate fire-and-forget template saves were lost when the app closed
+    // right after a drag: client 9/26). Three set-based statements, not one
+    // query per task: a 36-task AM list took ~100 round trips and ~48s, long
+    // enough to time out, and the client then snapped the moved task back
+    // (client 10/22, "Pete's medicine jumps back to the bottom").
     if (Array.isArray(body?.reorder)) {
       const viewDate = typeof body.date === "string" ? body.date : null;
-      for (const item of body.reorder) {
-        if (!item || typeof item.id !== "string" || typeof item.sortOrder !== "number") continue;
-        await db.taskCompletion.update({
-          where: { id: item.id },
-          data: { sortOrder: item.sortOrder },
-        });
-        if (typeof item.templateId === "string" && item.templateId) {
-          await db.taskTemplate
-            .update({ where: { id: item.templateId }, data: { sortOrder: item.sortOrder } })
-            .catch(() => {}); // template may have been deleted — instance order still applies
+      const items = (body.reorder as unknown[]).filter(
+        (i): i is { id: string; sortOrder: number; templateId?: string } =>
+          !!i &&
+          typeof (i as { id?: unknown }).id === "string" &&
+          typeof (i as { sortOrder?: unknown }).sortOrder === "number"
+      );
+      if (items.length > 0) {
+        const ids = items.map((i) => i.id);
+        const orders = items.map((i) => Math.round(i.sortOrder));
+        await db.$executeRaw`
+          UPDATE "TaskCompletion" AS t
+          SET "sortOrder" = v.so, "updatedAt" = NOW()
+          FROM (SELECT unnest(${ids}::text[]) AS id, unnest(${orders}::int[]) AS so) AS v
+          WHERE t.id = v.id`;
+
+        const withTemplate = items.filter((i) => typeof i.templateId === "string" && i.templateId);
+        if (withTemplate.length > 0) {
+          const tids = withTemplate.map((i) => i.templateId as string);
+          const tOrders = withTemplate.map((i) => Math.round(i.sortOrder));
+          // Missing (deleted) templates simply match no row.
+          await db.$executeRaw`
+            UPDATE "TaskTemplate" AS t
+            SET "sortOrder" = v.so, "updatedAt" = NOW()
+            FROM (SELECT unnest(${tids}::text[]) AS id, unnest(${tOrders}::int[]) AS so) AS v
+            WHERE t.id = v.id`;
           if (viewDate) {
-            await db.taskCompletion.updateMany({
-              where: { templateId: item.templateId, date: { gt: viewDate } },
-              data: { sortOrder: item.sortOrder },
-            });
+            await db.$executeRaw`
+              UPDATE "TaskCompletion" AS t
+              SET "sortOrder" = v.so, "updatedAt" = NOW()
+              FROM (SELECT unnest(${tids}::text[]) AS tid, unnest(${tOrders}::int[]) AS so) AS v
+              WHERE t."templateId" = v.tid AND t.date > ${viewDate}`;
           }
         }
       }
@@ -271,6 +309,7 @@ export async function PATCH(req: NextRequest) {
       sticky?: boolean;
       outcome?: string;
       outcomeNote?: string;
+      dueDate?: string | null;
     } = {};
 
     if (typeof updates.task === "string") patch.task = updates.task;
@@ -287,6 +326,9 @@ export async function PATCH(req: NextRequest) {
     if (typeof updates.done === "boolean") patch.done = updates.done;
     if (typeof updates.sortOrder === "number") patch.sortOrder = updates.sortOrder;
     if (typeof updates.sticky === "boolean") patch.sticky = updates.sticky;
+    // Admin-task deadline: a date sets it, null/"" clears it.
+    if (updates.dueDate === null || updates.dueDate === "") patch.dueDate = null;
+    else if (isIsoDate(updates.dueDate)) patch.dueDate = updates.dueDate;
     // Outcome capture: "", "partial", "refused", or "issue" (medical/other
     // concern — client 9/23: "sometimes there is an issue with the medical")
     // + free-text why.

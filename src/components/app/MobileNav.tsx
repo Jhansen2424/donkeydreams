@@ -33,6 +33,7 @@ const moreLinks = [
   { name: "Map", href: "/app/map" },
 
   { name: "Admin", href: "/app/admin" },
+  { name: "Change History", href: "/app/history" },
   { name: "Donations", href: "/app/donations" },
   { name: "Events / Visitors / Schedule", href: "/app/events" },
   { name: "Impact Report", href: "/app/reports" },

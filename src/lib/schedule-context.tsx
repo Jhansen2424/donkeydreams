@@ -16,6 +16,7 @@ import {
   type TaskCategory,
   type TaskSource,
 } from "./sanctuary-data";
+import { pruneTaskDays, readCache, writeCache } from "./offline-cache";
 
 export interface NewTaskInput {
   task: string;
@@ -36,6 +37,8 @@ export interface NewTaskInput {
   repeatDays?: number[];
   /** "Until done": the task stays on every day's list until checked off. */
   sticky?: boolean;
+  /** Optional deadline (YYYY-MM-DD) — used by admin tasks. */
+  dueDate?: string;
 }
 
 export interface EditTaskInput {
@@ -72,6 +75,8 @@ interface ScheduleContextValue {
     opts?: { entireSeries?: boolean }
   ) => Promise<void>;
   reorderTask: (blockIdx: number, fromIdx: number, toIdx: number) => Promise<void>;
+  /** Set (YYYY-MM-DD) or clear (null) a task's deadline, by server id. */
+  setDueDate: (serverId: string, dueDate: string | null) => Promise<void>;
   /** Copy a task (name + " (copy)") into the same block, at the end. A
       repeating original produces a repeating copy on the same days. */
   duplicateTask: (blockIdx: number, taskIdx: number) => Promise<void>;
@@ -151,6 +156,7 @@ interface ApiTask {
   outcome?: string;
   outcomeNote?: string;
   sortOrder?: number;
+  dueDate?: string | null;
   createdAt: string;
 }
 
@@ -169,6 +175,7 @@ function apiToTask(a: ApiTask): TaskWithId {
     outcome: a.outcome || "",
     outcomeNote: a.outcomeNote || "",
     sortOrder: a.sortOrder,
+    dueDate: a.dueDate || undefined,
     serverId: a.id,
     templateId: a.templateId,
   };
@@ -203,12 +210,25 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [currentDate, setCurrentDate] = useState<string>(() => localToday());
   const currentDateRef = useRef(currentDate);
 
+  // Which date's tasks are in `schedule` right now (null until first load).
+  const shownDateRef = useRef<string | null>(null);
+
   const refresh = useCallback(async (date?: string) => {
     setError(null);
     const target = date ?? currentDateRef.current;
     if (target !== currentDateRef.current) {
       currentDateRef.current = target;
       setCurrentDate(target);
+    }
+    // Switching to a day: show its last saved copy at once (also what you
+    // get with no signal), then replace it with fresh data below.
+    if (shownDateRef.current !== target) {
+      const cached = readCache<{ blocks: ScheduleBlock[]; taskBlocks: [string, string][] }>(`tasks:${target}`);
+      if (cached) {
+        setSchedule(cached.data.blocks);
+        setTaskBlocks(new Map(cached.data.taskBlocks));
+        setLoading(false);
+      }
     }
     try {
       const res = await fetch(`/api/tasks?date=${encodeURIComponent(target)}`, { cache: "no-store" });
@@ -218,6 +238,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       const blockMap = new Map(body.tasks.map((a) => [a.id, a.block]));
       setTaskBlocks(blockMap);
       setSchedule(mergeTasksIntoSchedule(tasks, (t) => normalizeBlockName(t.serverId ? blockMap.get(t.serverId) : undefined)));
+      shownDateRef.current = target;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load tasks");
     } finally {
@@ -228,6 +249,15 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Keep the saved copy current as tasks are checked off or edited, so
+  // reopening with no signal shows the latest state, not the morning's.
+  useEffect(() => {
+    const day = shownDateRef.current;
+    if (!day || day !== currentDate) return;
+    writeCache(`tasks:${day}`, { blocks: schedule, taskBlocks: Array.from(taskBlocks.entries()) });
+    pruneTaskDays();
+  }, [schedule, taskBlocks, currentDate]);
 
   // Resolve a (blockIdx, taskIdx) into the current server id + block name.
   const resolveIds = (blockIdx: number, taskIdx: number) => {
@@ -397,6 +427,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
           date: taskDate,
           sortOrder,
           sticky: input.sticky === true,
+          dueDate: input.dueDate,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Failed to add");
@@ -880,6 +911,23 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     }
   }, [refresh]);
 
+  const setDueDate = useCallback(async (serverId: string, dueDate: string | null) => {
+    const patchTask = (t: ScheduleTask): ScheduleTask =>
+      t.serverId === serverId ? { ...t, dueDate: dueDate || undefined } : t;
+    const snapshot = localUpdate((prev) => prev.map((b) => ({ ...b, tasks: b.tasks.map(patchTask) })));
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: serverId, dueDate }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to set due date");
+    } catch (e) {
+      setSchedule(snapshot);
+      setError(e instanceof Error ? e.message : "Failed to set due date");
+    }
+  }, [schedule]);
+
   const resetSchedule = useCallback(async () => {
     await refresh();
   }, [refresh]);
@@ -895,6 +943,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         editTask,
         deleteTask,
         reorderTask,
+        setDueDate,
         duplicateTask,
         bulkComplete,
         bulkMove,

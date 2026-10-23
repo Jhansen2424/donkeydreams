@@ -9,12 +9,18 @@ import {
   Check,
   Pencil,
   Trash2,
+  ClipboardCheck,
+  Stethoscope,
 } from "lucide-react";
 import { watchList, type WatchListEntry } from "@/lib/sanctuary-data";
 import { useParkingLot } from "@/lib/parking-lot-context";
 import { useAnimals } from "@/lib/animals-context";
 import { volunteers } from "@/lib/volunteer-data";
 import { formatDate as sharedFormatDate } from "@/lib/format-date";
+import { useSchedule, localToday } from "@/lib/schedule-context";
+import { useMedical } from "@/lib/medical-context";
+import { useToast } from "@/lib/toast-context";
+import { watchToMedicalText } from "@/lib/watch-medical";
 
 const severityStyles = {
   high: { dot: "bg-red-500", bg: "bg-red-50 border-red-200", label: "High" },
@@ -41,6 +47,41 @@ export default function WatchListPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<{ id: string; entry: MergedWatch } | null>(null);
   const { entries, addEntry, updateEntry, removeEntry } = useParkingLot();
+  const { addTask } = useSchedule();
+  const { addEntry: addMedicalEntry } = useMedical();
+  const { toastSuccess, toastError } = useToast();
+
+  // Both keep the alert open: a watched donkey often needs tasks and a
+  // medical note while still being watched (client 10/22: Peggy, Dawn).
+  async function makeTask(entry: MergedWatch) {
+    const h = new Date().getHours();
+    await addTask({
+      task: `${entry.animal}: ${entry.issue}`,
+      blockName: h < 10 ? "AM" : h < 16 ? "Mid" : "PM",
+      animalSpecific: entry.animal !== "—" ? entry.animal : undefined,
+      assignedTo: entry.assignedTo || undefined,
+      note: entry.treatment || undefined,
+      category: "care",
+    });
+    toastSuccess(`Added to today's tasks. ${entry.animal} stays on the watch list.`);
+  }
+
+  async function copyToMedical(entry: MergedWatch) {
+    if (!entry.animal || entry.animal === "—") {
+      toastError("This alert has no donkey attached. Edit it to pick one first.");
+      return;
+    }
+    const saved = await addMedicalEntry({
+      animal: entry.animal,
+      type: "Condition",
+      title: entry.issue.slice(0, 60),
+      date: localToday(),
+      description: watchToMedicalText(entry.issue, entry.treatment),
+      urgent: entry.severity === "high",
+    });
+    if (saved) toastSuccess(`Copied to ${entry.animal}'s medical record. The alert stays open.`);
+    else toastError("Couldn't save the medical entry. Try again.");
+  }
 
   // Pull any parking-lot watch entries into the merged view so newly-added
   // alerts render immediately, alongside whatever seed watchList is loaded.
@@ -154,6 +195,8 @@ export default function WatchListPage() {
                 await removeEntry(entry.editableId);
               }
             }}
+            onMakeTask={() => makeTask(entry)}
+            onCopyToMedical={() => copyToMedical(entry)}
           />
         ))}
       </div>
@@ -331,13 +374,27 @@ function WatchCard({
   canEdit,
   onEdit,
   onDelete,
+  onMakeTask,
+  onCopyToMedical,
 }: {
   entry: WatchListEntry;
   canEdit?: boolean;
   onEdit?: () => void;
   onDelete?: () => void;
+  onMakeTask?: () => Promise<void>;
+  onCopyToMedical?: () => Promise<void>;
 }) {
   const styles = severityStyles[entry.severity];
+  const [busy, setBusy] = useState<"task" | "medical" | null>(null);
+  const run = async (kind: "task" | "medical", fn?: () => Promise<void>) => {
+    if (!fn || busy) return;
+    setBusy(kind);
+    try {
+      await fn();
+    } finally {
+      setBusy(null);
+    }
+  };
 
   return (
     <div
@@ -392,6 +449,30 @@ function WatchCard({
           <p className="text-sm text-sky-dark font-medium">
             Assigned to: {entry.assignedTo}
           </p>
+        )}
+        {canEdit && (
+          <div className="flex flex-wrap gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => void run("task", onMakeTask)}
+              disabled={busy !== null}
+              title="Adds a care task to today's routine; the donkey stays on the watch list"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-sky hover:bg-sky-dark rounded-lg transition-colors disabled:opacity-50"
+            >
+              <ClipboardCheck className="w-3.5 h-3.5" />
+              {busy === "task" ? "Adding…" : "Add to today's tasks"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void run("medical", onCopyToMedical)}
+              disabled={busy !== null}
+              title="Copies the issue and treatment into this donkey's medical record; the alert stays open"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-lg transition-colors disabled:opacity-50"
+            >
+              <Stethoscope className="w-3.5 h-3.5" />
+              {busy === "medical" ? "Copying…" : "Copy to medical record"}
+            </button>
+          </div>
         )}
       </div>
     </div>

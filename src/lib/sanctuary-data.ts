@@ -312,6 +312,8 @@ export interface ScheduleTask {
   /** Outcome capture: "" normal, "partial", "refused", or "issue". */
   outcome?: string;
   outcomeNote?: string;
+  /** Optional deadline (YYYY-MM-DD) — used by admin tasks. */
+  dueDate?: string;
   /** DB row id (TaskCompletion.id) — stable identity for keys and mutations. */
   serverId?: string;
   /** Set when this row was materialized from a recurring TaskTemplate. */

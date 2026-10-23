@@ -2,8 +2,9 @@
 
 // Sign-In kiosk (GFAS requirement). Runs on the sanctuary tablet (or any
 // staff phone) inside the logged-in app. Flow:
-//   Sign in  → pick your name (or "I'm new") → sign NDA + waiver if not on
-//              file (drawn signature, stored with timestamps) → 3 mood
+//   Sign in  → pick your name (or "I'm new") → sign the waiver if not on
+//              file (their details filled in, drawn signature, stored
+//              with timestamps; the NDA too when NDA_REQUIRED) → 3 mood
 //              questions → done.
 //   Sign out → pick your name from who's on site → 5 questions + optional
 //              "did anything stand out" → done.
@@ -19,6 +20,9 @@ import {
   SIGN_OUT_QUESTIONS,
   ndaSlotFor,
   SIGN_DOC_SLOTS,
+  NDA_REQUIRED,
+  WAIVER_TITLE,
+  WAIVER_TEXT,
   type MoodQuestion,
 } from "@/lib/visit-questions";
 
@@ -28,6 +32,15 @@ interface KioskVisitor {
   visitorType: string;
   ndaSigned: boolean;
   waiverSigned: boolean;
+}
+// What the waiver asks for (filled in for them; they only sign).
+interface Details {
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  emergencyName: string;
+  emergencyPhone: string;
 }
 interface OnSite {
   sessionId: string;
@@ -39,7 +52,7 @@ type Step =
   | { kind: "home" }
   | { kind: "pick-in" }
   | { kind: "new-visitor" }
-  | { kind: "docs"; visitor: KioskVisitor; doc: "nda" | "waiver" }
+  | { kind: "docs"; visitor: KioskVisitor; doc: "nda" | "waiver"; details?: Details }
   | { kind: "mood-in"; visitor: KioskVisitor; qIdx: number; answers: { questionKey: string; value: number }[] }
   | { kind: "pick-out" }
   | { kind: "mood-out"; session: OnSite; name: string; qIdx: number; answers: { questionKey: string; value: number }[] }
@@ -97,10 +110,10 @@ export default function SignInKioskPage() {
 
   // After picking (or creating) a visitor: route to docs if anything is
   // unsigned, else straight into the sign-in questionnaire.
-  const startSignIn = (visitor: KioskVisitor) => {
+  const startSignIn = (visitor: KioskVisitor, details?: Details) => {
     setError(null);
-    if (!visitor.ndaSigned) setStep({ kind: "docs", visitor, doc: "nda" });
-    else if (!visitor.waiverSigned) setStep({ kind: "docs", visitor, doc: "waiver" });
+    if (NDA_REQUIRED && !visitor.ndaSigned) setStep({ kind: "docs", visitor, doc: "nda", details });
+    else if (!visitor.waiverSigned) setStep({ kind: "docs", visitor, doc: "waiver", details });
     else setStep({ kind: "mood-in", visitor, qIdx: 0, answers: [] });
   };
 
@@ -243,7 +256,7 @@ export default function SignInKioskPage() {
               const body = (await res.json()) as { visitor: { id: string; name: string; visitorType: string } };
               const visitor: KioskVisitor = { ...body.visitor, ndaSigned: false, waiverSigned: false };
               setVisitors((prev) => [...prev, visitor].sort((a, b) => a.name.localeCompare(b.name)));
-              startSignIn(visitor);
+              startSignIn(visitor, form);
             } catch (e) {
               setError(e instanceof Error ? e.message : "Could not save — try again.");
             } finally {
@@ -259,7 +272,7 @@ export default function SignInKioskPage() {
           docIds={docIds}
           busy={busy}
           onBack={back}
-          onSigned={async (signature) => {
+          onSigned={async (signature, details) => {
             setBusy(true);
             setError(null);
             const slot = step.doc === "nda" ? ndaSlotFor(step.visitor.visitorType) : SIGN_DOC_SLOTS[2];
@@ -275,17 +288,18 @@ export default function SignInKioskPage() {
                         ndaSignature: signature,
                         ndaVersion: slot.key === "signdoc-nda-sponsors-volunteers" ? "sponsors-volunteers" : "third-parties",
                       }
-                    : { waiverSignature: signature }),
+                    : { waiverSignature: signature, details }),
                 }),
               });
               if (!res.ok) throw new Error((await res.json()).error || "Could not save signature");
               const updated: KioskVisitor = {
                 ...step.visitor,
+                name: details?.name.trim() || step.visitor.name,
                 ndaSigned: step.doc === "nda" ? true : step.visitor.ndaSigned,
                 waiverSigned: step.doc === "waiver" ? true : step.visitor.waiverSigned,
               };
               setVisitors((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
-              startSignIn(updated);
+              startSignIn(updated, details ?? step.details);
             } catch (e) {
               setError(e instanceof Error ? e.message : "Could not save signature — try again.");
             } finally {
@@ -402,22 +416,41 @@ function NewVisitorForm({
   busy,
 }: {
   onBack: () => void;
-  onCreate: (form: {
-    name: string;
-    phone: string;
-    email: string;
-    emergencyName: string;
-    emergencyPhone: string;
-    visitorType: string;
-  }) => void;
+  onCreate: (form: Details & { visitorType: string; volunteerId: string | null }) => void;
   busy: boolean;
 }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [address, setAddress] = useState("");
   const [emergencyName, setEmergencyName] = useState("");
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [visitorType, setVisitorType] = useState("visitor");
+  const [found, setFound] = useState<{ id: string; name: string } | null>(null);
+
+  // Volunteers already on the roster: fill in what the sanctuary has on file.
+  useEffect(() => {
+    if (visitorType !== "volunteer" || (name.trim().length < 3 && !email.includes("@"))) return;
+    const t = setTimeout(async () => {
+      try {
+        const p = new URLSearchParams({ view: "lookup", name: name.trim(), email: email.trim() });
+        const res = await fetch(`/api/visits?${p}`, { cache: "no-store" });
+        if (!res.ok) return;
+        const { volunteer: v } = (await res.json()) as {
+          volunteer: { id: string; name: string; email: string; phone: string; emergencyName: string; emergencyPhone: string } | null;
+        };
+        if (!v) return;
+        setFound({ id: v.id, name: v.name });
+        setPhone((x) => x || v.phone);
+        setEmail((x) => x || v.email);
+        setEmergencyName((x) => x || v.emergencyName);
+        setEmergencyPhone((x) => x || v.emergencyPhone);
+      } catch {
+        // Offline or not found: they just type it.
+      }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [visitorType, name, email]);
 
   const field =
     "w-full px-3 py-3 text-base border border-card-border rounded-xl text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50";
@@ -425,15 +458,6 @@ function NewVisitorForm({
   return (
     <div className="space-y-4">
       <KioskHeader title="Welcome! Tell us about you" onBack={onBack} />
-      <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name (required)" className={field} />
-      <div className="grid sm:grid-cols-2 gap-3">
-        <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" className={field} />
-        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className={field} />
-      </div>
-      <div className="grid sm:grid-cols-2 gap-3">
-        <input value={emergencyName} onChange={(e) => setEmergencyName(e.target.value)} placeholder="Emergency contact name" className={field} />
-        <input value={emergencyPhone} onChange={(e) => setEmergencyPhone(e.target.value)} placeholder="Emergency contact phone" className={field} />
-      </div>
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1.5">I am a…</p>
         <div className="flex gap-2">
@@ -457,9 +481,33 @@ function NewVisitorForm({
           ))}
         </div>
       </div>
+      <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name (required)" className={field} />
+      {found && visitorType === "volunteer" && (
+        <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+          Found you on the volunteer list, {found.name.split(" ")[0]}. We filled in what we have on file.
+        </p>
+      )}
+      <div className="grid sm:grid-cols-2 gap-3">
+        <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" inputMode="tel" className={field} />
+        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" inputMode="email" className={field} />
+      </div>
+      <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Address" autoComplete="street-address" className={field} />
+      <div className="grid sm:grid-cols-2 gap-3">
+        <input value={emergencyName} onChange={(e) => setEmergencyName(e.target.value)} placeholder="Emergency contact name" className={field} />
+        <input value={emergencyPhone} onChange={(e) => setEmergencyPhone(e.target.value)} placeholder="Emergency contact phone" inputMode="tel" className={field} />
+      </div>
       <button
         onClick={() =>
-          onCreate({ name, phone, email, emergencyName, emergencyPhone, visitorType })
+          onCreate({
+            name,
+            phone,
+            email,
+            address,
+            emergencyName,
+            emergencyPhone,
+            visitorType,
+            volunteerId: visitorType === "volunteer" ? found?.id ?? null : null,
+          })
         }
         disabled={!name.trim() || busy}
         className="w-full flex items-center justify-center gap-2 p-4 bg-sidebar text-white rounded-xl text-lg font-bold hover:bg-sidebar-light disabled:opacity-40 transition-colors"
@@ -478,23 +526,151 @@ function DocSignStep({
   onBack,
   onSigned,
 }: {
-  step: { visitor: KioskVisitor; doc: "nda" | "waiver" };
+  step: { visitor: KioskVisitor; doc: "nda" | "waiver"; details?: Details };
+  docIds: Record<string, string | null>;
+  busy: boolean;
+  onBack: () => void;
+  onSigned: (signature: string, details?: Details) => void;
+}) {
+  if (step.doc === "waiver") {
+    return <WaiverStep step={step} docId={docIds[SIGN_DOC_SLOTS[2].key]} busy={busy} onBack={onBack} onSigned={onSigned} />;
+  }
+  return <NdaStep step={step} docIds={docIds} busy={busy} onBack={onBack} onSigned={(sig) => onSigned(sig)} />;
+}
+
+// The Guest Release Form with this person's row already filled in. Details
+// come from what they just typed (new) or what's on file (returning); they
+// can fix anything, then sign once.
+function WaiverStep({
+  step,
+  docId,
+  busy,
+  onBack,
+  onSigned,
+}: {
+  step: { visitor: KioskVisitor; details?: Details };
+  docId: string | null | undefined;
+  busy: boolean;
+  onBack: () => void;
+  onSigned: (signature: string, details: Details) => void;
+}) {
+  const [signature, setSignature] = useState<string | null>(null);
+  const [d, setD] = useState<Details>(
+    step.details ?? { name: step.visitor.name, phone: "", email: "", address: "", emergencyName: "", emergencyPhone: "" }
+  );
+  const [loading, setLoading] = useState(!step.details);
+
+  useEffect(() => {
+    if (step.details) return;
+    let live = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/visits?view=visitor&id=${encodeURIComponent(step.visitor.id)}`, { cache: "no-store" });
+        if (res.ok && live) {
+          const { details } = (await res.json()) as { details: Details };
+          setD((prev) => ({ ...details, name: details.name || prev.name }));
+        }
+      } catch {
+        // Offline: they fill it in.
+      } finally {
+        if (live) setLoading(false);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [step.details, step.visitor.id]);
+
+  const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const set = (k: keyof Details) => (e: React.ChangeEvent<HTMLInputElement>) => setD((x) => ({ ...x, [k]: e.target.value }));
+  const field =
+    "w-full mt-1 px-3 py-2.5 text-base bg-white border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50";
+  const label = "text-[11px] font-semibold uppercase tracking-wider text-warm-gray/70";
+
+  return (
+    <div className="space-y-4">
+      <KioskHeader title="Liability Waiver" onBack={onBack} />
+      <div className="bg-white border border-card-border rounded-2xl p-5 space-y-4">
+        <h2 className="text-center font-bold text-charcoal">{WAIVER_TITLE}</h2>
+        <p className="text-sm leading-relaxed text-charcoal">{WAIVER_TEXT}</p>
+        <div className="rounded-xl bg-cream/60 border border-card-border p-4 space-y-3">
+          <p className="text-sm text-warm-gray">
+            {loading ? "Filling in your details…" : "Your details are filled in below. Check them, fix anything that's wrong, then sign."}
+          </p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label className="block">
+              <span className={label}>Full name</span>
+              <input value={d.name} onChange={set("name")} className={field} />
+            </label>
+            <label className="block">
+              <span className={label}>Phone</span>
+              <input value={d.phone} onChange={set("phone")} inputMode="tel" className={field} />
+            </label>
+          </div>
+          <label className="block">
+            <span className={label}>Address</span>
+            <input value={d.address} onChange={set("address")} autoComplete="street-address" className={field} />
+          </label>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label className="block">
+              <span className={label}>Emergency contact</span>
+              <input value={d.emergencyName} onChange={set("emergencyName")} className={field} />
+            </label>
+            <label className="block">
+              <span className={label}>Emergency contact phone</span>
+              <input value={d.emergencyPhone} onChange={set("emergencyPhone")} inputMode="tel" className={field} />
+            </label>
+          </div>
+          <p className="text-sm text-charcoal">
+            <span className={label}>Date</span> <span className="ml-1 font-medium">{today}</span>
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-warm-gray/60 mb-1.5">
+            Your signature: by signing you agree to the release above
+          </p>
+          <SignaturePad onChange={setSignature} />
+        </div>
+        {docId && (
+          <a href={`/api/documents/${docId}`} target="_blank" rel="noreferrer" className="inline-block text-xs text-warm-gray underline">
+            View the original form (PDF)
+          </a>
+        )}
+      </div>
+      <button
+        onClick={() => signature && onSigned(signature, d)}
+        disabled={!signature || !d.name.trim() || busy}
+        className="w-full flex items-center justify-center gap-2 p-4 bg-sidebar text-white rounded-xl text-lg font-bold hover:bg-sidebar-light disabled:opacity-40 transition-colors"
+      >
+        {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+        Agree &amp; Sign
+      </button>
+    </div>
+  );
+}
+
+function NdaStep({
+  step,
+  docIds,
+  busy,
+  onBack,
+  onSigned,
+}: {
+  step: { visitor: KioskVisitor };
   docIds: Record<string, string | null>;
   busy: boolean;
   onBack: () => void;
   onSigned: (signature: string) => void;
 }) {
   const [signature, setSignature] = useState<string | null>(null);
-  const slot = step.doc === "nda" ? ndaSlotFor(step.visitor.visitorType) : SIGN_DOC_SLOTS[2];
+  const slot = ndaSlotFor(step.visitor.visitorType);
   const docId = docIds[slot.key];
 
   return (
     <div className="space-y-4">
       <KioskHeader title={slot.label} onBack={onBack} />
       <p className="text-sm text-warm-gray">
-        {step.doc === "nda"
-          ? "Please read the non-disclosure agreement below and sign at the bottom. This is a one-time signature kept on file."
-          : "Please read the liability waiver below and sign at the bottom. This is a one-time signature kept on file."}
+        Please read the non-disclosure agreement below and sign at the bottom. This is a one-time signature kept on file.
       </p>
       {docId ? (
         <iframe

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { photoRefsBySlug, publicImage, resolvePhotoRefs } from "@/lib/animal-photos";
 
 // Animal create + update endpoint.
 //
@@ -53,14 +54,20 @@ export async function GET() {
         isBondedPair: true,
         isSpecialNeeds: true,
         needsChip: true,
-        profileImage: true,
-        galleryImages: true,
         nextHoofDue: true,
         nextDentalDue: true,
       },
     });
+    // Photos go out as short cacheable URLs, not the stored image data
+    // (see lib/animal-photos).
+    const photos = await photoRefsBySlug();
+    const animals = rows.map((r) => ({
+      ...r,
+      profileImage: photos.get(r.slug)?.profile ?? null,
+      galleryImages: photos.get(r.slug)?.gallery ?? [],
+    }));
     const herds = Array.from(new Set(rows.map((r) => r.herd).filter(Boolean))).sort();
-    return NextResponse.json({ animals: rows, herds });
+    return NextResponse.json({ animals, herds });
   } catch (error) {
     console.error("GET /api/animals failed:", error);
     return NextResponse.json({ error: "Failed to load animals" }, { status: 500 });
@@ -173,7 +180,11 @@ export async function PATCH(req: NextRequest) {
     for (const key of EDITABLE) {
       if (rest[key] !== undefined) update[key] = rest[key];
     }
+    // Photo URLs the app sends back stand for the stored photos.
+    await resolvePhotoRefs(name, update);
     if (Object.keys(update).length === 0) {
+      // e.g. only an unchanged photo URL was sent
+      if (Object.keys(rest).length > 0) return NextResponse.json({ ok: true, unchanged: true });
       return NextResponse.json({ error: "No editable fields in payload" }, { status: 400 });
     }
 
@@ -181,7 +192,13 @@ export async function PATCH(req: NextRequest) {
       where: { name },
       data: update as Parameters<typeof db.animal.update>[0]["data"],
     });
-    return NextResponse.json({ animal: row });
+    return NextResponse.json({
+      animal: {
+        ...row,
+        profileImage: row.profileImage ? publicImage(row.slug, row.profileImage) : null,
+        galleryImages: row.galleryImages.map((g) => publicImage(row.slug, g)),
+      },
+    });
   } catch (error) {
     console.error("PATCH /api/animals failed:", error);
     return NextResponse.json({ error: "Failed to update animal" }, { status: 500 });

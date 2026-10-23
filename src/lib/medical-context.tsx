@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { MedicalEntry, MedicalEntryType } from "./medical-data";
+import { readCache, writeCache } from "./offline-cache";
 
 // Fields a caller can provide when creating an entry. `id` is server-issued.
 export type NewMedicalEntry = {
@@ -72,6 +73,7 @@ export function MedicalProvider({ children }: { children: ReactNode }) {
       if (!res.ok) throw new Error((await res.json()).error || "Failed to load");
       const body = (await res.json()) as { entries: ApiEntry[] };
       setEntries(body.entries.map(fromApi));
+      writeCache("medical", body.entries);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load medical entries");
     } finally {
@@ -80,6 +82,12 @@ export function MedicalProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Last saved copy first (instant, and works with no signal), then fresh.
+    const cached = readCache<ApiEntry[]>("medical");
+    if (cached) {
+      setEntries(cached.data.map(fromApi));
+      setLoading(false);
+    }
     void refresh();
   }, [refresh]);
 

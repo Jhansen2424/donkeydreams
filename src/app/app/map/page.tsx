@@ -80,6 +80,14 @@ export default function MapPage() {
     void reload();
   }, [reload]);
 
+  // Leaving the page mid-walk must stop GPS tracking, or the phone keeps
+  // the radio on in the background and drains the battery.
+  const walkWatchId = mode.kind === "draw-walk" ? mode.watchId : null;
+  useEffect(() => {
+    if (walkWatchId === null) return;
+    return () => navigator.geolocation.clearWatch(walkWatchId);
+  }, [walkWatchId]);
+
   // ── Drawing modes ──
 
   const startDrawTap = () => {

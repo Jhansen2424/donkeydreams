@@ -19,6 +19,7 @@ import {
   Mail,
   Trash2,
   Printer,
+  History,
   Footprints,
   Plus,
 } from "lucide-react";
@@ -207,6 +208,16 @@ export default function AnimalProfilePage() {
             >
               <Printer className="w-4 h-4" />
               Print
+            </a>
+          )}
+          {!editing && (
+            <a
+              href={`/app/history?q=${encodeURIComponent(animal.name)}`}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-white border border-card-border text-charcoal hover:bg-cream transition-colors"
+              title="Every change made to this donkey"
+            >
+              <History className="w-4 h-4" />
+              <span className="hidden sm:inline">History</span>
             </a>
           )}
           {editing && (

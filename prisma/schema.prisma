@@ -162,6 +162,10 @@ model TaskCompletion {
   // "Until done" task: stays on every day's list (regardless of `date`)
   // until checked off. Used for standing items like grant milestones.
   sticky     Boolean  @default(false)
+  // Optional deadline (ISO YYYY-MM-DD) for "until done" admin tasks
+  // (client 10/22: "I don't see an option to select a date for the task
+  // to be complete").
+  dueDate    String?
   // Appetite/outcome capture (client 9/15: "Swayze only ate a couple of
   // bites"): "" = normal, "partial" = started but not finished,
   // "refused" = offered but didn't want it. outcomeNote holds the detail
@@ -424,6 +428,7 @@ model Visitor {
   email           String    @default("")
   emergencyName   String    @default("")
   emergencyPhone  String    @default("")
+  address         String    @default("")
   visitorType     String    @default("visitor") // "volunteer" | "visitor"
   ndaVersion      String    @default("") // "third-parties" | "sponsors-volunteers"
   ndaSignedAt     DateTime?
@@ -506,4 +511,26 @@ model Pen {
   updatedAt DateTime @updatedAt
 
   @@index([herd])
+}
+
+// ── Change history ──
+// Every create, edit and delete made through the app, written automatically
+// by the database client (src/lib/audit.ts). Edits keep each changed field's
+// before and after value; deletes keep the whole record, so anything that
+// goes missing can be found and put back from /app/history.
+model AuditLog {
+  id        String   @id @default(cuid())
+  at        DateTime @default(now())
+  userEmail String?
+  userName  String?
+  action    String // create | update | delete
+  model     String // database table, e.g. "Animal", "MedicalEntry"
+  recordId  String?
+  label     String   @default("") // what it was, e.g. "Gabriel"
+  changes   Json? // update: { field: [before, after] }
+  snapshot  Json? // delete: the full record; create: the new record
+  page      String? // the app page it was done from
+
+  @@index([at])
+  @@index([model, recordId])
 }

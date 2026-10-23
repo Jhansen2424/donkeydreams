@@ -27,6 +27,7 @@ import {
   deriveTags,
   type Animal,
 } from "./animals";
+import { readCache, writeCache } from "./offline-cache";
 
 // The DB fields the app can edit (mirrors EDITABLE in /api/animals) plus the
 // identity fields needed to display DB-only animals.
@@ -201,6 +202,7 @@ export function AnimalsProvider({ children }: { children: ReactNode }) {
       if (!res.ok) throw new Error((await res.json()).error || "Failed to load");
       const body = (await res.json()) as { animals: ApiAnimal[] };
       setDbRows(body.animals);
+      writeCache("animals", body.animals);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load animals");
     } finally {
@@ -209,6 +211,12 @@ export function AnimalsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Last saved copy first (instant, and works with no signal), then fresh.
+    const cached = readCache<ApiAnimal[]>("animals");
+    if (cached) {
+      setDbRows(cached.data);
+      setLoading(false);
+    }
     void refresh();
   }, [refresh]);
 

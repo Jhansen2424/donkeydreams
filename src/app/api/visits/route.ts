@@ -30,6 +30,18 @@ function cleanMoods(v: unknown): { questionKey: string; value: number }[] {
     .slice(0, 5);
 }
 
+// Contact details a visitor gives (sign-up form, or corrected on the waiver).
+function cleanDetails(v: Record<string, unknown> | null | undefined) {
+  const s = (x: unknown, max = 200) => (typeof x === "string" ? x.trim().slice(0, max) : "");
+  return {
+    phone: s(v?.phone, 40),
+    email: s(v?.email),
+    address: s(v?.address, 300),
+    emergencyName: s(v?.emergencyName),
+    emergencyPhone: s(v?.emergencyPhone, 40),
+  };
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -65,6 +77,31 @@ export async function GET(req: NextRequest) {
           moods: s.moods,
         })),
       });
+    }
+
+    // One person's details, to fill in their waiver.
+    if (view === "visitor") {
+      const id = searchParams.get("id") || "";
+      const v = await db.visitor.findUnique({
+        where: { id },
+        select: { name: true, phone: true, email: true, address: true, emergencyName: true, emergencyPhone: true },
+      });
+      if (!v) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return NextResponse.json({ details: v });
+    }
+
+    // A new volunteer signing in: find them on the volunteer roster (by email,
+    // else exact name) so their phone and emergency contact fill in.
+    if (view === "lookup") {
+      const email = (searchParams.get("email") || "").trim().toLowerCase();
+      const name = (searchParams.get("name") || "").trim();
+      const select = { id: true, name: true, email: true, phone: true, emergencyName: true, emergencyPhone: true };
+      const match =
+        (email ? await db.volunteer.findUnique({ where: { email }, select }) : null) ??
+        (name.length >= 3
+          ? await db.volunteer.findFirst({ where: { name: { equals: name, mode: "insensitive" } }, select })
+          : null);
+      return NextResponse.json({ volunteer: match });
     }
 
     // Default: kiosk state.
@@ -111,18 +148,16 @@ export async function POST(req: NextRequest) {
     const action = body?.action;
 
     if (action === "create_visitor") {
-      const { name, phone, email, emergencyName, emergencyPhone, visitorType } = body ?? {};
+      const { name, visitorType, volunteerId } = body ?? {};
       if (!name || typeof name !== "string" || !name.trim()) {
         return NextResponse.json({ error: "Missing 'name'" }, { status: 400 });
       }
       const row = await db.visitor.create({
         data: {
+          ...cleanDetails(body),
           name: name.trim(),
-          phone: typeof phone === "string" ? phone.trim() : "",
-          email: typeof email === "string" ? email.trim() : "",
-          emergencyName: typeof emergencyName === "string" ? emergencyName.trim() : "",
-          emergencyPhone: typeof emergencyPhone === "string" ? emergencyPhone.trim() : "",
           visitorType: visitorType === "volunteer" ? "volunteer" : "visitor",
+          volunteerId: typeof volunteerId === "string" && volunteerId ? volunteerId : null,
         },
         select: { id: true, name: true, visitorType: true },
       });
@@ -153,6 +188,14 @@ export async function POST(req: NextRequest) {
       }
       if (Object.keys(update).length === 0) {
         return NextResponse.json({ error: "No signatures provided" }, { status: 400 });
+      }
+      // The details shown on the waiver they signed (they can correct them there).
+      if (body?.details && typeof body.details === "object") {
+        const d = cleanDetails(body.details);
+        for (const [k, v] of Object.entries(d)) if (v) update[k] = v;
+        if (typeof body.details.name === "string" && body.details.name.trim()) {
+          update.name = body.details.name.trim().slice(0, 120);
+        }
       }
       await db.visitor.update({ where: { id: visitorId }, data: update });
       return NextResponse.json({ ok: true });

@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaNeonHttp } from "@prisma/adapter-neon";
+import { audited, shouldAudit } from "./audit";
 
 function createPrismaClient() {
   const connectionString = process.env.DATABASE_URL;
@@ -7,7 +8,18 @@ function createPrismaClient() {
     throw new Error("DATABASE_URL environment variable is not set");
   }
   const adapter = new PrismaNeonHttp(connectionString, {});
-  return new PrismaClient({ adapter });
+  const base = new PrismaClient({ adapter });
+  // Every write is recorded in the change history (see ./audit.ts).
+  return base.$extends({
+    query: {
+      $allModels: {
+        $allOperations({ model, operation, args, query }) {
+          if (!shouldAudit(model, operation)) return query(args);
+          return audited(base, model, operation, args as Record<string, unknown>, query as (a: unknown) => Promise<unknown>);
+        },
+      },
+    },
+  });
 }
 
 const globalForPrisma = globalThis as unknown as {

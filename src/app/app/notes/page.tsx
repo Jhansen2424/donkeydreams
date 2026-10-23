@@ -23,6 +23,7 @@ import { useMedical } from "@/lib/medical-context";
 import { useToast } from "@/lib/toast-context";
 import { categoryMeta, type TaskCategory } from "@/lib/sanctuary-data";
 import { normalizeParagraphs } from "@/components/app/ExpandableText";
+import { watchToMedicalText } from "@/lib/watch-medical";
 
 const typeConfig: Record<
   EntryType,
@@ -84,18 +85,23 @@ export default function NotesPage() {
         );
         return;
       }
+      // A watch alert is COPIED into the medical record and stays on the
+      // watch list (client 10/22: transfer the documented info, e.g. Dawn).
+      const fromWatch = entry.type === "watch";
       await addMedicalEntry({
         animal: entry.data.animal,
-        type: "Vet Visit",
-        title: entry.data.title?.trim() || entry.text.slice(0, 60),
-        date: entry.data.date ?? new Date().toISOString().split("T")[0],
-        description: entry.text,
-        urgent: false,
+        type: fromWatch ? "Condition" : "Vet Visit",
+        title: fromWatch ? entry.text.slice(0, 60) : entry.data.title?.trim() || entry.text.slice(0, 60),
+        date: entry.data.date ?? new Date().toLocaleDateString("en-CA"),
+        description: fromWatch ? watchToMedicalText(entry.text, entry.data.title) : entry.text,
+        urgent: fromWatch && entry.data.severity === "high",
       });
-      await resolveEntry(entryId);
-      toastSuccess(
-        `Moved to ${entry.data.animal}'s medical record.`
-      );
+      if (fromWatch) {
+        toastSuccess(`Copied to ${entry.data.animal}'s medical record. The watch alert stays open.`);
+      } else {
+        await resolveEntry(entryId);
+        toastSuccess(`Moved to ${entry.data.animal}'s medical record.`);
+      }
       return;
     }
 
@@ -126,6 +132,8 @@ export default function NotesPage() {
 
   // Promote a note → schedule task, routing into the chosen care category.
   // `category` defaults to "routine" for a generic note → task promotion.
+  // A watch alert stays on the watch list: a donkey being watched often has
+  // tasks too (client 10/22, Peggy). Other notes are handled once tasked.
   const promoteToTask = (id: string, category: TaskCategory = "routine") => {
     const entry = entries.find((e) => e.id === id);
     if (!entry) return;
@@ -136,7 +144,13 @@ export default function NotesPage() {
       animalSpecific: entry.data?.animal,
       category,
     });
-    resolveEntry(id);
+    if (entry.type === "watch") {
+      toastSuccess(
+        `Added to today's tasks. ${entry.data?.animal ?? "This donkey"} stays on the watch list until you dismiss the alert.`
+      );
+    } else {
+      resolveEntry(id);
+    }
     setTaskCatPickerId(null);
   };
 

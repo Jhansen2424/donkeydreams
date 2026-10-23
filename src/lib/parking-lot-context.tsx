@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { readCache, writeCache } from "./offline-cache";
 
 export type EntryType =
   | "task"
@@ -94,6 +95,7 @@ export function ParkingLotProvider({ children }: { children: ReactNode }) {
       if (!res.ok) throw new Error((await res.json()).error || "Failed to load");
       const body = (await res.json()) as { entries: ApiEntry[] };
       setEntries(body.entries.map(fromApi));
+      writeCache("notes", body.entries);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load notes");
     } finally {
@@ -102,6 +104,12 @@ export function ParkingLotProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Last saved copy first (instant, and works with no signal), then fresh.
+    const cached = readCache<ApiEntry[]>("notes");
+    if (cached) {
+      setEntries(cached.data.map(fromApi));
+      setLoading(false);
+    }
     void refresh();
   }, [refresh]);
 

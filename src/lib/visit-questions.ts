@@ -69,3 +69,19 @@ export const SIGN_DOC_SLOTS = [
 export function ndaSlotFor(visitorType: string): (typeof SIGN_DOC_SLOTS)[number] {
   return visitorType === "volunteer" ? SIGN_DOC_SLOTS[0] : SIGN_DOC_SLOTS[1];
 }
+
+// Volunteers and visitors don't sign an NDA for now (client 10/23). Set to
+// true to bring the NDA step back; the NDA PDFs stay uploaded in Admin.
+export const NDA_REQUIRED = false;
+
+// The Guest Release Form, as worded on the uploaded waiver PDF. The kiosk
+// shows it with the signer's own details filled in, so they only sign.
+export const WAIVER_TITLE = "Donkey Dreams Sanctuary Guest Release Form";
+export const WAIVER_TEXT =
+  "I hereby agree to release Donkey Dreams Sanctuary from any and all liability while at Donkey Dreams Sanctuary. " +
+  "I realize that being on a farm and interacting with sanctuary animals can be dangerous. I understand that being " +
+  "around hoofed animals and being on an animal sanctuary requires extra care to prevent personal injury. I give " +
+  "Donkey Dreams Sanctuary my permission to seek any necessary medical attention in the event of an emergency and " +
+  "I will assume full financial responsibility for that treatment. I will respect the rules of Donkey Dreams " +
+  "Sanctuary and understand that at any point, Donkey Dreams can ask me to leave the property and ultimately the " +
+  "Friends and Family Community.";
