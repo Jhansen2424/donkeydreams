@@ -175,7 +175,9 @@ const quiet = new AsyncLocalStorage<true>();
 /** Run writes that aren't anyone's change (e.g. the automatic daily copies
  *  of routine tasks) without adding them to the history. */
 export function unlogged<T>(fn: () => Promise<T>): Promise<T> {
-  return quiet.run(true, fn);
+  // Await inside the context: Prisma queries only start when awaited, so
+  // returning the query un-awaited would run it outside "quiet".
+  return quiet.run(true, async () => await fn());
 }
 
 export function shouldAudit(model: string | undefined, operation: string) {

@@ -97,7 +97,9 @@ export async function GET(req: NextRequest) {
       const name = (searchParams.get("name") || "").trim();
       const select = { id: true, name: true, email: true, phone: true, emergencyName: true, emergencyPhone: true };
       const match =
-        (email ? await db.volunteer.findUnique({ where: { email }, select }) : null) ??
+        (email
+          ? await db.volunteer.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, select })
+          : null) ??
         (name.length >= 3
           ? await db.volunteer.findFirst({ where: { name: { equals: name, mode: "insensitive" } }, select })
           : null);

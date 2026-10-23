@@ -14,10 +14,13 @@ export async function GET(req: NextRequest) {
     const dataUrl = await storedPhoto(slug, hash);
     const m = dataUrl?.match(/^data:([^;,]+)(;base64)?,([\s\S]*)$/);
     if (!m) return NextResponse.json({ error: "Photo not found" }, { status: 404 });
+    // Only ever serve it as a picture, whatever the stored value claims.
+    const type = /^image\/(jpeg|png|webp|gif|avif|heic|heif)$/i.test(m[1]) ? m[1] : "application/octet-stream";
     const bytes = m[2] ? Buffer.from(m[3], "base64") : Buffer.from(decodeURIComponent(m[3]));
     return new NextResponse(new Uint8Array(bytes), {
       headers: {
-        "Content-Type": m[1],
+        "Content-Type": type,
+        "X-Content-Type-Options": "nosniff",
         "Content-Length": String(bytes.length),
         "Cache-Control": "private, max-age=31536000, immutable",
       },

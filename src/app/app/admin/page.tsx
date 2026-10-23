@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   Search,
   X,
@@ -1455,6 +1455,62 @@ function AdminTasksCard({
 
 /** An admin task's deadline: a chip (red when due or overdue, amber within
  *  three days) that turns into a date picker when tapped, or "Add due date". */
+// Holds the picked date locally and saves once, on Done or when the picker
+// loses focus. Saving on every change sent one request per typed digit of
+// the year (0002, 0020, 0202, 2027), which could land out of order.
+function DueDateEditor({
+  due,
+  onDone,
+  onChange,
+}: {
+  due?: string;
+  onDone: () => void;
+  onChange: (date: string | null) => void;
+}) {
+  const [value, setValue] = useState(due ?? "");
+  const finished = useRef(false);
+  const finish = (save: boolean) => {
+    if (finished.current) return;
+    finished.current = true;
+    if (save && /^20\d\d-\d\d-\d\d$/.test(value) && value !== due) onChange(value);
+    onDone();
+  };
+  return (
+    <div className="mt-1 flex items-center gap-2">
+      <input
+        type="date"
+        autoFocus
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => finish(true)}
+        className="px-2 py-1 text-xs border border-card-border rounded-md text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
+      />
+      {due && (
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            finished.current = true;
+            onChange(null);
+            onDone();
+          }}
+          className="text-[11px] text-warm-gray hover:text-red-500"
+        >
+          Remove
+        </button>
+      )}
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => finish(true)}
+        className="text-[11px] font-semibold text-sidebar"
+      >
+        Done
+      </button>
+    </div>
+  );
+}
+
 function DueDateControl({
   due,
   done,
@@ -1473,36 +1529,7 @@ function DueDateControl({
   onChange: (date: string | null) => void;
 }) {
   if (editing) {
-    return (
-      <div className="mt-1 flex items-center gap-2">
-        <input
-          type="date"
-          autoFocus
-          defaultValue={due ?? ""}
-          onChange={(e) => {
-            if (e.target.value) onChange(e.target.value);
-          }}
-          onBlur={onDone}
-          className="px-2 py-1 text-xs border border-card-border rounded-md text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
-        />
-        {due && (
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              onChange(null);
-              onDone();
-            }}
-            className="text-[11px] text-warm-gray hover:text-red-500"
-          >
-            Remove
-          </button>
-        )}
-        <button type="button" onClick={onDone} className="text-[11px] font-semibold text-sidebar">
-          Done
-        </button>
-      </div>
-    );
+    return <DueDateEditor due={due} onDone={onDone} onChange={onChange} />;
   }
   if (!due) {
     if (done) return null;

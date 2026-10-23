@@ -568,7 +568,14 @@ function WaiverStep({
         const res = await fetch(`/api/visits?view=visitor&id=${encodeURIComponent(step.visitor.id)}`, { cache: "no-store" });
         if (res.ok && live) {
           const { details } = (await res.json()) as { details: Details };
-          setD((prev) => ({ ...details, name: details.name || prev.name }));
+          // Fill only what they haven't already typed while this loaded.
+          setD((prev) => {
+            const next = { ...prev };
+            for (const k of Object.keys(next) as (keyof Details)[]) {
+              if (!prev[k] || (k === "name" && prev[k] === step.visitor.name)) next[k] = details[k] || prev[k];
+            }
+            return next;
+          });
         }
       } catch {
         // Offline: they fill it in.

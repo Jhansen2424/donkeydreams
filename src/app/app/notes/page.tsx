@@ -18,7 +18,7 @@ import {
   Code2,
 } from "lucide-react";
 import { useParkingLot, type EntryType } from "@/lib/parking-lot-context";
-import { useSchedule } from "@/lib/schedule-context";
+import { useSchedule, localToday } from "@/lib/schedule-context";
 import { useMedical } from "@/lib/medical-context";
 import { useToast } from "@/lib/toast-context";
 import { categoryMeta, type TaskCategory } from "@/lib/sanctuary-data";
@@ -88,7 +88,7 @@ export default function NotesPage() {
       // A watch alert is COPIED into the medical record and stays on the
       // watch list (client 10/22: transfer the documented info, e.g. Dawn).
       const fromWatch = entry.type === "watch";
-      await addMedicalEntry({
+      const saved = await addMedicalEntry({
         animal: entry.data.animal,
         type: fromWatch ? "Condition" : "Vet Visit",
         title: fromWatch ? entry.text.slice(0, 60) : entry.data.title?.trim() || entry.text.slice(0, 60),
@@ -96,6 +96,10 @@ export default function NotesPage() {
         description: fromWatch ? watchToMedicalText(entry.text, entry.data.title) : entry.text,
         urgent: fromWatch && entry.data.severity === "high",
       });
+      if (!saved) {
+        toastError("Couldn't save to the medical record. Check your signal and try again.");
+        return;
+      }
       if (fromWatch) {
         toastSuccess(`Copied to ${entry.data.animal}'s medical record. The watch alert stays open.`);
       } else {
@@ -134,16 +138,23 @@ export default function NotesPage() {
   // `category` defaults to "routine" for a generic note → task promotion.
   // A watch alert stays on the watch list: a donkey being watched often has
   // tasks too (client 10/22, Peggy). Other notes are handled once tasked.
-  const promoteToTask = (id: string, category: TaskCategory = "routine") => {
+  const promoteToTask = async (id: string, category: TaskCategory = "routine") => {
     const entry = entries.find((e) => e.id === id);
     if (!entry) return;
-    addTask({
+    setTaskCatPickerId(null);
+    const ok = await addTask({
       task: entry.text,
       blockName: entry.data?.timeBlock ?? currentTimeBlock(),
       assignedTo: entry.data?.assignee,
       animalSpecific: entry.data?.animal,
       category,
+      date: localToday(),
     });
+    // Only close the note once its task is really saved.
+    if (!ok) {
+      toastError("Couldn't add the task. The note is still here; try again.");
+      return;
+    }
     if (entry.type === "watch") {
       toastSuccess(
         `Added to today's tasks. ${entry.data?.animal ?? "This donkey"} stays on the watch list until you dismiss the alert.`
@@ -151,7 +162,6 @@ export default function NotesPage() {
     } else {
       resolveEntry(id);
     }
-    setTaskCatPickerId(null);
   };
 
   const counts: Record<FilterKey, number> = {
@@ -387,7 +397,7 @@ export default function NotesPage() {
                           {(Object.keys(categoryMeta) as TaskCategory[]).map((c) => (
                             <button
                               key={c}
-                              onClick={() => promoteToTask(entry.id, c)}
+                              onClick={() => void promoteToTask(entry.id, c)}
                               className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-sm text-charcoal hover:bg-cream/60 transition-colors"
                             >
                               <span

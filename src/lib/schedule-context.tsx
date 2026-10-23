@@ -58,7 +58,8 @@ interface ScheduleContextValue {
   toggleTask: (blockIdx: number, taskIdx: number) => Promise<void>;
   assignTask: (blockIdx: number, taskIdx: number, memberName: string) => Promise<void>;
   bulkAssign: (blockIdx: number, memberName: string) => Promise<void>;
-  addTask: (input: NewTaskInput) => Promise<void>;
+  /** Resolves true once saved, false if it failed. */
+  addTask: (input: NewTaskInput) => Promise<boolean>;
   editTask: (
     blockIdx: number,
     taskIdx: number,
@@ -227,7 +228,15 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       if (cached) {
         setSchedule(cached.data.blocks);
         setTaskBlocks(new Map(cached.data.taskBlocks));
+        shownDateRef.current = target;
         setLoading(false);
+      } else {
+        // Nothing saved for this day: never leave another day's tasks on
+        // screen (or let them be saved under this day's date).
+        setSchedule(generateDailySchedule().map((b) => ({ ...b, tasks: [] as ScheduleTask[] })));
+        setTaskBlocks(new Map());
+        shownDateRef.current = null;
+        setLoading(true);
       }
     }
     try {
@@ -372,7 +381,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     }
   }, [schedule]);
 
-  const addTask = useCallback(async (input: NewTaskInput) => {
+  const addTask = useCallback(async (input: NewTaskInput): Promise<boolean> => {
     const block = input.blockName ?? currentBlockName();
     // Default to the VIEWED date (local today unless the user navigated),
     // so adding while looking at tomorrow creates tomorrow's task.
@@ -406,10 +415,11 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         });
         if (!res.ok) throw new Error((await res.json()).error || "Failed to add");
         await refresh();
+        return true;
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to add recurring task");
+        return false;
       }
-      return;
     }
 
     try {
@@ -445,8 +455,10 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
           prev.map((b) => (b.name === body.task.block ? { ...b, tasks: [...b.tasks, newTask] } : b))
         );
       }
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add task");
+      return false;
     }
   }, [schedule, refresh]);
 

@@ -55,14 +55,20 @@ export default function WatchListPage() {
   // medical note while still being watched (client 10/22: Peggy, Dawn).
   async function makeTask(entry: MergedWatch) {
     const h = new Date().getHours();
-    await addTask({
+    const ok = await addTask({
       task: `${entry.animal}: ${entry.issue}`,
       blockName: h < 10 ? "AM" : h < 16 ? "Mid" : "PM",
       animalSpecific: entry.animal !== "—" ? entry.animal : undefined,
       assignedTo: entry.assignedTo || undefined,
       note: entry.treatment || undefined,
       category: "care",
+      // Always today, even if the schedule was last left on another day.
+      date: localToday(),
     });
+    if (!ok) {
+      toastError("Couldn't add the task. Check your signal and try again.");
+      return;
+    }
     toastSuccess(`Added to today's tasks. ${entry.animal} stays on the watch list.`);
   }
 
