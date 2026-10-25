@@ -83,7 +83,7 @@ export function labelOf(row: Row | null | undefined): string {
     return "";
   };
   const who = pick("animal", "animalName");
-  const what = pick("name", "title", "herd", "text", "issue", "email", "type");
+  const what = pick("name", "title", "task", "herd", "text", "issue", "email", "type");
   const label = who && what && who !== what ? `${who}: ${what}` : who || what;
   return label.length > 90 ? label.slice(0, 87) + "..." : label;
 }

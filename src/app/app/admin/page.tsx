@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Search,
   X,
@@ -16,11 +16,9 @@ import {
   Mail,
   Calendar,
   Shield,
-  Lock,
   Trash2,
   Pencil,
   Save,
-  CalendarClock,
 } from "lucide-react";
 import {
   volunteers as initialVolunteers,
@@ -35,89 +33,14 @@ import {
   type UserRole,
 } from "@/lib/volunteer-data";
 import { formatDate } from "@/lib/format-date";
-import { useSchedule, localToday } from "@/lib/schedule-context";
+
 import { useAnimals } from "@/lib/animals-context";
-import { type ScheduleTask, type TaskCategory } from "@/lib/sanctuary-data";
-import ExpandableText from "@/components/app/ExpandableText";
 import TrimPhotos from "@/components/app/TrimPhotos";
 import { MOOD_QUESTIONS, QUESTION_LABELS, SIGN_DOC_SLOTS } from "@/lib/visit-questions";
 import Link from "next/link";
-
-// A task's tags, falling back to its legacy single category.
-function taskTags(t: ScheduleTask): TaskCategory[] {
-  return t.tags && t.tags.length > 0 ? t.tags : [t.category];
-}
-
-// ── Admin gate ──
-// Simple client-side role check — not security, just UI visibility.
-// In production this would be server-side auth.
-
-function useAdminAccess() {
-  const [unlocked, setUnlocked] = useState(false);
-  const [pin, setPin] = useState("");
-  return { unlocked, setUnlocked, pin, setPin };
-}
-
-function AdminGate({
-  children,
-  unlocked,
-  pin,
-  setPin,
-  setUnlocked,
-}: {
-  children: React.ReactNode;
-  unlocked: boolean;
-  pin: string;
-  setPin: (v: string) => void;
-  setUnlocked: (v: boolean) => void;
-}) {
-  // Simple PIN gate — "1234" placeholder. In real app, proper auth.
-  const ADMIN_PIN = "1234";
-
-  function handleUnlock() {
-    if (pin === ADMIN_PIN) {
-      setUnlocked(true);
-    }
-  }
-
-  if (unlocked) return <>{children}</>;
-
-  return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="bg-white rounded-xl border border-card-border p-8 max-w-sm w-full text-center space-y-4">
-        <div className="w-14 h-14 rounded-full bg-sidebar/10 flex items-center justify-center mx-auto">
-          <Lock className="w-7 h-7 text-sidebar" />
-        </div>
-        <div>
-          <h2 className="text-xl font-bold text-charcoal">Admin Access Required</h2>
-          <p className="text-sm text-warm-gray mt-1">
-            Admin panel is restricted to Edj and Amber.
-          </p>
-        </div>
-        <div className="space-y-3">
-          <input
-            type="password"
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleUnlock()}
-            placeholder="Enter admin PIN"
-            className="w-full px-4 py-3 text-center text-lg tracking-widest border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50 focus:border-sand"
-            autoFocus
-          />
-          <button
-            onClick={handleUnlock}
-            className="w-full px-4 py-3 bg-sidebar text-white rounded-lg text-sm font-medium hover:bg-sidebar-light transition-colors"
-          >
-            Unlock
-          </button>
-        </div>
-        {pin.length > 0 && pin !== ADMIN_PIN && (
-          <p className="text-xs text-red-500">Incorrect PIN</p>
-        )}
-      </div>
-    </div>
-  );
-}
+import { AdminGate, useAdminAccess } from "@/components/app/AdminGate";
+import { AdminTasksPreview } from "@/components/app/AdminTaskParts";
+import { useAdminTasks } from "@/lib/admin-tasks";
 
 // ── Helpers ──
 // (formatDate is imported from @/lib/format-date at the top of the file.)
@@ -194,18 +117,9 @@ function toApiPayload(v: Partial<Volunteer> & { id?: string }): Record<string, u
 
 export default function VolunteersPage() {
   const admin = useAdminAccess();
-  // Admin tasks (tagged "admin") live here — hidden from the daily routine.
-  const { schedule } = useSchedule();
-  const adminTasks = useMemo(() => {
-    const out: { task: ScheduleTask; blockIdx: number; taskIdx: number }[] = [];
-    schedule.forEach((block, blockIdx) => {
-      block.tasks.forEach((task, taskIdx) => {
-        if (taskTags(task).includes("admin")) out.push({ task, blockIdx, taskIdx });
-      });
-    });
-    return out;
-  }, [schedule]);
-  const openAdminTasks = adminTasks.filter((t) => !t.task.done).length;
+  // Admin tasks (tagged "admin") live here, hidden from the daily routine.
+  const adminTasks = useAdminTasks();
+  const openAdminTasks = adminTasks.tasks.filter((t) => !t.done).length;
   const [localVolunteers, setLocalVolunteers] = useState<Volunteer[]>(initialVolunteers);
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -732,7 +646,7 @@ export default function VolunteersPage() {
         </div>
 
         {/* ══════ ADMIN TASKS ══════ */}
-        <AdminTasksCard adminTasks={adminTasks} />
+        <AdminTasksPreview adminTasks={adminTasks} />
 
         {/* ══════ VISITORS & SIGN-INS (GFAS) ══════ */}
         <VisitorsSignInsCard />
@@ -1234,339 +1148,6 @@ export default function VolunteersPage() {
         )}
       </div>
     </AdminGate>
-  );
-}
-
-// ── Admin Tasks Card ──
-// Standing admin work (grant milestones, succession plan, etc). These are
-// real tasks in the shared system, tagged "admin" — which hides them from
-// the Daily Routine and dashboard. New ones default to "until done": they
-// sit here every day until checked off.
-
-function AdminTasksCard({
-  adminTasks,
-}: {
-  adminTasks: { task: ScheduleTask; blockIdx: number; taskIdx: number }[];
-}) {
-  const { addTask, toggleTask, deleteTask, setDueDate } = useSchedule();
-  const [draft, setDraft] = useState("");
-  const [draftNote, setDraftNote] = useState("");
-  const [draftDue, setDraftDue] = useState("");
-  const [adding, setAdding] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [editingDue, setEditingDue] = useState<string | null>(null);
-  const today = localToday();
-
-  // Open tasks first, soonest deadline first (undated after dated, in their
-  // existing order); finished tasks last.
-  const sorted = useMemo(
-    () =>
-      adminTasks
-        .map((t, i) => ({ ...t, i }))
-        .sort((a, b) => {
-          if (a.task.done !== b.task.done) return a.task.done ? 1 : -1;
-          const ad = a.task.dueDate, bd = b.task.dueDate;
-          if (ad && bd && ad !== bd) return ad < bd ? -1 : 1;
-          if (!!ad !== !!bd) return ad ? -1 : 1;
-          return a.i - b.i;
-        }),
-    [adminTasks]
-  );
-
-  async function handleAdd() {
-    const text = draft.trim();
-    if (!text || adding) return;
-    setAdding(true);
-    try {
-      await addTask({
-        task: text,
-        blockName: "AM",
-        tags: ["admin"],
-        category: "admin",
-        note: draftNote.trim() || undefined,
-        sticky: true,
-        dueDate: draftDue || undefined,
-      });
-      setDraft("");
-      setDraftNote("");
-      setDraftDue("");
-      setShowForm(false);
-    } finally {
-      setAdding(false);
-    }
-  }
-
-  return (
-    <div className="bg-white rounded-xl border border-card-border p-5">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-bold text-charcoal flex items-center gap-2">
-          <ClipboardCheck className="w-4 h-4 text-purple-600" />
-          Admin Tasks
-          <span className="text-xs font-medium text-warm-gray">
-            {adminTasks.filter((t) => !t.task.done).length} open
-          </span>
-        </h3>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-sidebar border border-card-border rounded-md hover:bg-sidebar hover:text-white hover:border-sidebar transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add
-        </button>
-      </div>
-      <p className="text-xs text-warm-gray/70 mb-3">
-        Only visible here — admin tasks never show on the daily routine. New
-        ones stay on this list every day until checked off.
-      </p>
-
-      {showForm && (
-        <div className="mb-3 space-y-2 p-3 bg-cream/40 rounded-lg border border-card-border">
-          <input
-            type="text"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void handleAdd();
-              }
-            }}
-            placeholder="e.g. Create succession plan"
-            className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal placeholder:text-warm-gray/50 focus:outline-none focus:ring-2 focus:ring-sand/50"
-          />
-          <textarea
-            value={draftNote}
-            onChange={(e) => setDraftNote(e.target.value)}
-            placeholder="Notes / criteria (optional) — paste the details here so they live with the task"
-            rows={3}
-            className="w-full px-3 py-2 text-sm border border-card-border rounded-lg text-charcoal placeholder:text-warm-gray/50 focus:outline-none focus:ring-2 focus:ring-sand/50"
-          />
-          <label className="flex flex-wrap items-center gap-2 text-xs font-medium text-charcoal">
-            <CalendarClock className="w-4 h-4 text-purple-600" />
-            Due date <span className="text-warm-gray/60 font-normal">(optional)</span>
-            <input
-              type="date"
-              value={draftDue}
-              min={today}
-              onChange={(e) => setDraftDue(e.target.value)}
-              className="px-2 py-1.5 text-sm border border-card-border rounded-lg text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
-            />
-            {draftDue && (
-              <button type="button" onClick={() => setDraftDue("")} className="text-warm-gray hover:text-red-500">
-                Clear
-              </button>
-            )}
-          </label>
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={() => setShowForm(false)}
-              className="px-3 py-1.5 text-xs font-medium text-charcoal bg-white border border-card-border rounded-lg hover:bg-cream"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => void handleAdd()}
-              disabled={!draft.trim() || adding}
-              className="px-3 py-1.5 text-xs font-semibold text-white bg-sidebar rounded-lg hover:bg-sidebar-light disabled:opacity-40"
-            >
-              Add task
-            </button>
-          </div>
-        </div>
-      )}
-
-      {adminTasks.length === 0 ? (
-        <p className="text-sm text-warm-gray/60 py-4 text-center">
-          No admin tasks yet. Add standing items like grant milestones here.
-        </p>
-      ) : (
-        <ul className="space-y-1.5">
-          {sorted.map(({ task, blockIdx, taskIdx }) => (
-            <li
-              key={task.serverId ?? `${blockIdx}-${taskIdx}`}
-              className={`flex items-start gap-3 p-2.5 rounded-lg border group ${
-                task.done
-                  ? "bg-cream/40 border-card-border opacity-60"
-                  : "bg-white border-card-border"
-              }`}
-            >
-              <button
-                onClick={() => void toggleTask(blockIdx, taskIdx)}
-                title={task.done ? "Mark incomplete" : "Mark done"}
-                className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
-                  task.done
-                    ? "bg-emerald-500 border-emerald-500"
-                    : "bg-white border-warm-gray/30 hover:border-emerald-400"
-                }`}
-              >
-                {task.done && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-              </button>
-              <div className="flex-1 min-w-0">
-                <p
-                  className={`text-sm font-medium ${
-                    task.done ? "line-through text-warm-gray/60" : "text-charcoal"
-                  }`}
-                >
-                  {task.task}
-                  {task.sticky && !task.done && (
-                    <span className="ml-2 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded">
-                      Until done
-                    </span>
-                  )}
-                </p>
-                {task.assignedTo && (
-                  <p className="text-[11px] text-emerald-700 mt-0.5">{task.assignedTo}</p>
-                )}
-                {task.serverId && (
-                  <DueDateControl
-                    due={task.dueDate}
-                    done={task.done}
-                    today={today}
-                    editing={editingDue === task.serverId}
-                    onEdit={() => setEditingDue(task.serverId ?? null)}
-                    onDone={() => setEditingDue(null)}
-                    onChange={(d) => void setDueDate(task.serverId!, d)}
-                  />
-                )}
-                {task.note && (
-                  <div className="mt-0.5">
-                    <ExpandableText
-                      text={task.note}
-                      className="text-xs text-warm-gray"
-                      clampChars={200}
-                    />
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={() => void deleteTask(blockIdx, taskIdx)}
-                title="Delete task"
-                className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1 text-warm-gray/50 hover:text-red-500 shrink-0"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-/** An admin task's deadline: a chip (red when due or overdue, amber within
- *  three days) that turns into a date picker when tapped, or "Add due date". */
-// Holds the picked date locally and saves once, on Done or when the picker
-// loses focus. Saving on every change sent one request per typed digit of
-// the year (0002, 0020, 0202, 2027), which could land out of order.
-function DueDateEditor({
-  due,
-  onDone,
-  onChange,
-}: {
-  due?: string;
-  onDone: () => void;
-  onChange: (date: string | null) => void;
-}) {
-  const [value, setValue] = useState(due ?? "");
-  const finished = useRef(false);
-  const finish = (save: boolean) => {
-    if (finished.current) return;
-    finished.current = true;
-    if (save && /^20\d\d-\d\d-\d\d$/.test(value) && value !== due) onChange(value);
-    onDone();
-  };
-  return (
-    <div className="mt-1 flex items-center gap-2">
-      <input
-        type="date"
-        autoFocus
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={() => finish(true)}
-        className="px-2 py-1 text-xs border border-card-border rounded-md text-charcoal focus:outline-none focus:ring-2 focus:ring-sand/50"
-      />
-      {due && (
-        <button
-          type="button"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => {
-            finished.current = true;
-            onChange(null);
-            onDone();
-          }}
-          className="text-[11px] text-warm-gray hover:text-red-500"
-        >
-          Remove
-        </button>
-      )}
-      <button
-        type="button"
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => finish(true)}
-        className="text-[11px] font-semibold text-sidebar"
-      >
-        Done
-      </button>
-    </div>
-  );
-}
-
-function DueDateControl({
-  due,
-  done,
-  today,
-  editing,
-  onEdit,
-  onDone,
-  onChange,
-}: {
-  due?: string;
-  done: boolean;
-  today: string;
-  editing: boolean;
-  onEdit: () => void;
-  onDone: () => void;
-  onChange: (date: string | null) => void;
-}) {
-  if (editing) {
-    return <DueDateEditor due={due} onDone={onDone} onChange={onChange} />;
-  }
-  if (!due) {
-    if (done) return null;
-    return (
-      <button
-        type="button"
-        onClick={onEdit}
-        className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-warm-gray/70 hover:text-sidebar"
-      >
-        <CalendarClock className="w-3 h-3" />
-        Add due date
-      </button>
-    );
-  }
-  const soon = new Date(today + "T00:00:00");
-  soon.setDate(soon.getDate() + 3);
-  const soonIso = soon.toLocaleDateString("en-CA");
-  const tone = done
-    ? "text-warm-gray/60 bg-cream/60 border-card-border"
-    : due < today
-      ? "text-red-700 bg-red-50 border-red-200"
-      : due === today
-        ? "text-red-700 bg-red-50 border-red-200"
-        : due <= soonIso
-          ? "text-amber-700 bg-amber-50 border-amber-200"
-          : "text-purple-700 bg-purple-50 border-purple-200";
-  const label = done ? "Was due" : due < today ? "Overdue" : due === today ? "Due today" : "Due";
-  return (
-    <button
-      type="button"
-      onClick={onEdit}
-      title="Change the due date"
-      className={`mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[11px] font-semibold ${tone}`}
-    >
-      <CalendarClock className="w-3 h-3" />
-      {label} {formatDate(due)}
-    </button>
   );
 }
 

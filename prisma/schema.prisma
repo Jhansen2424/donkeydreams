@@ -166,6 +166,13 @@ model TaskCompletion {
   // (client 10/22: "I don't see an option to select a date for the task
   // to be complete").
   dueDate    String?
+  // Repeating admin task (client 10/24): "daily" | "weekly" | "monthly" |
+  // "quarterly" | "yearly". Checking one off creates the next with its due
+  // date moved on; repeatFromId links that next copy back, so un-checking
+  // takes it away again.
+  repeat       String?
+  repeatFromId String?
+  completedAt  DateTime?
   // Appetite/outcome capture (client 9/15: "Swayze only ate a couple of
   // bites"): "" = normal, "partial" = started but not finished,
   // "refused" = offered but didn't want it. outcomeNote holds the detail

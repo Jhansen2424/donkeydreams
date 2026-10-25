@@ -21,6 +21,8 @@ interface ApiTask {
   outcome: string;
   outcomeNote: string;
   dueDate: string | null;
+  repeat: string | null;
+  completedAt: string | null;
   createdAt: string;
 }
 
@@ -40,6 +42,8 @@ function toApi(row: {
   outcome: string;
   outcomeNote: string;
   dueDate: string | null;
+  repeat?: string | null;
+  completedAt?: Date | null;
   createdAt: Date;
 }, animalSpecific: string | null): ApiTask {
   return {
@@ -59,12 +63,43 @@ function toApi(row: {
     outcome: row.outcome,
     outcomeNote: row.outcomeNote,
     dueDate: row.dueDate,
+    repeat: row.repeat ?? null,
+    completedAt: row.completedAt ? row.completedAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
   };
 }
 
 function isIsoDate(v: unknown): v is string {
   return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+}
+
+// How often a repeating admin task comes back.
+const REPEATS = new Set(["daily", "weekly", "monthly", "quarterly", "yearly"]);
+const cleanRepeat = (v: unknown): string | null =>
+  typeof v === "string" && REPEATS.has(v) ? v : null;
+
+// The next due date for a repeating task: one interval on from its due date
+// (or from today when it had none), moved on again until it's after today,
+// so finishing an overdue task doesn't create one that's already overdue.
+// Each step counts from the original date, so a task due on the 31st lands
+// on the last day of shorter months (Feb 28) and is back on the 31st after.
+function nextDue(from: string, repeat: string, today: string): string {
+  const [y, m, d] = from.split("-").map(Number);
+  const nth = (k: number): string => {
+    if (repeat === "daily" || repeat === "weekly") {
+      const dt = new Date(Date.UTC(y, m - 1, d + k * (repeat === "daily" ? 1 : 7)));
+      return dt.toISOString().slice(0, 10);
+    }
+    const months = repeat === "monthly" ? 1 : repeat === "quarterly" ? 3 : 12;
+    const total = m - 1 + k * months;
+    const ny = y + Math.floor(total / 12);
+    const nm = total % 12;
+    const last = new Date(Date.UTC(ny, nm + 1, 0)).getUTCDate();
+    return new Date(Date.UTC(ny, nm, Math.min(d, last))).toISOString().slice(0, 10);
+  };
+  let k = 1;
+  while (nth(k) <= today && k < 5000) k++;
+  return nth(k);
 }
 
 // Sanitize a client-provided tags payload down to a clean string array.
@@ -169,6 +204,32 @@ export async function GET(req: NextRequest) {
 
     // Caller may request either a single date (default: today) or a
     // from/to range (used by the Upcoming Tasks panel).
+    // Admin tasks page: every admin task that's open, plus ones finished in
+    // the last 60 days, regardless of which day they were added.
+    if (searchParams.get("view") === "admin") {
+      const since = new Date(Date.now() - 60 * 86_400_000);
+      const rows = await db.taskCompletion.findMany({
+        where: {
+          AND: [
+            { OR: [{ tags: { has: "admin" } }, { category: "admin" }] },
+            {
+              OR: [
+                { done: false },
+                { completedAt: { gte: since } },
+                { completedAt: null, updatedAt: { gte: since } },
+              ],
+            },
+          ],
+        },
+        orderBy: [{ createdAt: "asc" }],
+      });
+      const tasks = rows.map((r) => {
+        const { animal, cleanNote } = extractAnimal(r.note);
+        return toApi({ ...r, note: cleanNote }, animal);
+      });
+      return NextResponse.json({ tasks, date: null });
+    }
+
     let where: Record<string, unknown>;
     let viewDate: string | undefined;
     if (from || to) {
@@ -204,7 +265,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { task, block, category, assignedTo, note, animalSpecific, date, templateId, sortOrder, sticky, dueDate } = body ?? {};
+    const { task, block, category, assignedTo, note, animalSpecific, date, templateId, sortOrder, sticky, dueDate, repeat } = body ?? {};
 
     if (!task || typeof task !== "string") {
       return NextResponse.json({ error: "Missing 'task'" }, { status: 400 });
@@ -228,6 +289,7 @@ export async function POST(req: NextRequest) {
         sortOrder: typeof sortOrder === "number" ? sortOrder : 0,
         sticky: sticky === true,
         dueDate: isIsoDate(dueDate) ? dueDate : null,
+        repeat: cleanRepeat(repeat),
       },
     });
     const { animal, cleanNote } = extractAnimal(row.note);
@@ -310,6 +372,8 @@ export async function PATCH(req: NextRequest) {
       outcome?: string;
       outcomeNote?: string;
       dueDate?: string | null;
+      repeat?: string | null;
+      completedAt?: Date | null;
     } = {};
 
     if (typeof updates.task === "string") patch.task = updates.task;
@@ -329,6 +393,7 @@ export async function PATCH(req: NextRequest) {
     // Admin-task deadline: a date sets it, null/"" clears it.
     if (updates.dueDate === null || updates.dueDate === "") patch.dueDate = null;
     else if (isIsoDate(updates.dueDate)) patch.dueDate = updates.dueDate;
+    if (updates.repeat !== undefined) patch.repeat = cleanRepeat(updates.repeat);
     // Outcome capture: "", "partial", "refused", or "issue" (medical/other
     // concern — client 9/23: "sometimes there is an issue with the medical")
     // + free-text why.
@@ -354,8 +419,60 @@ export async function PATCH(req: NextRequest) {
       patch.note = encodeNote(newNote, newAnimal);
     }
 
+    // Checking a task off (or un-checking it) changes what happens next for
+    // a repeating one, so look at how it was before saving.
+    const before =
+      patch.done !== undefined ? await db.taskCompletion.findUnique({ where: { id } }) : null;
+    if (patch.done !== undefined && before && before.done !== patch.done) {
+      patch.completedAt = patch.done ? new Date() : null;
+    }
+
     const row = await db.taskCompletion.update({ where: { id }, data: patch });
     const { animal, cleanNote } = extractAnimal(row.note);
+
+    // Repeating task finished: the next one appears with its due date moved
+    // on. Un-checking takes that next one away again (if it isn't done).
+    let next: ApiTask | null = null;
+    let removedNextIds: string[] = [];
+    if (before && row.repeat && before.done !== row.done) {
+      try {
+        if (row.done) {
+          const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Phoenix" });
+          const due = nextDue(row.dueDate ?? today, row.repeat, today);
+          const existing = await db.taskCompletion.findFirst({ where: { repeatFromId: row.id } });
+          const created =
+            existing ??
+            (await db.taskCompletion.create({
+              data: {
+                task: row.task,
+                block: row.block,
+                category: row.category,
+                tags: row.tags,
+                date: today,
+                assignedTo: row.assignedTo,
+                note: row.note,
+                done: false,
+                sortOrder: row.sortOrder,
+                sticky: row.sticky,
+                dueDate: due,
+                repeat: row.repeat,
+                repeatFromId: row.id,
+              },
+            }));
+          const parsed = extractAnimal(created.note);
+          next = toApi({ ...created, note: parsed.cleanNote }, parsed.animal);
+        } else {
+          const undone = await db.taskCompletion.findMany({
+            where: { repeatFromId: row.id, done: false },
+            select: { id: true },
+          });
+          removedNextIds = undone.map((r) => r.id);
+          for (const r of undone) await db.taskCompletion.delete({ where: { id: r.id } });
+        }
+      } catch (e) {
+        console.error("repeat task follow-up failed:", e);
+      }
+    }
 
     // A recorded issue on an animal's task also lands on that animal's
     // profile (client 9/23: "can the documented issue also record to the
@@ -369,7 +486,7 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ task: toApi({ ...row, note: cleanNote }, animal) });
+    return NextResponse.json({ task: toApi({ ...row, note: cleanNote }, animal), next, removedNextIds });
   } catch (error) {
     console.error("PATCH /api/tasks failed:", error);
     return NextResponse.json({ error: "Failed to update task" }, { status: 500 });
