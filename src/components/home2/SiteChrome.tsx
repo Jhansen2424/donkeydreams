@@ -102,8 +102,12 @@ export function NewFooter() {
             </Link>
           ))}
           <p className="text-[11px] font-extrabold uppercase tracking-[0.25em] text-white/50 pt-4 mb-1">Governance</p>
-          <p>Board of Directors</p>
-          <p>Standard Operating Procedures</p>
+          <a href="/docs/donkey-dreams-board-of-directors.pdf" target="_blank" rel="noopener" className="block hover:text-white transition-colors">
+            Board of Directors
+          </a>
+          <a href="/docs/donkey-dreams-sop-january-2025.pdf" target="_blank" rel="noopener" className="block hover:text-white transition-colors">
+            Standard Operating Procedures
+          </a>
         </div>
         <div className="space-y-2">
           <p className="text-[11px] font-extrabold uppercase tracking-[0.25em] text-white/50 mb-3">Contact</p>

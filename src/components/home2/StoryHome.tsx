@@ -677,8 +677,12 @@ function StoryFooter() {
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#b6a996] pt-4 pb-1">
             Governance
           </p>
-          <p className="text-[#b6a996]">Board of Directors</p>
-          <p className="text-[#b6a996]">Standard Operating Procedures</p>
+          <a href="/docs/donkey-dreams-board-of-directors.pdf" target="_blank" rel="noopener" className="block text-[#b6a996] hover:text-white transition-colors">
+            Board of Directors
+          </a>
+          <a href="/docs/donkey-dreams-sop-january-2025.pdf" target="_blank" rel="noopener" className="block text-[#b6a996] hover:text-white transition-colors">
+            Standard Operating Procedures
+          </a>
         </div>
         <div className="space-y-2 text-sm">
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#b6a996] mb-3">
