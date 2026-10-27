@@ -1,4 +1,8 @@
 /**
+ * SUPERSEDED (10/27): the film now uses Amber's own recordings, built by
+ * scripts/master-film-voice.ts. Running this would replace her voice with the
+ * AI voice. Kept for reference.
+ *
  * Film-homepage narration: ONE clip per on-screen line, read verbatim, so the
  * voice can never drift from the text. Writes public/audio/film/<id>.mp3,
  * trims leading/trailing silence, measures each clip's exact duration, and
