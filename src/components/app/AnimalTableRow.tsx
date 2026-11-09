@@ -1,4 +1,5 @@
 import { Pencil } from "lucide-react";
+import DonkeyPhoto from "@/components/app/DonkeyPhoto";
 
 interface AnimalTableRowProps {
   name: string;
@@ -37,13 +38,9 @@ export default function AnimalTableRow({
       {/* Photo + Name */}
       <td className="py-3 px-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-cream overflow-hidden shrink-0">
+          <div className="relative w-9 h-9 rounded-full bg-cream overflow-hidden shrink-0">
             {profileImage ? (
-              <img
-                src={profileImage}
-                alt={name}
-                className="w-full h-full object-cover"
-              />
+              <DonkeyPhoto src={profileImage} alt={name} sizes="36px" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-sm">
                 🫏

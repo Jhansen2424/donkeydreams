@@ -28,7 +28,8 @@ export type MedicalEntryPatch = Partial<NewMedicalEntry>;
 interface MedicalContextValue {
   entries: MedicalEntry[];
   addEntry: (input: NewMedicalEntry) => Promise<MedicalEntry | null>;
-  updateEntry: (id: string, patch: MedicalEntryPatch) => Promise<void>;
+  /** Resolves true once saved, false if it failed (and was rolled back). */
+  updateEntry: (id: string, patch: MedicalEntryPatch) => Promise<boolean>;
   removeEntry: (id: string) => Promise<void>;
   loading: boolean;
   error: string | null;
@@ -129,7 +130,7 @@ export function MedicalProvider({ children }: { children: ReactNode }) {
   );
 
   const updateEntry = useCallback(
-    async (id: string, patch: MedicalEntryPatch) => {
+    async (id: string, patch: MedicalEntryPatch): Promise<boolean> => {
       const snapshot = entries;
       setEntries((prev) =>
         prev.map((e) =>
@@ -154,9 +155,11 @@ export function MedicalProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify({ id, ...patch }),
         });
         if (!res.ok) throw new Error((await res.json()).error || "Failed to update");
+        return true;
       } catch (e) {
         setEntries(snapshot);
         setError(e instanceof Error ? e.message : "Failed to update medical entry");
+        return false;
       }
     },
     [entries]

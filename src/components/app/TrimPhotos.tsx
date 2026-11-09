@@ -12,6 +12,7 @@
 // printed for the binder.
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import { usePhotosReady } from "@/components/app/DonkeyPhoto";
 import { Camera, Trash2, X, Loader2, ImagePlus, FileText, Printer } from "lucide-react";
 import { compressImage, getPhotosForVisit, deletePhoto } from "@/lib/trim-photos";
 
@@ -54,6 +55,32 @@ export default function TrimPhotos({ visitId, addLabel = "Add photos" }: TrimPho
   const [error, setError] = useState<string | null>(null);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Only look for photos once this record is near the screen and the page
+  // has settled: a profile's Medical tab used to fire one request per record
+  // the moment it opened, which clogged the yard's weak signal (client 11/9).
+  const rootRef = useRef<HTMLDivElement>(null);
+  const photosReady = usePhotosReady();
+  const [nearScreen, setNearScreen] = useState(false);
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || nearScreen) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setNearScreen(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (seen) => {
+        if (seen.some((e) => e.isIntersecting)) {
+          setNearScreen(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "300px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [nearScreen]);
+  const active = photosReady && nearScreen;
 
   const reload = useCallback(async () => {
     try {
@@ -71,6 +98,7 @@ export default function TrimPhotos({ visitId, addLabel = "Add photos" }: TrimPho
   // Load from the DB, then migrate any photos this device still holds in
   // the old localStorage store (upload → remove locally → reload).
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
     (async () => {
       await reload();
@@ -98,7 +126,7 @@ export default function TrimPhotos({ visitId, addLabel = "Add photos" }: TrimPho
     return () => {
       cancelled = true;
     };
-  }, [visitId, reload]);
+  }, [visitId, reload, active]);
 
   const handleFiles = useCallback(
     async (files: FileList | null) => {
@@ -164,7 +192,7 @@ export default function TrimPhotos({ visitId, addLabel = "Add photos" }: TrimPho
   const pdfs = items.filter((i) => !i.mimeType.startsWith("image/"));
 
   return (
-    <div className="mt-2">
+    <div ref={rootRef} className="mt-2">
       {/* Image thumbnails */}
       {images.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-2">
@@ -179,6 +207,9 @@ export default function TrimPhotos({ visitId, addLabel = "Add photos" }: TrimPho
               <img
                 src={`/api/documents/${photo.id}`}
                 alt={photo.name}
+                loading="lazy"
+                decoding="async"
+                fetchPriority="low"
                 className="w-full h-full object-cover"
               />
               <span className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />

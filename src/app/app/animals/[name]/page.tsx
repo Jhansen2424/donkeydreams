@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Pencil,
+  CheckCircle2,
   Heart,
   Stethoscope,
   ClipboardCheck,
@@ -49,6 +50,10 @@ import { getTrimProfile, type TrimProfile } from "@/lib/trimming-data";
 import { getDewormingDosage } from "@/lib/power-pack-data";
 import { getDonkeyWeight } from "@/lib/scheduled-and-events-data";
 import TrimPhotos from "@/components/app/TrimPhotos";
+import MarkDoneModal from "@/components/app/MarkDoneModal";
+import DonkeyPhoto from "@/components/app/DonkeyPhoto";
+import { isOverdue, isReminder, isReminderDone } from "@/lib/medical-status";
+import { FeedPlanModal, saveFeedPlan, type ApiFeedEntry, type ApiHerdPlan } from "@/components/app/FeedPlanEditor";
 import ExpandableText, { normalizeParagraphs } from "@/components/app/ExpandableText";
 import { compressImage } from "@/lib/trim-photos";
 import {
@@ -367,13 +372,9 @@ export default function AnimalProfilePage() {
       <div className="bg-white rounded-xl border border-card-border overflow-hidden">
         <div className="md:flex">
           {/* Photo */}
-          <div className="relative md:w-80 shrink-0 aspect-square md:aspect-auto bg-cream overflow-hidden">
+          <div className="relative md:w-80 shrink-0 aspect-square md:aspect-auto md:min-h-[320px] bg-cream overflow-hidden">
             {animal.profileImage ? (
-              <img
-                src={animal.profileImage}
-                alt={animal.name}
-                className="w-full h-full object-cover"
-              />
+              <DonkeyPhoto src={animal.profileImage} alt={animal.name} sizes="(min-width: 768px) 320px, 100vw" />
             ) : (
               <div className="w-full h-full flex items-center justify-center min-h-[240px]">
                 <span className="text-7xl">🫏</span>
@@ -1367,9 +1368,17 @@ function resolveSubParam(s: string | null | undefined): MedicalSubTab | null {
   return (entryTypes as string[]).includes(s) ? (s as MedicalSubTab) : null;
 }
 
-function MedicalRecordCard({ record }: { record: MedicalRecord }) {
+function MedicalRecordCard({
+  record,
+  reminder = "none",
+}: {
+  record: MedicalRecord;
+  /** An open reminder (upcoming or overdue) gets "Mark done". */
+  reminder?: "none" | "open" | "overdue";
+}) {
   const { updateEntry, removeEntry } = useMedical();
   const [editing, setEditing] = useState(false);
+  const [markingDone, setMarkingDone] = useState(false);
   const [draftTitle, setDraftTitle] = useState(record.title);
   const [draftDate, setDraftDate] = useState(record.date);
   const [draftDesc, setDraftDesc] = useState(record.description ?? "");
@@ -1408,16 +1417,18 @@ function MedicalRecordCard({ record }: { record: MedicalRecord }) {
     }
   }
 
+  // A reminder is only urgent while it's overdue; once done it's calm.
+  const urgent = isReminder(record) ? reminder === "overdue" : record.urgent;
   return (
     <div
       className={`bg-white rounded-xl border p-4 flex items-start gap-4 group ${
-        record.urgent ? "border-red-200 bg-red-50/30" : "border-card-border"
+        urgent ? "border-red-200 bg-red-50/30" : "border-card-border"
       }`}
     >
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2 mb-1">
           <MedicalTypeBadge type={record.type} />
-          {record.urgent && (
+          {urgent && (
             <span className="text-[10px] font-bold uppercase tracking-wider text-red-600">
               Urgent
             </span>
@@ -1493,6 +1504,25 @@ function MedicalRecordCard({ record }: { record: MedicalRecord }) {
                 trim) — we namespace medical entries with `med-` so the
                 photo store doesn't collide with the trim entries. */}
             <TrimPhotos visitId={`med-${record.id}`} />
+            {reminder !== "none" && (
+              <button
+                type="button"
+                onClick={() => setMarkingDone(true)}
+                className={`mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-colors ${
+                  reminder === "overdue" ? "bg-red-600 hover:bg-red-700" : "bg-emerald-600 hover:bg-emerald-700"
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {reminder === "overdue" ? "Overdue: mark done" : "Mark done"}
+              </button>
+            )}
+            {markingDone && (
+              <MarkDoneModal
+                record={record}
+                todayIso={new Date().toLocaleDateString("en-CA", { timeZone: "America/Phoenix" })}
+                onClose={() => setMarkingDone(false)}
+              />
+            )}
           </>
         )}
       </div>
@@ -1720,9 +1750,18 @@ function MedicalTab({ animal }: { animal: Animal }) {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((record) => (
-            <MedicalRecordCard key={record.id} record={record} />
-          ))}
+          {filtered.map((record) => {
+            // Sanctuary date, so server and phone agree around midnight.
+            const todayIso = new Date().toLocaleDateString("en-CA", { timeZone: "America/Phoenix" });
+            const open = isReminder(record) && !isReminderDone(record, records, todayIso);
+            return (
+              <MedicalRecordCard
+                key={record.id}
+                record={record}
+                reminder={!open ? "none" : isOverdue(record, records, todayIso) ? "overdue" : "open"}
+              />
+            );
+          })}
         </div>
       )}
     </div>
@@ -2364,9 +2403,14 @@ interface FeedPlanBlocks {
   pm: { item: string; amount: string }[];
 }
 function FeedPlanTab({ animal }: { animal: Animal }) {
-  const [entry, setEntry] = useState<{ notes: string; plan: FeedPlanBlocks } | null>(null);
-  const [herdPlan, setHerdPlan] = useState<{ notes: string; plan: FeedPlanBlocks } | null>(null);
+  const [entry, setEntry] = useState<ApiFeedEntry | null>(null);
+  const [herdPlan, setHerdPlan] = useState<ApiHerdPlan | null>(null);
   const [loading, setLoading] = useState(true);
+  // Edit right here (client 11/6: Michelle couldn't edit feed plans from the
+  // profile; it used to only link off to the Feed Plans page).
+  const [editing, setEditing] = useState<"animal" | "herd" | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const { toastSuccess, toastError } = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -2377,15 +2421,11 @@ function FeedPlanTab({ animal }: { animal: Animal }) {
           fetch("/api/feed/herd", { cache: "no-store" }),
         ]);
         if (res.ok) {
-          const body = (await res.json()) as {
-            entries: { animal: string; notes: string; plan: FeedPlanBlocks }[];
-          };
+          const body = (await res.json()) as { entries: ApiFeedEntry[] };
           if (!cancelled) setEntry(body.entries.find((e) => e.animal === animal.name) ?? null);
         }
         if (herdRes.ok) {
-          const body = (await herdRes.json()) as {
-            entries: { herd: string; notes: string; plan: FeedPlanBlocks }[];
-          };
+          const body = (await herdRes.json()) as { entries: ApiHerdPlan[] };
           if (!cancelled) setHerdPlan(body.entries.find((e) => e.herd === animal.herd) ?? null);
         }
       } finally {
@@ -2395,7 +2435,7 @@ function FeedPlanTab({ animal }: { animal: Animal }) {
     return () => {
       cancelled = true;
     };
-  }, [animal.name, animal.herd]);
+  }, [animal.name, animal.herd, reloadKey]);
 
   // Merge: herd plan fills the base, the donkey's own entries win per item.
   const rows = useMemo(() => {
@@ -2428,21 +2468,58 @@ function FeedPlanTab({ animal }: { animal: Animal }) {
           <UtensilsCrossed className="w-4 h-4 text-sky" />
           <h3 className="font-bold text-charcoal">{animal.name}&apos;s Feed Plan</h3>
         </div>
-        <a
-          href="/app/feed"
-          className="text-xs font-semibold text-sidebar hover:underline"
-        >
-          Edit on Feed Plans page →
-        </a>
+        <div className="flex items-center gap-1.5">
+          {herdPlan && (
+            <button
+              type="button"
+              onClick={() => setEditing("herd")}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-charcoal border border-card-border rounded-lg hover:bg-cream"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Herd plan
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setEditing("animal")}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white bg-sidebar rounded-lg hover:bg-sidebar-light"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            {entry ? `Edit ${animal.name}'s plan` : `Add ${animal.name}'s plan`}
+          </button>
+        </div>
       </div>
+
+      {editing && (
+        <FeedPlanModal
+          initial={editing === "animal" ? entry : null}
+          initialHerd={editing === "herd" ? herdPlan : null}
+          animalChoices={[animal.name]}
+          // Editing the donkey's own plan never offers "whole herd" (it would
+          // start from blank and replace the herd's plan).
+          herdChoices={editing === "herd" && animal.herd ? [animal.herd] : []}
+          onClose={() => setEditing(null)}
+          onSave={async (data) => {
+            try {
+              await saveFeedPlan(data);
+            } catch (e) {
+              toastError(e instanceof Error ? e.message : "The feed plan didn't save.");
+              throw e;
+            }
+            toastSuccess("Feed plan saved");
+            setEditing(null);
+            setReloadKey((k) => k + 1);
+          }}
+        />
+      )}
 
       {loading ? (
         <p className="text-sm text-warm-gray/60 py-4">Loading feed plan…</p>
       ) : rows.length === 0 && !entry?.notes && !herdPlan?.notes ? (
         <p className="text-sm text-warm-gray/60 py-4">
           No feed plan yet for {animal.name}
-          {animal.herd ? ` or the ${animal.herd} herd` : ""}. Add one on the
-          Feed Plans page.
+          {animal.herd ? ` or the ${animal.herd} herd` : ""}. Tap &ldquo;Add{" "}
+          {animal.name}&apos;s plan&rdquo; to start one.
         </p>
       ) : (
         <>
@@ -2689,10 +2766,11 @@ function PhotosTab({ animal }: { animal: Animal }) {
               key={`${img}-${i}`}
               className="relative group aspect-square rounded-xl overflow-hidden bg-cream border border-card-border"
             >
-              <img
+              <DonkeyPhoto
                 src={img}
                 alt={`${animal.name} photo ${i + 1}`}
-                className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+                className="hover:scale-105"
               />
               <button
                 onClick={() => handleDelete(i)}

@@ -28,6 +28,7 @@ import {
   type Animal,
 } from "./animals";
 import { readCache, writeCache } from "./offline-cache";
+import { markPhotoDataReady } from "@/components/app/DonkeyPhoto";
 
 // The DB fields the app can edit (mirrors EDITABLE in /api/animals) plus the
 // identity fields needed to display DB-only animals.
@@ -207,6 +208,7 @@ export function AnimalsProvider({ children }: { children: ReactNode }) {
       setError(e instanceof Error ? e.message : "Failed to load animals");
     } finally {
       setLoading(false);
+      markPhotoDataReady();
     }
   }, []);
 
@@ -216,6 +218,8 @@ export function AnimalsProvider({ children }: { children: ReactNode }) {
     if (cached) {
       setDbRows(cached.data);
       setLoading(false);
+      // The saved copy already has the final photo links.
+      markPhotoDataReady();
     }
     void refresh();
   }, [refresh]);

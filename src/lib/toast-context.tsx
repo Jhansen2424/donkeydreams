@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import Link from "next/link";
 import { AlertTriangle, CheckCircle2, X } from "lucide-react";
 
 // Tiny toast system — built specifically to surface async dispatch failures
@@ -15,17 +16,24 @@ import { AlertTriangle, CheckCircle2, X } from "lucide-react";
 
 type ToastKind = "success" | "error" | "info";
 
+/** Optional link under the message, e.g. "View on Dawn's profile". */
+interface ToastAction {
+  label: string;
+  href: string;
+}
+
 interface Toast {
   id: string;
   kind: ToastKind;
   message: string;
+  action?: ToastAction;
 }
 
 interface ToastContextValue {
-  toast: (kind: ToastKind, message: string) => void;
-  toastSuccess: (message: string) => void;
+  toast: (kind: ToastKind, message: string, action?: ToastAction) => void;
+  toastSuccess: (message: string, action?: ToastAction) => void;
   toastError: (message: string) => void;
-  toastInfo: (message: string) => void;
+  toastInfo: (message: string, action?: ToastAction) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -40,17 +48,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toast = useCallback(
-    (kind: ToastKind, message: string) => {
+    (kind: ToastKind, message: string, action?: ToastAction) => {
       const id = `toast-${nextId++}`;
-      setToasts((prev) => [...prev, { id, kind, message }]);
-      setTimeout(() => dismiss(id), 5000);
+      setToasts((prev) => [...prev, { id, kind, message, action }]);
+      // A little longer when there's a link to tap.
+      setTimeout(() => dismiss(id), action ? 9000 : 5000);
     },
     [dismiss]
   );
 
-  const toastSuccess = useCallback((m: string) => toast("success", m), [toast]);
+  const toastSuccess = useCallback((m: string, a?: ToastAction) => toast("success", m, a), [toast]);
   const toastError = useCallback((m: string) => toast("error", m), [toast]);
-  const toastInfo = useCallback((m: string) => toast("info", m), [toast]);
+  const toastInfo = useCallback((m: string, a?: ToastAction) => toast("info", m, a), [toast]);
 
   return (
     <ToastContext.Provider
@@ -76,7 +85,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             ) : t.kind === "success" ? (
               <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
             ) : null}
-            <p className="flex-1 font-medium leading-snug">{t.message}</p>
+            <div className="flex-1">
+              <p className="font-medium leading-snug">{t.message}</p>
+              {t.action && (
+                <Link
+                  href={t.action.href}
+                  onClick={() => dismiss(t.id)}
+                  className="mt-1 inline-block text-xs font-bold underline underline-offset-2"
+                >
+                  {t.action.label}
+                </Link>
+              )}
+            </div>
             <button
               onClick={() => dismiss(t.id)}
               className="text-warm-gray/60 hover:text-charcoal shrink-0"

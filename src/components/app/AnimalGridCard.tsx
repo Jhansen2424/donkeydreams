@@ -1,6 +1,7 @@
 import { Pencil, AlertTriangle } from "lucide-react";
 import { feedSchedules } from "@/lib/sanctuary-data";
 import { watchList } from "@/lib/sanctuary-data";
+import DonkeyPhoto from "@/components/app/DonkeyPhoto";
 
 interface AnimalGridCardProps {
   name: string;
@@ -56,10 +57,11 @@ export default function AnimalGridCard({
       {/* Photo */}
       <div className="aspect-[4/3] bg-cream overflow-hidden relative">
         {profileImage ? (
-          <img
+          <DonkeyPhoto
             src={profileImage}
             alt={name}
-            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+            sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw"
+            className="group-hover:scale-[1.02]"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">

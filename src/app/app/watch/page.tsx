@@ -20,7 +20,7 @@ import { formatDate as sharedFormatDate } from "@/lib/format-date";
 import { useSchedule, localToday } from "@/lib/schedule-context";
 import { useMedical } from "@/lib/medical-context";
 import { useToast } from "@/lib/toast-context";
-import { watchToMedicalText } from "@/lib/watch-medical";
+import { watchMedicalTitle, watchToMedicalText } from "@/lib/watch-medical";
 
 const severityStyles = {
   high: { dot: "bg-red-500", bg: "bg-red-50 border-red-200", label: "High" },
@@ -50,6 +50,7 @@ export default function WatchListPage() {
   const { addTask } = useSchedule();
   const { addEntry: addMedicalEntry } = useMedical();
   const { toastSuccess, toastError } = useToast();
+  const { animals: roster } = useAnimals();
 
   // Both keep the alert open: a watched donkey often needs tasks and a
   // medical note while still being watched (client 10/22: Peggy, Dawn).
@@ -80,12 +81,19 @@ export default function WatchListPage() {
     const saved = await addMedicalEntry({
       animal: entry.animal,
       type: "Condition",
-      title: entry.issue.slice(0, 60),
+      title: watchMedicalTitle(entry.issue),
       date: localToday(),
       description: watchToMedicalText(entry.issue, entry.treatment),
       urgent: entry.severity === "high",
     });
-    if (saved) toastSuccess(`Copied to ${entry.animal}'s medical record. The alert stays open.`);
+    // Link straight to the record on the donkey's profile (client 10/24:
+    // "I really need it to go to Dawn's animal profile").
+    const slug = roster.find((a) => a.name === entry.animal)?.slug;
+    if (saved)
+      toastSuccess(
+        `Copied to ${entry.animal}'s medical record. The alert stays open.`,
+        slug ? { label: `View on ${entry.animal}'s profile`, href: `/app/animals/${slug}?tab=medical` } : undefined
+      );
     else toastError("Couldn't save the medical entry. Try again.");
   }
 

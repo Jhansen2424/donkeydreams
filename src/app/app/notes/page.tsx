@@ -23,7 +23,8 @@ import { useMedical } from "@/lib/medical-context";
 import { useToast } from "@/lib/toast-context";
 import { categoryMeta, type TaskCategory } from "@/lib/sanctuary-data";
 import { normalizeParagraphs } from "@/components/app/ExpandableText";
-import { watchToMedicalText } from "@/lib/watch-medical";
+import { watchMedicalTitle, watchToMedicalText } from "@/lib/watch-medical";
+import { useAnimals } from "@/lib/animals-context";
 
 const typeConfig: Record<
   EntryType,
@@ -57,6 +58,7 @@ export default function NotesPage() {
   const { addTask } = useSchedule();
   const { addEntry: addMedicalEntry } = useMedical();
   const { toastSuccess, toastError } = useToast();
+  const { animals: roster } = useAnimals();
   const [filter, setFilter] = useState<FilterKey>("all");
   // Track which entry's category/task-category picker is open.
   const [catPickerId, setCatPickerId] = useState<string | null>(null);
@@ -91,7 +93,7 @@ export default function NotesPage() {
       const saved = await addMedicalEntry({
         animal: entry.data.animal,
         type: fromWatch ? "Condition" : "Vet Visit",
-        title: fromWatch ? entry.text.slice(0, 60) : entry.data.title?.trim() || entry.text.slice(0, 60),
+        title: fromWatch ? watchMedicalTitle(entry.text) : entry.data.title?.trim() || watchMedicalTitle(entry.text),
         date: entry.data.date ?? new Date().toLocaleDateString("en-CA"),
         description: fromWatch ? watchToMedicalText(entry.text, entry.data.title) : entry.text,
         urgent: fromWatch && entry.data.severity === "high",
@@ -101,7 +103,11 @@ export default function NotesPage() {
         return;
       }
       if (fromWatch) {
-        toastSuccess(`Copied to ${entry.data.animal}'s medical record. The watch alert stays open.`);
+        const slug = roster.find((a) => a.name === entry.data?.animal)?.slug;
+        toastSuccess(
+          `Copied to ${entry.data.animal}'s medical record. The watch alert stays open.`,
+          slug ? { label: `View on ${entry.data.animal}'s profile`, href: `/app/animals/${slug}?tab=medical` } : undefined
+        );
       } else {
         await resolveEntry(entryId);
         toastSuccess(`Moved to ${entry.data.animal}'s medical record.`);

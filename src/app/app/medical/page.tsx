@@ -33,6 +33,8 @@ import { normalizeParagraphs } from "@/components/app/ExpandableText";
 import { useProviders } from "@/lib/providers-context";
 import { volunteers } from "@/lib/volunteer-data";
 import { formatDate as sharedFormatDate } from "@/lib/format-date";
+import { isOverdue, isReminder, isReminderDone } from "@/lib/medical-status";
+import MarkDoneModal from "@/components/app/MarkDoneModal";
 import { Phone } from "lucide-react";
 
 type Tab = "upcoming" | "overdue" | "recent" | "all";
@@ -73,20 +75,27 @@ function RecordCard({
   record,
   onEdit,
   onDelete,
+  onMarkDone,
   canEdit,
+  overdue = false,
 }: {
   record: MedicalRecord;
   onEdit: (record: MedicalRecord) => void;
   onDelete: (record: MedicalRecord) => void;
+  /** Set for reminders: opens "Mark done". */
+  onMarkDone?: (record: MedicalRecord) => void;
   canEdit: boolean;
+  overdue?: boolean;
 }) {
+  // A reminder is only urgent while it's overdue; once done it's calm.
+  const urgent = isReminder(record) ? overdue : record.urgent;
   return (
     <div
       className={`group bg-white rounded-xl border p-4 flex items-start gap-4 ${
-        record.urgent ? "border-red-200 bg-red-50/30" : "border-card-border"
+        urgent ? "border-red-200 bg-red-50/30" : "border-card-border"
       }`}
     >
-      {record.urgent && (
+      {urgent && (
         <AlertCircle className="w-4 h-4 text-red-500 mt-1 shrink-0" />
       )}
       <div className="flex-1 min-w-0">
@@ -98,7 +107,7 @@ function RecordCard({
             {record.animal}
           </Link>
           <TypeBadge type={record.type} />
-          {record.urgent && (
+          {urgent && (
             <span className="text-[10px] font-bold uppercase tracking-wider text-red-600">
               Urgent
             </span>
@@ -118,6 +127,18 @@ function RecordCard({
           <p className="text-sm text-warm-gray mt-2 leading-relaxed whitespace-pre-line">
             {normalizeParagraphs(record.description)}
           </p>
+        )}
+        {onMarkDone && (
+          <button
+            type="button"
+            onClick={() => onMarkDone(record)}
+            className={`mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-colors ${
+              overdue ? "bg-red-600 hover:bg-red-700" : "bg-emerald-600 hover:bg-emerald-700"
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Mark done
+          </button>
         )}
       </div>
       {canEdit && (
@@ -388,6 +409,7 @@ function MedicalDashboardPage() {
   const { entries: dbEntries, addEntry: addMedicalEntry, updateEntry: updateMedicalEntry, removeEntry: removeMedicalEntry } = useMedical();
   const { animals } = useAnimals();
   const [editing, setEditing] = useState<MedicalRecord | null>(null);
+  const [markingDone, setMarkingDone] = useState<MedicalRecord | null>(null);
 
   // Add form state
   const [formAnimal, setFormAnimal] = useState(animals[0]?.name || "");
@@ -449,22 +471,20 @@ function MedicalDashboardPage() {
 
   // Stats
   const stats = useMemo(() => {
-    const overdueCount = allRecords.filter((r) => {
-      return toLocalDate(r.date) < today && r.urgent;
-    }).length;
+    const overdueCount = allRecords.filter((r) => isOverdue(r, allRecords, todayIso)).length;
 
     const weekFromNow = new Date(today);
     weekFromNow.setDate(weekFromNow.getDate() + 7);
     const dueThisWeek = allRecords.filter((r) => {
       const d = toLocalDate(r.date);
-      return d >= today && d <= weekFromNow;
+      return d >= today && d <= weekFromNow && !isReminderDone(r, allRecords, todayIso);
     }).length;
 
     const monthAgo = new Date(today);
     monthAgo.setDate(monthAgo.getDate() - 30);
     const completedThisMonth = allRecords.filter((r) => {
       const d = toLocalDate(r.date);
-      return d >= monthAgo && d <= today && !r.urgent;
+      return d >= monthAgo && d <= today && !r.urgent && !isReminder(r);
     }).length;
 
     return {
@@ -473,7 +493,7 @@ function MedicalDashboardPage() {
       completedThisMonth,
       total: allRecords.length,
     };
-  }, [allRecords, today]);
+  }, [allRecords, today, todayIso]);
 
   // Filtered records based on tab
   const tabRecords = useMemo(() => {
@@ -488,13 +508,13 @@ function MedicalDashboardPage() {
         return allRecords
           .filter((r) => {
             const d = toLocalDate(r.date);
-            return d >= today && d <= weekFromNow;
+            return d >= today && d <= weekFromNow && !isReminderDone(r, allRecords, todayIso);
           })
           .sort((a, b) => a.date.localeCompare(b.date));
       }
       case "overdue":
         return allRecords
-          .filter((r) => toLocalDate(r.date) < today && r.urgent)
+          .filter((r) => isOverdue(r, allRecords, todayIso))
           .sort((a, b) => a.date.localeCompare(b.date));
       case "recent": {
         const cutoff = new Date(today);
@@ -502,7 +522,7 @@ function MedicalDashboardPage() {
         return allRecords
           .filter((r) => {
             const d = toLocalDate(r.date);
-            return d >= cutoff && d <= today;
+            return d >= cutoff && d <= today && !isReminder(r);
           })
           .sort((a, b) => b.date.localeCompare(a.date));
       }
@@ -510,7 +530,7 @@ function MedicalDashboardPage() {
       default:
         return [...allRecords].sort((a, b) => b.date.localeCompare(a.date));
     }
-  }, [allRecords, tab, today]);
+  }, [allRecords, tab, today, todayIso]);
 
   // Apply search and type filter
   const filteredRecords = useMemo(() => {
@@ -1011,6 +1031,12 @@ function MedicalDashboardPage() {
                       key={record.id}
                       record={record}
                       canEdit={isDbRecord}
+                      overdue={isOverdue(record, allRecords, todayIso)}
+                      onMarkDone={
+                        isReminder(record) && !isReminderDone(record, allRecords, todayIso)
+                          ? (r) => setMarkingDone(r)
+                          : undefined
+                      }
                       onEdit={(r) => setEditing(r)}
                       onDelete={async (r) => {
                         if (confirm(`Delete medical entry for ${r.animal}: "${r.title}"?`)) {
@@ -1025,6 +1051,8 @@ function MedicalDashboardPage() {
           ))}
         </div>
       )}
+
+      {markingDone && <MarkDoneModal record={markingDone} todayIso={todayIso} onClose={() => setMarkingDone(null)} />}
 
       {editing && (
         <EditRecordModal
