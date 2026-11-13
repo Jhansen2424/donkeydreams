@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Open_Sans } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import Script from "next/script";
 import SiteShell from "@/components/SiteShell";
 import "./globals.css";
 
@@ -45,6 +46,15 @@ export default function RootLayout({
       <body className={`${openSans.variable} antialiased`}>
         <SiteShell>{children}</SiteShell>
         <Analytics />
+        {/* Google Analytics 4 (property 564249968, donkeydreams.org stream); OneApp reads it for site visits. */}
+        <Script
+          id="ga4-src"
+          src="https://www.googletagmanager.com/gtag/js?id=G-H0F6SRSQ45"
+          strategy="afterInteractive"
+        />
+        <Script id="ga4-init" strategy="afterInteractive">
+          {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-H0F6SRSQ45');`}
+        </Script>
       </body>
     </html>
   );
