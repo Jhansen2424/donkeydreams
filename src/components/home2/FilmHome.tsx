@@ -56,6 +56,8 @@ const PLAN: Record<string, Plan> = {
   // Longer, so the opening clip gets room to play (client, 2026-10-15).
   cold1: { lead: 5.0, segs: ["cold1"], tail: 4.0 },
   cold2: { lead: 0.9, segs: ["cold2"], tail: 1.3 },
+  // The logo, held a beat with no narration (client 11/24, Edj).
+  logo: { lead: 0, segs: [], tail: 4.5 },
   hero: { lead: 0.8, segs: ["hero1", ["hero2", 0.9]], tail: 1.8 },
   wildfree: { lead: 0.6, segs: ["wild", ["alone", 1.0]], tail: 2.8 },
   familybody: { lead: 1.0, segs: ["fam1", "fam2", "fam3"], gap: 1.4, tail: 2.0 },
@@ -466,6 +468,27 @@ function buildScenes(): SceneDef[] {
           </TitleCard>
         </div>
       </Bleed>
+    )),
+    // ═══ Logo ═══
+    // Right before "Preserving the Wild Burro Spirit" (client 11/24). Eases
+    // in and settles at exactly full size with no leftover transform, so
+    // the logo ends sharp (same fix as the titles, 10/16).
+    scene("logo", "Donkey Dreams Sanctuary", (a) => (
+      <div className="absolute inset-0 flex items-center justify-center px-8 bg-[radial-gradient(ellipse_at_center,#fffaf3_0%,#f7ecdc_55%,#ecdcc4_100%)]">
+        <Timed
+          active={a}
+          style={{ opacity: 1 }}
+          layers={[["filmLogoIn", 1.8, 350, undefined, "backwards"]]}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/DDlogo.png"
+            alt="Donkey Dreams Sanctuary"
+            className="w-[82vw] max-w-[620px] h-auto select-none"
+            draggable={false}
+          />
+        </Timed>
+      </div>
     )),
     // ═══ Hero ═══
     scene("hero", "Preserving the Wild Burro Spirit", (a) => (
@@ -1012,6 +1035,20 @@ const NAV = NEW_NAV;
 
 const UNLOCK = "__unlock";
 
+// ── Background music (client 11/24, Edj) ──
+// A banjo track under the narration. It starts with the sound button (an
+// iPhone only allows audio to start from a tap), plays and pauses with the
+// film, loops, and sits well under Amber's voice: lower still while she's
+// speaking, fading out on the last screen. Levels go through Web Audio
+// because iPhones ignore an audio element's volume setting. No file, no
+// music: the film plays as before.
+// Track: "Spanish" by nastelbom, from Pixabay (Pixabay Content License:
+// free for websites, no credit required). Trimmed and looped seamlessly
+// (its last 4s blend into its first 4s) and leveled to the narration.
+const MUSIC_SRC = "/audio/film/music.mp3";
+const MUSIC_BED = 0.22; // between lines
+const MUSIC_UNDER_VOICE = 0.1; // while Amber is speaking
+
 export default function FilmHome() {
   const scenes = useMemo(buildScenes, []);
   const total = useMemo(
@@ -1046,6 +1083,7 @@ export default function FilmHome() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const preloadRef = useRef<HTMLAudioElement | null>(null);
   const segRef = useRef<string | null>(null);
+  const musicRef = useRef<{ el: HTMLAudioElement; ctx: AudioContext; gain: GainNode; failed: boolean } | null>(null);
   idxRef.current = idx;
   playingRef.current = playing;
   soundRef.current = soundOn;
@@ -1135,6 +1173,72 @@ export default function FilmHome() {
     }
   }, [activeSegAt, startSeg]);
 
+  /** Play/pause the music with the film and set its level (ducked under
+   *  the voice, out on the last screen). Cheap; runs every clock tick. */
+  const syncMusic = useCallback(() => {
+    const m = musicRef.current;
+    if (!m || m.failed) return;
+    const on = soundRef.current && playingRef.current && !document.hidden;
+    if (!on) {
+      if (!m.el.paused) m.el.pause();
+      return;
+    }
+    if (m.ctx.state === "suspended") void m.ctx.resume().catch(() => {});
+    if (m.el.paused) void m.el.play().catch(() => {});
+    const voice = audioRef.current;
+    const speaking = !!voice && !voice.paused && segRef.current !== UNLOCK;
+    const atEnd = idxRef.current === scenes.length - 1;
+    const target = atEnd ? 0 : speaking ? MUSIC_UNDER_VOICE : MUSIC_BED;
+    if (Math.abs(m.gain.gain.value - target) > 0.005) {
+      // ease, not jump: ~0.6s to settle when ducking, slower to fade out
+      m.gain.gain.setTargetAtTime(target, m.ctx.currentTime, atEnd ? 1.5 : 0.25);
+    }
+  }, [scenes.length]);
+
+  /** Create and start the music. Must run inside the sound tap. */
+  const startMusic = useCallback(() => {
+    if (musicRef.current) {
+      syncMusic();
+      return;
+    }
+    const Ctx =
+      window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+    try {
+      const el = new Audio();
+      el.src = MUSIC_SRC;
+      el.loop = true;
+      el.preload = "auto";
+      const ctx = new Ctx();
+      const gain = ctx.createGain();
+      gain.gain.value = 0; // fade in from silence
+      ctx.createMediaElementSource(el).connect(gain).connect(ctx.destination);
+      const m = { el, ctx, gain, failed: false };
+      el.addEventListener("error", () => {
+        m.failed = true; // no track uploaded (or it failed): film plays without music
+      });
+      musicRef.current = m;
+      void ctx.resume().catch(() => {});
+      void el.play().catch(() => {});
+      syncMusic();
+    } catch {
+      // Web Audio unavailable: skip music rather than risk a loud track.
+    }
+  }, [syncMusic]);
+
+  // Stop the music if the film unmounts.
+  useEffect(
+    () => () => {
+      const m = musicRef.current;
+      if (m) {
+        m.el.pause();
+        void m.ctx.close().catch(() => {});
+        musicRef.current = null;
+      }
+    },
+    []
+  );
+
   /** Jump the film to any point (seconds from the start). */
   const seekTo = useCallback(
     (g: number) => {
@@ -1205,6 +1309,7 @@ export default function FilmHome() {
       if (bufferingRef.current && now - bufSinceRef.current > 4000) setBuf(false); // never hang
       if (!playingRef.current || document.hidden || bufferingRef.current) {
         syncAudio();
+        syncMusic();
         return;
       }
       const i = idxRef.current;
@@ -1222,9 +1327,10 @@ export default function FilmHome() {
       const j = idxRef.current;
       setProgress(starts[j] + Math.min(elapsedRef.current, Number.isFinite(scenes[j].dur) ? scenes[j].dur : 0));
       syncAudio();
+      syncMusic();
     }, 120);
     return () => clearInterval(timer);
-  }, [scenes, starts, syncAudio, setBuf]);
+  }, [scenes, starts, syncAudio, syncMusic, setBuf]);
 
   // narration element + buffering signals
   useEffect(() => {
@@ -1253,6 +1359,7 @@ export default function FilmHome() {
     playingRef.current = false;
     setPlaying(false);
     audioRef.current?.pause();
+    musicRef.current?.el.pause();
   }, []);
   const resumeFilm = useCallback(() => {
     playingRef.current = true;
@@ -1314,6 +1421,7 @@ export default function FilmHome() {
     // runs inside the tap — mobile only allows audio to start in a gesture
     soundRef.current = true;
     setSoundOn(true);
+    startMusic();
     const audio = audioRef.current;
     if (!audio) return;
     const seg = activeSegAt(idxRef.current, elapsedRef.current);
@@ -1341,6 +1449,7 @@ export default function FilmHome() {
     setSoundOn(false);
     segRef.current = null;
     audioRef.current?.pause();
+    musicRef.current?.el.pause();
     setBuf(false);
   };
 
@@ -1383,6 +1492,7 @@ export default function FilmHome() {
         @keyframes filmCrossfade { from { opacity: 0; } to { opacity: 1; } }
         @keyframes filmPhotoIn { from { opacity: 0; transform: scale(1.06); } to { opacity: 1; transform: scale(1); } }
         @keyframes filmParaIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes filmLogoIn { from { opacity: 0; transform: translateY(18px) scale(0.96); } to { opacity: 1; transform: none; } }
         @keyframes filmParaOut { from { opacity: 1; } to { opacity: 0; } }
         /* zoom-settle + focus pull (letter-spacing reflowed multi-line text) */
         @keyframes filmTitleIn {
